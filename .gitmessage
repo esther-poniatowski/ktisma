@@ -1,0 +1,17 @@
+pref():
+###################################################
+
+######################################################################
+# | Prefix    | Description                               |
+# | --------- | ----------------------------------------- |
+# | chore     | Setup, cleanup, environment tasks         |
+# | config    | Configuration settings for the project    |
+# | feat      | Feature implementation                    |
+# | test      | Tests and validations                     |
+# | fix       | Corrections, bug fixes                    |
+# | perf      | Performance improvements                  |
+# | docs      | Documentation updates                     |
+# | style     | Styling and formatting improvements       |
+# | refactor  | Code or structure refactoring             |
+# | merge     | Merge a branch                            |
+# | revert    | Revert a commit                           |

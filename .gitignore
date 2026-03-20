@@ -1,0 +1,29 @@
+# gitignore file for ktisma
+# -------------------------
+
+# Temporary files
+*.tmp
+*.temp
+
+# MacOS
+.DS_Store
+
+# LaTeX build artifacts
+.latexmk_build/
+**/*-pdfs/
+*.aux
+*.log
+*.out
+*.fls
+*.fdb_latexmk
+*.synctex.*
+*.nav
+*.snm
+*.vrb
+*.toc
+*.bbl
+*.blg
+*.bcf
+*.run.xml
+*.dvi
+*.xdv
