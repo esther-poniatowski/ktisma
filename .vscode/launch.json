@@ -1,0 +1,19 @@
+// =================================================================================================
+// VS Code Debugging Configurations for Ktisma
+//
+// Defines default debug configuration for shell scripts using `bash-debug`.
+// Launches the current file in the integrated terminal.
+// =================================================================================================
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Bash Debug: Current File",
+      "type": "bashdb",
+      "request": "launch",
+      "program": "${file}",
+      "cwd": "${workspaceFolder}",
+      "terminalKind": "integrated"
+    }
+  ]
+}

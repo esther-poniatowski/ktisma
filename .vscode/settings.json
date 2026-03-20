@@ -1,0 +1,74 @@
+// =================================================================================================
+// VS Code Workspace Settings for Ktisma
+//
+// Project-specific preferences for editor behavior and development tooling.
+//
+// General Sections
+// ----------------
+// - Editor Layout and Behavior
+// - File Explorer and Exclusions
+//
+// Tool Configuration
+// ------------------
+// - Spell Checking              : CSpell
+// - Formatting                  : Rewrap
+// - Linting                     : ShellCheck
+// - Adaptive Language Assistance: GitHub Copilot
+// =================================================================================================
+{
+  // --- Editor Layout and Behavior ----------------------------------------------------------------
+  "workbench.editor.closeEmptyGroups": false,
+  "workbench.editor.openSideBySideDirection": "right",
+  "workbench.editor.openPositioning": "last",
+  "editor.lineNumbers": "on",
+  "editor.rulers": [100],
+  "editor.wordWrap": "off",
+
+  // --- File Explorer and Exclusions --------------------------------------------------------------
+  "files.exclude": {
+    "**/.git": false,
+    "**/.DS_Store": true,
+    "**/.latexmk_build": true,
+    "**/*-pdfs": true
+  },
+  "search.exclude": {
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/.latexmk_build": true,
+    "**/*-pdfs": true
+  },
+
+  // --- Spell Checking ----------------------------------------------------------------------------
+  "cSpell.enabled": true,
+  "cSpell.customDictionaries": {
+    "project": {
+      "name": "project",
+      "path": "${workspaceFolder}/config/dictionaries/project.txt"
+    }
+  },
+
+  // --- Formatting --------------------------------------------------------------------------------
+  "rewrap.wrappingColumn": 100,
+  "rewrap.wholeComment": false,
+  "rewrap.autoWrap.enabled": true,
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.trimFinalNewlines": true,
+
+  // --- Linting -----------------------------------------------------------------------------------
+  "shellcheck.enableQuickFix": true,
+
+  // --- Adaptive Language Assistance --------------------------------------------------------------
+  "github.copilot.enable": {
+    "*": true,
+    "shellscript": true,
+    "perl": true,
+    "plaintext": true,
+    "markdown": true,
+    "yaml": true,
+    "json": true,
+    "jsonc": true,
+    "gitignore": true,
+    "git": true
+  },
+}

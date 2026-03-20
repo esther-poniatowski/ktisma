@@ -1,0 +1,45 @@
+// =================================================================================================
+// VS Code Extension Recommendations for Ktisma
+//
+// Suggested extensions for consistent functionality and tooling across environments.
+//
+// Categories
+// ----------
+// - Editor Enhancements
+// - Spell Checking
+// - Shell Script Support
+// - Debugging
+// - Formatting
+// - Version Control
+// - Adaptive Language Assistance
+// =================================================================================================
+{
+  "recommendations": [
+    // --- Editor Enhancements ---------------------------------------------------------------------
+    "wayou.vscode-todo-highlight",
+    "tamasfe.even-better-toml",
+
+    // --- Spell Checking --------------------------------------------------------------------------
+    "streetsidesoftware.code-spell-checker",
+
+    // --- Shell Script Support --------------------------------------------------------------------
+    "timonwong.shellcheck",
+    "mads-hartmann.bash-ide-vscode",
+
+    // --- Debugging -------------------------------------------------------------------------------
+    "rogalmic.bash-debug",
+
+    // --- Formatting ------------------------------------------------------------------------------
+    "stkb.rewrap",
+
+    // --- Version Control -------------------------------------------------------------------------
+    "mhutchie.git-graph",
+    "github.vscode-github-actions",
+    "github.vscode-pull-request-github",
+
+    // --- Adaptive Language Assistance ------------------------------------------------------------
+    "github.copilot",
+    "github.copilot-chat",
+
+  ]
+}
