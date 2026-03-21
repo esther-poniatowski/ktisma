@@ -41,6 +41,6 @@ def _level_prefix(level: DiagnosticLevel, use_color: bool) -> str:
         DiagnosticLevel.ERROR: ("error", "\033[31m"),    # red
     }
     label, color = labels.get(level, ("unknown", ""))
-    if use_color and sys.stderr.isatty():
+    if use_color:
         return f"{color}{label}\033[0m:"
     return f"{label}:"

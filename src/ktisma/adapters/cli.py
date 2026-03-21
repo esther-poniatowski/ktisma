@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from ..domain.context import BuildRequest
+from ..domain.diagnostics import DiagnosticLevel
 from ..domain.exit_codes import ExitCode
 from . import bootstrap
 from .log import format_diagnostics, setup_logging
@@ -115,7 +116,7 @@ def _cmd_build(args: argparse.Namespace) -> int:
         watch=args.watch,
         dry_run=args.dry_run,
         engine_override=args.engine,
-        output_dir_override=args.output_dir.resolve() if args.output_dir else None,
+        output_dir_override=args.output_dir.expanduser().resolve() if args.output_dir else None,
         variant=args.variant,
         variant_payload=args.variant_payload if hasattr(args, "variant_payload") else None,
         json_output=args.json,
@@ -131,10 +132,11 @@ def _cmd_build(args: argparse.Namespace) -> int:
     _print_diagnostics(result.diagnostics, args.json)
 
     if args.json:
+        source_file = args.source.expanduser().resolve()
         _print_json({
             "exit_code": int(result.exit_code),
             "engine": result.engine.to_dict() if result.engine else None,
-            "route": result.route.to_dict(args.source) if result.route else None,
+            "route": result.route.to_dict(source_file) if result.route else None,
             "build_plan": result.build_plan.to_dict() if result.build_plan else None,
             "produced_paths": [str(p) for p in result.produced_paths],
         })
@@ -165,12 +167,14 @@ def _cmd_inspect_engine(args: argparse.Namespace) -> int:
         if decision.ambiguous:
             print("  (ambiguous)")
 
+    if any(d.level == DiagnosticLevel.ERROR for d in decision.diagnostics):
+        return ExitCode.CONFIG_ERROR
     return ExitCode.SUCCESS
 
 
 def _cmd_inspect_route(args: argparse.Namespace) -> int:
     request = BuildRequest(
-        output_dir_override=args.output_dir.resolve() if args.output_dir else None,
+        output_dir_override=args.output_dir.expanduser().resolve() if args.output_dir else None,
         json_output=args.json,
     )
 
@@ -256,6 +260,7 @@ def _cmd_batch(args: argparse.Namespace) -> int:
                 {"source": str(p), "exit_code": int(r.exit_code)}
                 for p, r in result.results
             ],
+            "diagnostics": [d.to_dict() for d in result.diagnostics],
         })
 
     return result.exit_code
@@ -282,6 +287,7 @@ def _cmd_variants(args: argparse.Namespace) -> int:
                 {"name": v.name, "exit_code": int(r.exit_code)}
                 for v, r in result.results
             ],
+            "diagnostics": [d.to_dict() for d in result.diagnostics],
         })
 
     return result.exit_code

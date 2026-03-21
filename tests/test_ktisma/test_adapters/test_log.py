@@ -98,13 +98,11 @@ class TestLevelPrefix:
         assert "\033[31m" in result  # red
         assert "error" in result
 
-    @patch("ktisma.adapters.log.sys")
-    def test_color_disabled_when_not_tty(self, mock_sys):
-        """Even with use_color=True, no ANSI codes when stderr is not a TTY."""
-        mock_sys.stderr.isatty.return_value = False
+    def test_color_enabled_when_use_color_true(self):
+        """With use_color=True, ANSI codes are emitted (caller decides)."""
         result = _level_prefix(DiagnosticLevel.INFO, use_color=True)
-        assert "\033[" not in result
-        assert result == "info:"
+        assert "\033[36m" in result
+        assert "info" in result
 
 
 # ---------------------------------------------------------------------------

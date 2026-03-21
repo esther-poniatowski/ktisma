@@ -125,6 +125,10 @@ class WorkspaceOps(Protocol):
         """Recursively remove a directory tree."""
         ...
 
+    def glob_files(self, path: Path, pattern: str) -> list[Path]:
+        """Return sorted files matching a glob pattern in a directory."""
+        ...
+
 
 @dataclass(frozen=True)
 class PrerequisiteCheck:

@@ -56,7 +56,7 @@ def execute_batch(
         )
         return BatchResult(exit_code=ExitCode.CONFIG_ERROR, diagnostics=diagnostics)
 
-    if not source_dir.is_dir():
+    if not workspace_ops.is_directory(source_dir):
         diagnostics.append(
             Diagnostic(
                 level=DiagnosticLevel.ERROR,
@@ -67,7 +67,7 @@ def execute_batch(
         )
         return BatchResult(exit_code=ExitCode.CONFIG_ERROR, diagnostics=diagnostics)
 
-    tex_files = sorted(source_dir.glob("*.tex"))
+    tex_files = workspace_ops.glob_files(source_dir, "*.tex")
     if not tex_files:
         diagnostics.append(
             Diagnostic(
