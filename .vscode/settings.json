@@ -7,12 +7,16 @@
 // ----------------
 // - Editor Layout and Behavior
 // - File Explorer and Exclusions
+// - Environment and Terminal
 //
 // Tool Configuration
 // ------------------
 // - Spell Checking              : CSpell
-// - Formatting                  : Rewrap
-// - Linting                     : ShellCheck
+// - Formatting                  : Black, Rewrap
+// - Linting                     : Pylint
+// - Static Type Checking        : Mypy
+// - Documentation               : Sphinx, Esbonio
+// - Testing                     : Pytest
 // - Adaptive Language Assistance: GitHub Copilot
 // =================================================================================================
 {
@@ -28,15 +32,23 @@
   "files.exclude": {
     "**/.git": false,
     "**/.DS_Store": true,
-    "**/.latexmk_build": true,
-    "**/*-pdfs": true
+    "**/.pytest_cache": true,
+    "**/__pycache__": true,
+    "**/.mypy_cache": true
   },
   "search.exclude": {
     "**/.git": true,
     "**/.DS_Store": true,
-    "**/.latexmk_build": true,
-    "**/*-pdfs": true
+    "**/.pytest_cache": true,
+    "**/__pycache__": true,
+    "**/.mypy_cache": true,
+    "**/docs/_build": true,
+    "archive": true
   },
+
+  // --- Environment and Terminal ------------------------------------------------------------------
+  "python.defaultInterpreterPath": "${userHome}/miniconda3/envs/ktisma/bin/python",
+  "python.terminal.activateEnvironment": true,
 
   // --- Spell Checking ----------------------------------------------------------------------------
   "cSpell.enabled": true,
@@ -44,6 +56,14 @@
     "project": {
       "name": "project",
       "path": "${workspaceFolder}/config/dictionaries/project.txt"
+    },
+    "python": {
+      "name": "python",
+      "path": "${workspaceFolder}/config/dictionaries/python.txt"
+    },
+    "tools": {
+      "name": "tools",
+      "path": "${workspaceFolder}/config/dictionaries/tools.txt"
     }
   },
 
@@ -54,21 +74,38 @@
   "files.trimTrailingWhitespace": true,
   "files.insertFinalNewline": true,
   "files.trimFinalNewlines": true,
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.formatOnSave": true
+  },
+  "black-formatter.args": ["--config", "${workspaceFolder}/config/tools/black.toml"],
 
   // --- Linting -----------------------------------------------------------------------------------
-  "shellcheck.enableQuickFix": true,
+  "pylint.args": ["--rcfile=${workspaceFolder}/config/tools/pylintrc.ini"],
+  "python.analysis.typeCheckingMode": "strict",
+
+  // --- Static Type Checking ----------------------------------------------------------------------
+  "mypy-type-checker.args": ["--config-file=${workspaceFolder}/config/tools/mypy.ini"],
+  "mypy-type-checker.ignorePatterns": [
+    "**/config/**",
+    "**/conf.py",
+    "**/*.ipynb"
+  ],
+
+  // --- Documentation -----------------------------------------------------------------------------
+  "esbonio.server.enabled": true,
+  "esbonio.server.enabledInPyFiles": true,
+  "esbonio.sphinx.confDir": "docs",
+  "esbonio.sphinx.srcDir": "docs",
+  "esbonio.sphinx.builderName": "html",
+
+  // --- Testing -----------------------------------------------------------------------------------
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestArgs": ["tests"],
 
   // --- Adaptive Language Assistance --------------------------------------------------------------
   "github.copilot.enable": {
-    "*": true,
-    "shellscript": true,
-    "perl": true,
-    "plaintext": true,
-    "markdown": true,
-    "yaml": true,
-    "json": true,
-    "jsonc": true,
-    "gitignore": true,
-    "git": true
+    "*": true
   },
 }

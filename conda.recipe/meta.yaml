@@ -1,0 +1,75 @@
+# ==================================================================================================
+# Conda Recipe for the Ktisma Package
+#
+# File: `conda.recipe/meta.yaml`
+#
+# Build recipe for conda packaging using metadata extracted from the `pyproject.toml` file.
+#
+# Notes
+# -----
+# Metadata is dynamically extracted from the `pyproject.toml` file to ensure consistency with the
+# primary project configuration.
+#
+# Synchronized fields:
+#
+# - `name`
+# - `version`
+# - `description`
+# - `license`
+# - `license_file`      (from `license-files`)
+# - `requirements: run` (runtime dependencies, from `dependencies`)
+# - `url`               ("homepage" URL)
+#
+# The build script uses `pip` to install the package, relying on the build backends specified in
+# `pyproject.toml` (in this case, `setuptools`).
+#
+# Warning
+# -------
+# This recipe assumes that all declared dependencies are available on Conda (typically via
+# `conda-forge`, `defaults` or private channels), and that no optional extras are required.
+#
+# Variables
+# ---------
+# - `recipe_dir`: Directory containing this recipe file, used to locate the `pyproject.toml`.
+# - `pyproject`: Loaded metadata from `pyproject.toml` using Jinja2 templating.
+#
+# See Also
+# --------
+# `Jinja2`: Templating engine used to inject metadata from `pyproject.toml`.
+# ==================================================================================================
+
+{% set recipe_dir = environ.get('RECIPE_DIR', '.') %}
+{% set pyproject = load_file_data('pyproject.toml') %}
+
+package:
+  name: {{ pyproject.project.name | lower }}
+  version: {{ pyproject.project.version }}
+
+source:
+  path: {{ RECIPE_DIR }}/..
+
+build:
+  script: python -m pip install . --no-deps --ignore-installed --no-build-isolation -vv
+  noarch: python
+
+requirements:
+  host:
+    - python {{ pyproject.project["requires-python"] }}
+    - pip
+    - setuptools >=61
+    - wheel
+  run:
+    - python {{ pyproject.project["requires-python"] }}
+    {% for dep in pyproject.project["dependencies"] %}
+    - {{ dep }}
+    {% endfor %}
+
+about:
+  summary: {{ pyproject.project.description }}
+  license: {{ pyproject.project.license }}
+  license_file: {{ pyproject.project["license-files"][0] }}
+  home: {{ pyproject.project.urls.homepage }}
+
+extra:
+  recipe-maintainers:
+    - esther-poniatowski

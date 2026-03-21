@@ -7,9 +7,13 @@
 // ----------
 // - Editor Enhancements
 // - Spell Checking
-// - Shell Script Support
+// - Core Language Support
 // - Debugging
+// - Testing
 // - Formatting
+// - Linting
+// - Static Type Checking
+// - Documentation
 // - Version Control
 // - Adaptive Language Assistance
 // =================================================================================================
@@ -22,15 +26,31 @@
     // --- Spell Checking --------------------------------------------------------------------------
     "streetsidesoftware.code-spell-checker",
 
-    // --- Shell Script Support --------------------------------------------------------------------
-    "timonwong.shellcheck",
-    "mads-hartmann.bash-ide-vscode",
+    // --- Core Language Support -------------------------------------------------------------------
+    "ms-python.python",
+    "ms-python.vscode-pylance",
 
     // --- Debugging -------------------------------------------------------------------------------
-    "rogalmic.bash-debug",
+    "ms-python.debugpy",
+
+    // --- Testing ---------------------------------------------------------------------------------
+    "ms-vscode.test-adapter-converter",
+    "hbenl.vscode-test-explorer",
 
     // --- Formatting ------------------------------------------------------------------------------
+    "ms-python.black-formatter",
     "stkb.rewrap",
+
+    // --- Linting ---------------------------------------------------------------------------------
+    "ms-python.pylint",
+
+    // --- Static Type Checking --------------------------------------------------------------------
+    "ms-python.mypy-type-checker",
+
+    // --- Documentation ---------------------------------------------------------------------------
+    "executablebookproject.myst-highlight",
+    "davidanson.vscode-markdownlint",
+    "swyddfa.esbonio",
 
     // --- Version Control -------------------------------------------------------------------------
     "mhutchie.git-graph",
