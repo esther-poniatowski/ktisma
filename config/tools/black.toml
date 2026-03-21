@@ -1,0 +1,98 @@
+# ==================================================================================================
+# Black Configurations for the Ktisma Package
+#
+# File: `config/tools/black.toml`
+#
+# Usage
+# -----
+# From the terminal, pass this configuration file to the Black code formatter:
+#
+# ```sh
+# black --config config/tools/black.toml .
+# ```
+#
+# In VS Code `settings.json` file, set the Black extension as the default formatter for Python files
+# and pass this configuration:
+#
+# ```json
+# {
+#  "[python]": {
+#			"editor.defaultFormatter": "ms-python.black-formatter",
+#			"editor.formatOnSave": true
+#		},
+#		"black-formatter.args": ["--config", "${workspaceFolder}/config/tools/black.toml"],
+# }
+# ```
+#
+# Notes
+# -----
+# Configuration file:
+#
+# This dedicated configuration file reproduces the structure of the `pyproject.toml` file that is
+# conventionally detected by the Black formatter. It allows for a clear separation of tool-specific
+# settings from the main project configuration.
+#
+# Exclusions:
+#
+# - Configuration files not intended for formatting: `.*conf.*`, `config/` directory.
+# - Jupyter Notebook files: `*.ipynb`.
+# - Stubs that may contain static type annotations not maintained manually: `stubs`.
+#
+# The `force-exclude` directive ensures that specific paths are never formatted, even if passed
+# explicitly to the Black command. This behavior is required to enforce exclusions in all contexts,
+# including within the Visual Studio Code extension. In particular, VS Code run Blacks by explicitly
+# passing the path to the file currently open in the editor, which bypasses the `exclude` directive.
+#
+# The regular expressions are independent of the path separator style to ensure cross-platform
+# compatibility.
+#
+# Line Length Synchronization:
+#
+# The line length should be consistent across all the tools used in the development environment:
+#
+# - VS Code (in `settings.json`):
+#
+#   ```json
+#   {
+#     "editor.rulers": {{ line_length }}
+#     "rewrap.wrappingColumn": {{ line_length }}
+#   }
+#   ```
+#
+# - Pylint (in `config/tools/pylintrc.ini`):
+#
+#   ```ini
+#   [FORMAT]
+#   max-line-length = {{ line_length }}
+#   ```
+#
+# All formatting and style-checking tools should use the same value to prevent formatting conflicts
+# and to preserve structural coherence in diffs and collaborative development workflows.
+#
+# See Also
+# --------
+# [Black Documentation](https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#configuration-via-a-file)
+# ==================================================================================================
+
+[tool.black]
+
+# --- Formatting -----------------------------------------------------------------------------------
+
+line-length = 100
+
+# --- Exclusions -----------------------------------------------------------------------------------
+
+force-exclude = '''
+(
+  (^|/)(
+    stubs
+    | config
+  )(/|$)
+  | (^|/)conf\.py$
+  | \.ipynb$
+)
+'''
+
+# --- Visual Output --------------------------------------------------------------------------------
+
+color = true

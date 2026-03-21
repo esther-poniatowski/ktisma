@@ -1,0 +1,7 @@
+# ======================================
+# Dictionary for CSpell Extension
+# Topics:
+# - Project-specific terms
+# ======================================
+ktisma
+latexmk

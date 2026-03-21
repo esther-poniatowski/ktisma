@@ -1,0 +1,21 @@
+# ======================================
+# Dictionary for CSpell Extension
+# Topics:
+# - Tool-specific names
+# - Project management concepts
+# ======================================
+debugpy
+esbonio
+miniconda
+mypy
+numpydoc
+pylance
+pylint
+pylintrc
+pyright
+pytest
+pyyaml
+rcfile
+rstcheck
+sphinxcontrib
+typer
