@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import signal
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
 from ..domain.build_dir import BuildDirPlan, plan_build_dir
-from ..domain.config import CleanupPolicy, ConfigLayer, ResolvedConfig
+from ..domain.config import VALID_ENGINES, CleanupPolicy, ConfigLayer, ResolvedConfig
 from ..domain.context import BuildRequest, SourceContext, VariantSpec, is_valid_variant_name
 from ..domain.diagnostics import Diagnostic, DiagnosticLevel
 from ..domain.engine import EngineDecision, EngineRule, detect_engine
@@ -70,6 +71,18 @@ def execute_build(
     source_inputs = source_reader.read_source(ctx.source_file)
 
     if request.engine_override:
+        if request.engine_override not in VALID_ENGINES:
+            all_diagnostics.append(
+                Diagnostic(
+                    level=DiagnosticLevel.WARNING,
+                    component="engine",
+                    code="unknown-engine-override",
+                    message=(
+                        f"Engine override '{request.engine_override}' is not a recognized engine; "
+                        f"valid engines: {', '.join(sorted(VALID_ENGINES))}."
+                    ),
+                )
+            )
         engine_decision = EngineDecision(
             engine=request.engine_override,
             evidence=["--engine CLI override"],
@@ -254,8 +267,12 @@ def _execute_watch(
             session.terminate()
             session_closed = True
 
-    old_sigint = signal.signal(signal.SIGINT, _teardown)
-    old_sigterm = signal.signal(signal.SIGTERM, _teardown)
+    is_main_thread = threading.current_thread() is threading.main_thread()
+    old_sigint = None
+    old_sigterm = None
+    if is_main_thread:
+        old_sigint = signal.signal(signal.SIGINT, _teardown)
+        old_sigterm = signal.signal(signal.SIGTERM, _teardown)
 
     try:
         while True:
@@ -263,6 +280,8 @@ def _execute_watch(
                 raise SystemExit(signal_exit_code)
 
             update = session.poll(timeout_seconds=0.5)
+            if signal_exit_code is not None:
+                raise SystemExit(signal_exit_code)
             if update is None:
                 continue
 
@@ -308,8 +327,9 @@ def _execute_watch(
                     diagnostics=diagnostics,
                 )
     finally:
-        signal.signal(signal.SIGINT, old_sigint)
-        signal.signal(signal.SIGTERM, old_sigterm)
+        if is_main_thread:
+            signal.signal(signal.SIGINT, old_sigint)
+            signal.signal(signal.SIGTERM, old_sigterm)
         if not session_finished and not session_closed:
             session.terminate()
 
@@ -444,16 +464,15 @@ def _apply_cleanup(
     diagnostics: list[Diagnostic],
 ) -> None:
     """Apply the cleanup policy to the build directory."""
+    if not compile_success:
+        return  # never clean after compile failure per roadmap
+
     should_clean = False
     if policy == CleanupPolicy.ALWAYS:
         should_clean = True
-    elif policy == CleanupPolicy.ON_SUCCESS and compile_success:
+    elif policy == CleanupPolicy.ON_SUCCESS:
         should_clean = True
-    elif (
-        policy == CleanupPolicy.ON_OUTPUT_SUCCESS
-        and compile_success
-        and materialize_success
-    ):
+    elif policy == CleanupPolicy.ON_OUTPUT_SUCCESS and materialize_success:
         should_clean = True
 
     if should_clean and workspace_ops.path_exists(build_plan.build_dir):

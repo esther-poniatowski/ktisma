@@ -35,7 +35,7 @@ class EngineRule:
 
 XELATEX_MARKERS: list[tuple[str, str]] = [
     (r"\\RequireXeTeX", "\\RequireXeTeX directive"),
-    (r"\\(?:ifxetex|fi)", "ifxetex conditional"),
+    (r"\\ifxetex\b", "ifxetex conditional"),
     (r"\\XeTeXinterchartokenstate", "XeTeX primitive \\XeTeXinterchartokenstate"),
     (r"\\XeTeXinputencoding", "XeTeX primitive \\XeTeXinputencoding"),
     (r"\\XeTeXdefaultencoding", "XeTeX primitive \\XeTeXdefaultencoding"),
@@ -46,7 +46,7 @@ LUALATEX_MARKERS: list[tuple[str, str]] = [
     (r"\\RequireLuaTeX", "\\RequireLuaTeX directive"),
     (r"\\begin\{luacode\*?\}", "luacode environment"),
     (r"\\directlua\b", "\\directlua command"),
-    (r"\\(?:ifluatex|fi)", "ifluatex conditional"),
+    (r"\\ifluatex\b", "ifluatex conditional"),
     (r"\\luaexec\b", "\\luaexec command"),
 ]
 
@@ -79,8 +79,8 @@ def detect_engine(
             evidence=[f"% !TeX program = {magic_engine}"],
         )
 
-    # Step 2: Scan preamble for definitive markers
-    preamble = _extract_preamble(source_inputs.preamble)
+    # Step 2: Scan preamble for definitive markers (infra already extracted it)
+    preamble = source_inputs.preamble
 
     definitive_matches: dict[str, list[str]] = {}
     for rule in custom_rules or []:

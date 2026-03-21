@@ -76,3 +76,6 @@ class FileWorkspaceOps:
 
     def remove_tree(self, path: Path) -> None:
         shutil.rmtree(path)
+
+    def glob_files(self, path: Path, pattern: str) -> list[Path]:
+        return sorted(path.glob(pattern))

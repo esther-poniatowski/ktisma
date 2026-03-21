@@ -59,7 +59,7 @@ def resolve_route(
     # Step 2: Magic comment override
     magic_output = source_inputs.magic_comments.get("output")
     if magic_output:
-        magic_path = Path(magic_output).expanduser()
+        magic_path = Path(magic_output)
         if not magic_path.is_absolute():
             magic_path = ctx.source_dir / magic_path
         if str(magic_output).endswith("/") or not magic_path.suffix:
@@ -170,7 +170,7 @@ def _resolve_route_target(
     rel_source: Path,
 ) -> Path:
     """Resolve a route target to an absolute destination path."""
-    target_path = Path(target).expanduser()
+    target_path = Path(target)
     if not target_path.is_absolute():
         target_path = ctx.workspace_root / target_path
 
@@ -251,7 +251,7 @@ def _apply_suffix_convention(
         if stem in config.routing.entrypoint_names:
             parent_name = parts[-2] if len(parts) >= 2 else stem
             collapsed_name = parent_name + ".pdf"
-            remaining = Path(*parts[1:-1]) if len(parts) > 2 else Path()
+            remaining = Path(*parts[1:-2]) if len(parts) > 3 else Path()
             dest = ctx.workspace_root / output_dir_name / remaining / collapsed_name
             return RouteDecision(
                 destination=dest,

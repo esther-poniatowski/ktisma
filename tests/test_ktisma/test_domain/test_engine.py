@@ -120,11 +120,16 @@ class TestXeLaTeXMarkers:
         assert len(decision.evidence) >= 1
 
     def test_xelatex_marker_after_begin_document_ignored(self) -> None:
-        """Markers after \\begin{document} should not be scanned."""
-        source = "\\documentclass{article}\n\\begin{document}\n\\RequireXeTeX"
-        inputs = _inputs(preamble=source)
+        """Markers after \\begin{document} are not in the preamble.
+
+        Infrastructure extracts only the preamble, so domain never sees
+        markers that appear after \\begin{document}.
+        """
+        # Simulate what infra does: only the preamble is passed to domain
+        preamble_only = "\\documentclass{article}\n"
+        inputs = _inputs(preamble=preamble_only)
         decision = detect_engine(inputs, default_config())
-        assert decision.engine != "xelatex" or decision.engine == default_config().engines.default
+        assert decision.engine == default_config().engines.default
 
 
 # ---------------------------------------------------------------------------

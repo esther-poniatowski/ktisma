@@ -18,8 +18,9 @@ class CleanupPolicy(Enum):
 @dataclass(frozen=True)
 class ConfigLayer:
     data: dict[str, Any]
-    source: Optional[Path]  # Declaring config path or base dir; None for built-in defaults and CLI
+    source: Optional[Path]  # Declaring config file path; None for built-in defaults and CLI
     label: str  # human-readable provenance description
+    base_dir: Optional[Path] = None  # Directory to anchor relative paths against; set by infra
 
 
 @dataclass(frozen=True)
@@ -107,6 +108,16 @@ def validate_config(data: dict[str, Any], schema_version: int = 1) -> list[Diagn
                         message=f"Invalid cleanup policy '{cleanup}'; valid values: {valid}.",
                     )
                 )
+        out_dir_name = build.get("out_dir_name")
+        if out_dir_name is not None and not isinstance(out_dir_name, str):
+            diagnostics.append(
+                Diagnostic(
+                    level=DiagnosticLevel.ERROR,
+                    component="config",
+                    code="type-mismatch",
+                    message=f"'build.out_dir_name' must be a string, got {type(out_dir_name).__name__}.",
+                )
+            )
         synctex = build.get("synctex")
         if synctex is not None and not isinstance(synctex, bool):
             diagnostics.append(
@@ -132,15 +143,25 @@ def validate_config(data: dict[str, Any], schema_version: int = 1) -> list[Diagn
         _validate_keys(engines, "engines", diagnostics)
         for key in ("default", "modern_default"):
             val = engines.get(key)
-            if val is not None and val not in VALID_ENGINES:
-                diagnostics.append(
-                    Diagnostic(
-                        level=DiagnosticLevel.ERROR,
-                        component="config",
-                        code="invalid-engine",
-                        message=f"'engines.{key}' is '{val}'; valid engines: {', '.join(sorted(VALID_ENGINES))}.",
+            if val is not None:
+                if not isinstance(val, str):
+                    diagnostics.append(
+                        Diagnostic(
+                            level=DiagnosticLevel.ERROR,
+                            component="config",
+                            code="type-mismatch",
+                            message=f"'engines.{key}' must be a string, got {type(val).__name__}.",
+                        )
                     )
-                )
+                elif val not in VALID_ENGINES:
+                    diagnostics.append(
+                        Diagnostic(
+                            level=DiagnosticLevel.ERROR,
+                            component="config",
+                            code="invalid-engine",
+                            message=f"'engines.{key}' is '{val}'; valid engines: {', '.join(sorted(VALID_ENGINES))}.",
+                        )
+                    )
         strict = engines.get("strict_detection")
         if strict is not None and not isinstance(strict, bool):
             diagnostics.append(
@@ -164,6 +185,28 @@ def validate_config(data: dict[str, Any], schema_version: int = 1) -> list[Diagn
     routing = data.get("routing", {})
     if isinstance(routing, dict):
         _validate_keys(routing, "routing", diagnostics)
+        for key in ("source_suffix", "output_suffix"):
+            val = routing.get(key)
+            if val is not None and not isinstance(val, str):
+                diagnostics.append(
+                    Diagnostic(
+                        level=DiagnosticLevel.ERROR,
+                        component="config",
+                        code="type-mismatch",
+                        message=f"'routing.{key}' must be a string, got {type(val).__name__}.",
+                    )
+                )
+        for key in ("preserve_relative", "collapse_entrypoint_names"):
+            val = routing.get(key)
+            if val is not None and not isinstance(val, bool):
+                diagnostics.append(
+                    Diagnostic(
+                        level=DiagnosticLevel.ERROR,
+                        component="config",
+                        code="type-mismatch",
+                        message=f"'routing.{key}' must be a boolean, got {type(val).__name__}.",
+                    )
+                )
         entrypoint_names = routing.get("entrypoint_names")
         if entrypoint_names is not None and not isinstance(entrypoint_names, list):
             diagnostics.append(
@@ -270,8 +313,12 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> None:
 
 
 def _prepare_layer_for_merge(data: dict[str, Any], layer: ConfigLayer) -> dict[str, Any]:
-    """Normalize layer-local path semantics before precedence merging."""
-    base_dir = _config_base_dir(layer.source)
+    """Normalize layer-local path semantics before precedence merging.
+
+    This is a pure transformation: it anchors relative route targets to the
+    layer's base_dir using only Path arithmetic (no I/O).
+    """
+    base_dir = layer.base_dir
     if base_dir is None:
         return data
 
@@ -288,20 +335,17 @@ def _prepare_layer_for_merge(data: dict[str, Any], layer: ConfigLayer) -> dict[s
     return data
 
 
-def _config_base_dir(source: Optional[Path]) -> Optional[Path]:
-    if source is None:
-        return None
-    return source if source.is_dir() else source.parent
-
-
 def _anchor_config_path(raw_path: str, base_dir: Path) -> str:
-    """Anchor a config-declared path to the declaring config directory."""
+    """Anchor a config-declared path to the declaring config directory.
+
+    Pure path arithmetic only — no filesystem access.
+    Tilde expansion and symlink resolution are handled at the application boundary.
+    """
     keep_trailing_sep = raw_path.endswith("/")
-    anchored = Path(raw_path).expanduser()
+    anchored = Path(raw_path)
     if not anchored.is_absolute():
         anchored = base_dir / anchored
-    normalized = anchored.resolve(strict=False)
-    normalized_str = str(normalized)
+    normalized_str = str(anchored)
     if keep_trailing_sep and not normalized_str.endswith("/"):
         return normalized_str + "/"
     return normalized_str

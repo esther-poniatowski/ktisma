@@ -25,7 +25,8 @@ class TestReadSource:
         tex.write_text("\\documentclass{article}\n\\begin{document}\nHello\n\\end{document}\n")
         result = reader.read_source(tex)
         assert "\\documentclass{article}" in result.preamble
-        assert "Hello" in result.preamble
+        # "Hello" is after \begin{document}, so it's NOT in the preamble
+        assert "Hello" not in result.preamble
 
     def test_empty_file(self, tmp_path: Path, reader: FileSourceReader) -> None:
         tex = tmp_path / "empty.tex"

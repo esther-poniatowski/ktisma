@@ -22,6 +22,7 @@ class Diagnostic:
     def to_dict(self) -> dict:
         result: dict = {
             "level": self.level.value,
+            "component": self.component,
             "code": self.code,
             "message": self.message,
         }

@@ -251,6 +251,7 @@ class TestMergeConfigLayers:
             data={"engines": {"default": "xelatex"}, "routes": {"a.tex": "out/"}},
             source=Path("/ws/ktisma.toml"),
             label="workspace",
+            base_dir=Path("/ws"),
         )
         cli = ConfigLayer(
             data={"build": {"synctex": False}},

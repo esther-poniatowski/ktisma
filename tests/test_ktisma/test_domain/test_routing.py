@@ -301,29 +301,29 @@ class TestSuffixConvention:
 
 class TestCollapseEntrypointNames:
     def test_collapse_main_tex(self) -> None:
-        """project-tex/ch1/main.tex -> project-pdfs/ch1/ch1.pdf
+        """project-tex/ch1/main.tex -> project-pdfs/ch1.pdf
 
-        Collapse replaces the entrypoint filename with the parent directory name
-        but preserves the intermediate directory structure.
+        Per roadmap: the parent directory name replaces the entrypoint filename,
+        and the parent directory is eliminated from the path.
         """
         ctx = _ctx(source="project-tex/ch1/main.tex")
         cfg = _cfg(collapse_entrypoint_names=True)
         decision = resolve_route(ctx, _inputs(), cfg)
-        assert decision.destination == WS / "project-pdfs/ch1/ch1.pdf"
+        assert decision.destination == WS / "project-pdfs/ch1.pdf"
         assert "entrypoint collapse" in (decision.matched_rule or "")
 
     def test_collapse_index_tex(self) -> None:
-        """project-tex/ch1/index.tex -> project-pdfs/ch1/ch1.pdf"""
+        """project-tex/ch1/index.tex -> project-pdfs/ch1.pdf"""
         ctx = _ctx(source="project-tex/ch1/index.tex")
         cfg = _cfg(collapse_entrypoint_names=True)
         decision = resolve_route(ctx, _inputs(), cfg)
-        assert decision.destination == WS / "project-pdfs/ch1/ch1.pdf"
+        assert decision.destination == WS / "project-pdfs/ch1.pdf"
 
     def test_collapse_custom_entrypoint(self) -> None:
         ctx = _ctx(source="project-tex/ch1/document.tex")
         cfg = _cfg(collapse_entrypoint_names=True, entrypoint_names=["document"])
         decision = resolve_route(ctx, _inputs(), cfg)
-        assert decision.destination == WS / "project-pdfs/ch1/ch1.pdf"
+        assert decision.destination == WS / "project-pdfs/ch1.pdf"
 
     def test_no_collapse_for_non_entrypoint(self) -> None:
         """Non-entrypoint names should NOT collapse."""
@@ -341,11 +341,15 @@ class TestCollapseEntrypointNames:
         assert decision.destination == WS / "project-pdfs/ch1/main.pdf"
 
     def test_collapse_nested_subdirectory(self) -> None:
-        """project-tex/part1/ch1/main.tex -> project-pdfs/part1/ch1/ch1.pdf"""
+        """project-tex/part1/ch1/main.tex -> project-pdfs/part1/ch1.pdf
+
+        Per roadmap: intermediate dirs are preserved, but the entrypoint's
+        parent dir collapses into the filename.
+        """
         ctx = _ctx(source="project-tex/part1/ch1/main.tex")
         cfg = _cfg(collapse_entrypoint_names=True)
         decision = resolve_route(ctx, _inputs(), cfg)
-        assert decision.destination == WS / "project-pdfs/part1/ch1/ch1.pdf"
+        assert decision.destination == WS / "project-pdfs/part1/ch1.pdf"
 
 
 # ---------------------------------------------------------------------------

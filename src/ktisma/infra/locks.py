@@ -62,10 +62,39 @@ class FileLockManager:
     ) -> None:
         """Handle an existing lock file: attempt stale recovery or raise contention."""
         try:
-            existing = json.loads(lock_file.read_text())
+            content = lock_file.read_text()
         except Exception:
             raise LockContention(
                 f"Lock file exists at {lock_file} but cannot be read. "
+                f"Remove it manually if the owning process is no longer running."
+            )
+
+        if not content.strip():
+            # Empty lock file — likely a crash between create and write.
+            # Treat as stale and recover.
+            try:
+                lock_file.unlink()
+            except OSError:
+                raise LockContention(
+                    f"Empty lock file at {lock_file} but could not remove it."
+                )
+            try:
+                fd = os.open(str(lock_file), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                try:
+                    os.write(fd, json.dumps(new_lock_data, indent=2).encode())
+                finally:
+                    os.close(fd)
+                return
+            except FileExistsError:
+                raise LockContention(
+                    f"Lock file appeared again at {lock_file} during empty-lock recovery."
+                )
+
+        try:
+            existing = json.loads(content)
+        except Exception:
+            raise LockContention(
+                f"Lock file exists at {lock_file} but contains invalid data. "
                 f"Remove it manually if the owning process is no longer running."
             )
 

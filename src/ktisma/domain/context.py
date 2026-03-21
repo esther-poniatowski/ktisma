@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 import re
-from typing import Optional
+from typing import ClassVar, Optional
 
 
 @dataclass(frozen=True)
@@ -42,7 +42,7 @@ class VariantSpec:
     name: str
     payload: str
 
-    VALID_NAME_PATTERN: str = r"^[a-zA-Z][a-zA-Z0-9_-]*$"
+    VALID_NAME_PATTERN: ClassVar[str] = r"^[a-zA-Z][a-zA-Z0-9_-]*$"
 
 
 def is_valid_variant_name(name: str) -> bool:

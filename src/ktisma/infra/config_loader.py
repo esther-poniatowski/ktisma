@@ -65,6 +65,7 @@ class TomlConfigLoader:
                 ConfigLayer(
                     data=data,
                     source=config_path,
+                    base_dir=config_path.parent,
                     label=str(config_path),
                 )
             )

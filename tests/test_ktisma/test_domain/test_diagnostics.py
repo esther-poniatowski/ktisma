@@ -104,11 +104,10 @@ class TestDiagnosticToDict:
         result = d.to_dict()
         assert result == {
             "level": "error",
+            "component": "config",
             "code": "unknown-key",
             "message": "Unrecognized key 'foo'.",
         }
-        # component is NOT included in to_dict (per implementation)
-        assert "component" not in result
         # evidence key should not be present when None
         assert "evidence" not in result
 
@@ -124,6 +123,7 @@ class TestDiagnosticToDict:
         result = d.to_dict()
         assert result == {
             "level": "warning",
+            "component": "engine",
             "code": "ambiguous-engine",
             "message": "Ambiguous markers.",
             "evidence": ["fontspec package detected in preamble"],
