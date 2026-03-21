@@ -50,8 +50,8 @@ tiny helper scripts.
 
 | Layer | Responsibility | Typical Modules |
 | --- | --- | --- |
-| Domain | Pure decisions, typed models, merge rules, engine detection, routing decisions, build planning | `domain/context.py`, `domain/config.py`, `domain/diagnostics.py`, `domain/engine.py`, `domain/routing.py`, `domain/build_dir.py`, `domain/exit_codes.py` |
-| Application | Use-cases and orchestration | `app/build.py`, `app/inspect.py`, `app/clean.py`, `app/doctor.py`, `app/batch.py`, `app/variants.py` |
+| Domain | Pure decisions, typed models, merge rules, engine detection, routing decisions, build planning | `domain/context.py`, `domain/config.py`, `domain/diagnostics.py`, `domain/engine.py`, `domain/routing.py`, `domain/build_dir.py`, `domain/exit_codes.py`, `domain/errors.py` |
+| Application | Use-cases and orchestration | `app/protocols.py`, `app/configuration.py`, `app/build.py`, `app/inspect.py`, `app/clean.py`, `app/doctor.py`, `app/batch.py`, `app/variants.py` |
 | Infrastructure | Filesystem, TOML loading, source reading, lockfiles, PDF materialization, subprocess execution, prerequisite probing | `infra/workspace.py`, `infra/config_loader.py`, `infra/source_reader.py`, `infra/locks.py`, `infra/materialize.py`, `infra/latexmk.py`, `infra/prerequisites.py` |
 | Adapters | CLI, editor integration, diagnostic formatting, composition root, optional compatibility shims | `adapters/cli.py`, `adapters/bootstrap.py`, `adapters/log.py`, `adapters/vscode.py`, `adapters/init.py`, `adapters/latexmkrc/` |
 
@@ -78,6 +78,7 @@ Application defines protocol interfaces for replaceable infrastructure capabilit
 - `BackendRunner`: invoke the compilation backend and return structured results.
 - `Materializer`: copy or move build artifacts to final destinations.
 - `PrerequisiteProbe`: check whether required external tools are available.
+- `WorkspaceOps`: create directories, check paths, list entries, remove trees, and glob files.
 
 Infrastructure provides concrete implementations. Adapters wire concrete implementations into
 application use-cases via a composition root.
