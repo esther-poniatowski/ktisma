@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from ktisma.domain.errors import ConfigLoadError
 from ktisma.infra.config_loader import TomlConfigLoader, CONFIG_FILENAME
 
 
@@ -28,7 +29,7 @@ class TestBasicLoading:
         layers = loader.load_layers(workspace_root=tmp_path, source_dir=tmp_path)
         assert len(layers) == 1
         assert layers[0].data["engines"]["default"] == "lualatex"
-        assert layers[0].source == tmp_path
+        assert layers[0].source == config
 
     def test_no_config_files_returns_empty_list(
         self, tmp_path: Path, loader: TomlConfigLoader
@@ -50,7 +51,7 @@ class TestBasicLoading:
         config = tmp_path / CONFIG_FILENAME
         config.write_text("schema_version = 1\n")
         layers = loader.load_layers(workspace_root=tmp_path, source_dir=tmp_path)
-        assert layers[0].source == tmp_path
+        assert layers[0].source == config
 
 
 # ---------------------------------------------------------------------------
@@ -74,8 +75,8 @@ class TestLayerOrdering:
         assert len(layers) == 2
         assert layers[0].data["engines"]["default"] == "pdflatex"
         assert layers[1].data["engines"]["default"] == "lualatex"
-        assert layers[0].source == tmp_path
-        assert layers[1].source == sub
+        assert layers[0].source == ws_config
+        assert layers[1].source == sub_config
 
     def test_intermediate_overlays_in_order(
         self, tmp_path: Path, loader: TomlConfigLoader
@@ -96,9 +97,9 @@ class TestLayerOrdering:
         layers = loader.load_layers(workspace_root=tmp_path, source_dir=c)
         assert len(layers) == 3
         # Order: workspace root, a, c (b is skipped — no config)
-        assert layers[0].source == tmp_path
-        assert layers[1].source == a
-        assert layers[2].source == c
+        assert layers[0].source == tmp_path / CONFIG_FILENAME
+        assert layers[1].source == a / CONFIG_FILENAME
+        assert layers[2].source == c / CONFIG_FILENAME
 
     def test_source_dir_same_as_workspace_root(
         self, tmp_path: Path, loader: TomlConfigLoader
@@ -137,7 +138,7 @@ class TestSourceOutsideWorkspace:
         layers = loader.load_layers(workspace_root=ws, source_dir=outside)
         # Only workspace config; source is outside ws so the walk doesn't happen
         assert len(layers) == 1
-        assert layers[0].source == ws
+        assert layers[0].source == ws / CONFIG_FILENAME
 
 
 # ---------------------------------------------------------------------------
@@ -149,11 +150,11 @@ class TestInvalidToml:
     def test_corrupt_toml_yields_no_layer(
         self, tmp_path: Path, loader: TomlConfigLoader
     ) -> None:
-        """A TOML file with syntax errors is silently skipped."""
+        """A TOML file with syntax errors raises a config-specific error."""
         config = tmp_path / CONFIG_FILENAME
         config.write_text("this is {{{{ not valid TOML\n")
-        layers = loader.load_layers(workspace_root=tmp_path, source_dir=tmp_path)
-        assert layers == []
+        with pytest.raises(ConfigLoadError):
+            loader.load_layers(workspace_root=tmp_path, source_dir=tmp_path)
 
     def test_empty_toml_yields_no_layer(
         self, tmp_path: Path, loader: TomlConfigLoader
@@ -176,8 +177,8 @@ class TestInvalidToml:
     ) -> None:
         config = tmp_path / CONFIG_FILENAME
         config.write_bytes(b"\x00\x01\x02\xff\xfe")
-        layers = loader.load_layers(workspace_root=tmp_path, source_dir=tmp_path)
-        assert layers == []
+        with pytest.raises(ConfigLoadError):
+            loader.load_layers(workspace_root=tmp_path, source_dir=tmp_path)
 
 
 # ---------------------------------------------------------------------------

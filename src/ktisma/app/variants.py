@@ -1,25 +1,20 @@
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Optional
 
-from ..domain.context import BuildRequest, SourceContext, VariantSpec
-from ..domain.config import (
-    BUILTIN_DEFAULTS,
-    ConfigLayer,
-    merge_config_layers,
-    resolve_config,
-)
+from ..domain.context import BuildRequest, SourceContext, VariantSpec, is_valid_variant_name
 from ..domain.diagnostics import Diagnostic, DiagnosticLevel
 from ..domain.exit_codes import ExitCode
 from .build import BuildResult, execute_build
+from .configuration import load_resolved_config
 from .protocols import (
     BackendRunner,
     ConfigLoader,
     LockManager,
     Materializer,
+    PrerequisiteProbe,
+    WorkspaceOps,
     SourceReader,
 )
 
@@ -33,7 +28,7 @@ class VariantsResult:
 
 def validate_variant_name(name: str) -> bool:
     """Check if a variant name is valid for use in filenames."""
-    return bool(re.match(VariantSpec.VALID_NAME_PATTERN, name))
+    return is_valid_variant_name(name)
 
 
 def execute_variants(
@@ -44,6 +39,8 @@ def execute_variants(
     lock_manager: LockManager,
     backend_runner: BackendRunner,
     materializer: Materializer,
+    prerequisite_probe: PrerequisiteProbe,
+    workspace_ops: WorkspaceOps,
 ) -> VariantsResult:
     """Build all configured variants for a source file.
 
@@ -52,11 +49,7 @@ def execute_variants(
     diagnostics: list[Diagnostic] = []
 
     # Load config to get variant definitions
-    layers = [ConfigLayer(data=dict(BUILTIN_DEFAULTS), source=None, label="built-in defaults")]
-    file_layers = config_loader.load_layers(ctx.workspace_root, ctx.source_dir)
-    layers.extend(file_layers)
-    merged, provenance = merge_config_layers(layers)
-    config = resolve_config(merged, provenance)
+    config, _ = load_resolved_config(ctx.workspace_root, ctx.source_dir, config_loader)
 
     if not config.variants:
         diagnostics.append(
@@ -106,6 +99,8 @@ def execute_variants(
                 lock_manager=lock_manager,
                 backend_runner=backend_runner,
                 materializer=materializer,
+                prerequisite_probe=prerequisite_probe,
+                workspace_ops=workspace_ops,
             )
             results.append((variant_spec, result))
             if result.exit_code != ExitCode.SUCCESS:

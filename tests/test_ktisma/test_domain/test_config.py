@@ -262,7 +262,7 @@ class TestMergeConfigLayers:
         assert merged["engines"]["modern_default"] == "lualatex"  # from defaults
         assert merged["build"]["synctex"] is False  # from CLI
         assert merged["build"]["out_dir_name"] == ".ktisma_build"  # from defaults
-        assert merged["routes"] == {"a.tex": "out/"}
+        assert merged["routes"] == {"a.tex": "/ws/out/"}
         assert prov == ["built-in defaults", "workspace", "CLI"]
 
     def test_non_dict_overwrites_dict(self) -> None:

@@ -18,7 +18,7 @@ class CleanupPolicy(Enum):
 @dataclass(frozen=True)
 class ConfigLayer:
     data: dict[str, Any]
-    source: Optional[Path]  # None for built-in defaults and CLI
+    source: Optional[Path]  # Declaring config path or base dir; None for built-in defaults and CLI
     label: str  # human-readable provenance description
 
 
@@ -242,7 +242,8 @@ def merge_config_layers(layers: list[ConfigLayer]) -> tuple[dict[str, Any], list
 
     for layer in layers:
         if layer.data:
-            _deep_merge(merged, copy.deepcopy(layer.data))
+            prepared = _prepare_layer_for_merge(copy.deepcopy(layer.data), layer)
+            _deep_merge(merged, prepared)
             provenance.append(layer.label)
 
     return merged, provenance
@@ -266,6 +267,44 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> None:
             _deep_merge(base[key], value)
         else:
             base[key] = value
+
+
+def _prepare_layer_for_merge(data: dict[str, Any], layer: ConfigLayer) -> dict[str, Any]:
+    """Normalize layer-local path semantics before precedence merging."""
+    base_dir = _config_base_dir(layer.source)
+    if base_dir is None:
+        return data
+
+    routes = data.get("routes")
+    if isinstance(routes, dict):
+        anchored_routes: dict[str, Any] = {}
+        for pattern, target in routes.items():
+            if isinstance(target, str):
+                anchored_routes[pattern] = _anchor_config_path(target, base_dir)
+            else:
+                anchored_routes[pattern] = target
+        data["routes"] = anchored_routes
+
+    return data
+
+
+def _config_base_dir(source: Optional[Path]) -> Optional[Path]:
+    if source is None:
+        return None
+    return source if source.is_dir() else source.parent
+
+
+def _anchor_config_path(raw_path: str, base_dir: Path) -> str:
+    """Anchor a config-declared path to the declaring config directory."""
+    keep_trailing_sep = raw_path.endswith("/")
+    anchored = Path(raw_path).expanduser()
+    if not anchored.is_absolute():
+        anchored = base_dir / anchored
+    normalized = anchored.resolve(strict=False)
+    normalized_str = str(normalized)
+    if keep_trailing_sep and not normalized_str.endswith("/"):
+        return normalized_str + "/"
+    return normalized_str
 
 
 # --- Config construction ---

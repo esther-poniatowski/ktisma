@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+import re
 from typing import Optional
 
 
@@ -42,3 +43,8 @@ class VariantSpec:
     payload: str
 
     VALID_NAME_PATTERN: str = r"^[a-zA-Z][a-zA-Z0-9_-]*$"
+
+
+def is_valid_variant_name(name: str) -> bool:
+    """Return whether a variant name is safe for filenames and CLI use."""
+    return bool(re.fullmatch(VariantSpec.VALID_NAME_PATTERN, name))

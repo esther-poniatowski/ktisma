@@ -28,8 +28,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     except SystemExit as exc:
         return exc.code if isinstance(exc.code, int) else ExitCode.INTERNAL_ERROR
     except Exception as exc:
-        from ..app.build import BuildError
-        if isinstance(exc, BuildError):
+        from ..domain.errors import KtismaError
+
+        if isinstance(exc, KtismaError):
             _print_diagnostics(exc.diagnostics, getattr(args, "json", False))
             return exc.exit_code
         print(f"error: {exc}", file=sys.stderr)

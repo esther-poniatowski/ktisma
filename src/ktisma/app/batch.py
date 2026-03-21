@@ -13,6 +13,8 @@ from .protocols import (
     ConfigLoader,
     LockManager,
     Materializer,
+    PrerequisiteProbe,
+    WorkspaceOps,
     SourceReader,
 )
 
@@ -33,6 +35,8 @@ def execute_batch(
     lock_manager: LockManager,
     backend_runner: BackendRunner,
     materializer: Materializer,
+    prerequisite_probe: PrerequisiteProbe,
+    workspace_ops: WorkspaceOps,
 ) -> BatchResult:
     """Build all .tex files in a directory.
 
@@ -93,6 +97,8 @@ def execute_batch(
                 lock_manager=lock_manager,
                 backend_runner=backend_runner,
                 materializer=materializer,
+                prerequisite_probe=prerequisite_probe,
+                workspace_ops=workspace_ops,
             )
             results.append((tex_file, result))
             if result.exit_code != ExitCode.SUCCESS:

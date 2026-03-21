@@ -1,9 +1,14 @@
 from __future__ import annotations
 
-import tomllib
 from pathlib import Path
 
 from ..domain.config import ConfigLayer
+from ..domain.errors import ConfigLoadError
+
+try:
+    import tomllib as toml_module
+except ImportError:  # pragma: no cover - exercised on Python < 3.11
+    import tomli as toml_module
 
 
 CONFIG_FILENAME = ".ktisma.toml"
@@ -56,22 +61,21 @@ class TomlConfigLoader:
         # Load each config file
         for config_path in config_paths:
             data = _load_toml(config_path)
-            if data is not None:
-                layers.append(
-                    ConfigLayer(
-                        data=data,
-                        source=config_path.parent,
-                        label=str(config_path),
-                    )
+            layers.append(
+                ConfigLayer(
+                    data=data,
+                    source=config_path,
+                    label=str(config_path),
                 )
+            )
 
         return layers
 
 
-def _load_toml(path: Path) -> dict | None:
-    """Load a TOML file, returning None on failure."""
+def _load_toml(path: Path) -> dict:
+    """Load a TOML file or raise a config-specific error."""
     try:
         with open(path, "rb") as f:
-            return tomllib.load(f)
-    except Exception:
-        return None
+            return toml_module.load(f)
+    except Exception as exc:
+        raise ConfigLoadError(path, str(exc)) from exc

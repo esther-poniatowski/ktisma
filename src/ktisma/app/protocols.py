@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Optional, Protocol
 
 from ..domain.config import ConfigLayer
-from ..domain.context import SourceInputs
+from ..domain.context import SourceContext, SourceInputs, VariantSpec
 from ..domain.diagnostics import Diagnostic
 
 
@@ -55,6 +55,22 @@ class BackendResult:
     diagnostics: list[Diagnostic] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class WatchUpdate:
+    result: BackendResult
+    finished: bool = False
+
+
+class WatchSession(Protocol):
+    def poll(self, timeout_seconds: float = 0.5) -> Optional[WatchUpdate]:
+        """Wait briefly for a rebuild update or final process completion."""
+        ...
+
+    def terminate(self) -> BackendResult:
+        """Terminate the active watch process and return its final status."""
+        ...
+
+
 class BackendRunner(Protocol):
     def compile(
         self,
@@ -67,14 +83,14 @@ class BackendRunner(Protocol):
         """Run the compilation backend and return structured results."""
         ...
 
-    def compile_watch(
+    def start_watch(
         self,
         source_file: Path,
         build_dir: Path,
         engine: str,
         synctex: bool,
         extra_args: Optional[list[str]] = None,
-    ) -> BackendResult:
+    ) -> WatchSession:
         """Launch the backend in continuous watch mode."""
         ...
 
@@ -85,6 +101,28 @@ class Materializer(Protocol):
 
         Creates parent directories as needed.
         """
+        ...
+
+
+class WorkspaceOps(Protocol):
+    def ensure_directory(self, path: Path) -> None:
+        """Create a directory and any missing parents."""
+        ...
+
+    def path_exists(self, path: Path) -> bool:
+        """Return whether a path exists."""
+        ...
+
+    def is_directory(self, path: Path) -> bool:
+        """Return whether a path is a directory."""
+        ...
+
+    def list_directory(self, path: Path) -> list[Path]:
+        """List a directory's entries."""
+        ...
+
+    def remove_tree(self, path: Path) -> None:
+        """Recursively remove a directory tree."""
         ...
 
 
@@ -111,4 +149,15 @@ class PrerequisiteProbe(Protocol):
 
     def check_toml_support(self) -> PrerequisiteCheck:
         """Check if TOML parsing is available."""
+        ...
+
+
+class PostProcessor(Protocol):
+    def process(
+        self,
+        materialized_pdf: Path,
+        ctx: SourceContext,
+        variant: Optional[VariantSpec] = None,
+    ) -> list[Diagnostic]:
+        """Run post-materialization steps before cleanup."""
         ...

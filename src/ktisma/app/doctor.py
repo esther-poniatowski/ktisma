@@ -4,15 +4,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from ..domain.config import (
-    BUILTIN_DEFAULTS,
-    ConfigLayer,
-    merge_config_layers,
-    resolve_config,
-    validate_config,
-)
 from ..domain.diagnostics import Diagnostic, DiagnosticLevel
+from ..domain.errors import ConfigError
 from ..domain.exit_codes import ExitCode
+from .configuration import load_resolved_config
 from .protocols import ConfigLoader, PrerequisiteCheck, PrerequisiteProbe
 
 
@@ -41,6 +36,7 @@ def execute_doctor(
     checks: list[PrerequisiteCheck] = []
     diagnostics: list[Diagnostic] = []
     all_pass = True
+    config_failed = False
 
     # Check latexmk
     latexmk_check = probe.check_latexmk()
@@ -88,38 +84,32 @@ def execute_doctor(
     config = None
     if workspace_root is not None:
         try:
-            layers = [ConfigLayer(data=dict(BUILTIN_DEFAULTS), source=None, label="built-in defaults")]
-            file_layers = config_loader.load_layers(workspace_root, workspace_root)
-            layers.extend(file_layers)
-            merged, provenance = merge_config_layers(layers)
-            schema_version = merged.get("schema_version", 1)
-            config_diags = validate_config(merged, schema_version)
-
-            for d in config_diags:
-                diagnostics.append(d)
-                if d.level == DiagnosticLevel.ERROR:
-                    all_pass = False
-
-            if not any(d.level == DiagnosticLevel.ERROR for d in config_diags):
-                config = resolve_config(merged, provenance)
-                diagnostics.append(
-                    Diagnostic(
-                        level=DiagnosticLevel.INFO,
-                        component="doctor",
-                        code="config-valid",
-                        message="Configuration validates successfully.",
-                    )
-                )
-        except Exception as exc:
-            all_pass = False
+            config, config_diags = load_resolved_config(
+                workspace_root,
+                workspace_root,
+                config_loader,
+            )
+            diagnostics.extend(config_diags)
             diagnostics.append(
                 Diagnostic(
-                    level=DiagnosticLevel.ERROR,
+                    level=DiagnosticLevel.INFO,
                     component="doctor",
-                    code="config-load-failed",
-                    message=f"Failed to load configuration: {exc}",
+                    code="config-valid",
+                    message="Configuration validates successfully.",
                 )
             )
+        except ConfigError as exc:
+            config_failed = True
+            diagnostics.extend(exc.diagnostics)
+            if not exc.diagnostics:
+                diagnostics.append(
+                    Diagnostic(
+                        level=DiagnosticLevel.ERROR,
+                        component="doctor",
+                        code="config-load-failed",
+                        message=str(exc),
+                    )
+                )
 
     # Check configured engines
     engines_to_check = set()
@@ -143,5 +133,8 @@ def execute_doctor(
                 )
             )
 
-    exit_code = ExitCode.SUCCESS if all_pass else ExitCode.PREREQUISITE_FAILURE
+    if config_failed:
+        exit_code = ExitCode.CONFIG_ERROR
+    else:
+        exit_code = ExitCode.SUCCESS if all_pass else ExitCode.PREREQUISITE_FAILURE
     return DoctorResult(exit_code=exit_code, checks=checks, diagnostics=diagnostics)

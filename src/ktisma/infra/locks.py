@@ -6,7 +6,7 @@ import socket
 import time
 from pathlib import Path
 
-from ..app.build import LockContention
+from ..domain.errors import LockContention
 
 
 class FileLockManager:

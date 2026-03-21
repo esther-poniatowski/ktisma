@@ -1,22 +1,15 @@
 from __future__ import annotations
 
-import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
 from ..domain.build_dir import plan_build_dir
-from ..domain.config import (
-    BUILTIN_DEFAULTS,
-    ConfigLayer,
-    ResolvedConfig,
-    merge_config_layers,
-    resolve_config,
-)
 from ..domain.context import SourceContext
 from ..domain.diagnostics import Diagnostic, DiagnosticLevel
 from ..domain.exit_codes import ExitCode
-from .protocols import ConfigLoader
+from .configuration import load_resolved_config
+from .protocols import ConfigLoader, WorkspaceOps
 
 
 @dataclass(frozen=True)
@@ -30,6 +23,7 @@ def execute_clean(
     target: Path,
     workspace_root: Optional[Path],
     config_loader: ConfigLoader,
+    workspace_ops: WorkspaceOps,
 ) -> CleanResult:
     """Clean build directories for a source file or a specific build directory.
 
@@ -49,18 +43,14 @@ def execute_clean(
             workspace_root=workspace_root,
         )
 
-        layers = [ConfigLayer(data=dict(BUILTIN_DEFAULTS), source=None, label="built-in defaults")]
-        file_layers = config_loader.load_layers(ctx.workspace_root, ctx.source_dir)
-        layers.extend(file_layers)
-        merged, provenance = merge_config_layers(layers)
-        config = resolve_config(merged, provenance)
+        config, _ = load_resolved_config(ctx.workspace_root, ctx.source_dir, config_loader)
 
         build_plan = plan_build_dir(ctx, config)
         build_dir = build_plan.build_dir
 
-        if build_dir.exists():
+        if workspace_ops.path_exists(build_dir):
             try:
-                shutil.rmtree(build_dir)
+                workspace_ops.remove_tree(build_dir)
                 removed.append(build_dir)
             except Exception as exc:
                 diagnostics.append(
@@ -75,12 +65,16 @@ def execute_clean(
 
         # Also clean variant build dirs
         parent = build_dir.parent
-        if parent.exists():
+        if workspace_ops.path_exists(parent):
             stem = target.stem
-            for entry in parent.iterdir():
-                if entry.is_dir() and entry.name.startswith(f"{stem}-") and entry != build_dir:
+            for entry in workspace_ops.list_directory(parent):
+                if (
+                    workspace_ops.is_directory(entry)
+                    and entry.name.startswith(f"{stem}-")
+                    and entry != build_dir
+                ):
                     try:
-                        shutil.rmtree(entry)
+                        workspace_ops.remove_tree(entry)
                         removed.append(entry)
                     except Exception as exc:
                         diagnostics.append(
@@ -102,12 +96,12 @@ def execute_clean(
                 )
             )
 
-    elif target.is_dir():
+    elif workspace_ops.is_directory(target):
         lock_marker = target / ".ktisma.lock"
         parent_name = target.parent.name if target.parent else ""
-        if lock_marker.exists() or parent_name.startswith(".ktisma"):
+        if workspace_ops.path_exists(lock_marker) or parent_name.startswith(".ktisma"):
             try:
-                shutil.rmtree(target)
+                workspace_ops.remove_tree(target)
                 removed.append(target)
             except Exception as exc:
                 diagnostics.append(

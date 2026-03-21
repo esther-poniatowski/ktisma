@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from ..app.build import execute_build, BuildResult, BuildError
+from ..app.build import execute_build, BuildResult
 from ..app.clean import execute_clean, CleanResult
 from ..app.doctor import execute_doctor, DoctorResult
 from ..app.inspect import inspect_engine, inspect_route
@@ -19,7 +19,7 @@ from ..infra.locks import FileLockManager
 from ..infra.materialize import FileMaterializer
 from ..infra.prerequisites import SystemPrerequisiteProbe
 from ..infra.source_reader import FileSourceReader
-from ..infra.workspace import resolve_workspace_root
+from ..infra.workspace import FileWorkspaceOps, resolve_workspace_root
 
 
 @dataclass
@@ -35,6 +35,7 @@ class Services:
     backend_runner: LatexmkRunner
     materializer: FileMaterializer
     probe: SystemPrerequisiteProbe
+    workspace_ops: FileWorkspaceOps
 
 
 def create_services() -> Services:
@@ -46,6 +47,7 @@ def create_services() -> Services:
         backend_runner=LatexmkRunner(),
         materializer=FileMaterializer(),
         probe=SystemPrerequisiteProbe(),
+        workspace_ops=FileWorkspaceOps(),
     )
 
 
@@ -66,6 +68,8 @@ def build(
         lock_manager=services.lock_manager,
         backend_runner=services.backend_runner,
         materializer=services.materializer,
+        prerequisite_probe=services.probe,
+        workspace_ops=services.workspace_ops,
     )
 
 
@@ -99,7 +103,7 @@ def clean(
 ) -> CleanResult:
     """Composition root entry for the clean use-case."""
     services = create_services()
-    return execute_clean(target, workspace_root, services.config_loader)
+    return execute_clean(target, workspace_root, services.config_loader, services.workspace_ops)
 
 
 def doctor(
@@ -127,6 +131,8 @@ def batch(
         lock_manager=services.lock_manager,
         backend_runner=services.backend_runner,
         materializer=services.materializer,
+        prerequisite_probe=services.probe,
+        workspace_ops=services.workspace_ops,
     )
 
 
@@ -147,6 +153,8 @@ def variants(
         lock_manager=services.lock_manager,
         backend_runner=services.backend_runner,
         materializer=services.materializer,
+        prerequisite_probe=services.probe,
+        workspace_ops=services.workspace_ops,
     )
 
 

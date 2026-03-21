@@ -3,7 +3,7 @@ from __future__ import annotations
 import fnmatch
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
-from typing import Optional
+from typing import Callable, Optional
 
 from .config import ResolvedConfig
 from .context import SourceContext, SourceInputs
@@ -27,11 +27,18 @@ class RouteDecision:
         }
 
 
+RouteResolver = Callable[
+    [SourceContext, SourceInputs, ResolvedConfig, str],
+    Optional[RouteDecision],
+]
+
+
 def resolve_route(
     ctx: SourceContext,
     source_inputs: SourceInputs,
     config: ResolvedConfig,
     output_dir_override: Optional[Path] = None,
+    extra_resolvers: Optional[list[RouteResolver]] = None,
 ) -> RouteDecision:
     """Resolve the output destination for a compiled PDF.
 
@@ -65,6 +72,11 @@ def resolve_route(
     route_result = _match_route_rules(ctx, config, pdf_name)
     if route_result is not None:
         return route_result
+
+    for resolver in extra_resolvers or []:
+        resolved = resolver(ctx, source_inputs, config, pdf_name)
+        if resolved is not None:
+            return resolved
 
     # Step 4: Suffix convention
     suffix_result = _apply_suffix_convention(ctx, config, pdf_name)
@@ -129,7 +141,10 @@ def _match_route_rules(
     pattern, target, _ = top_matches[0]
 
     if len(top_matches) > 1:
-        destinations = {_resolve_route_target(ctx, t, pdf_name, rel_source) for _, t, _ in top_matches}
+        destinations = {
+            _resolve_route_target(ctx, candidate_pattern, t, pdf_name, rel_source)
+            for candidate_pattern, t, _ in top_matches
+        }
         if len(destinations) > 1:
             diagnostics.append(
                 Diagnostic(
@@ -140,24 +155,52 @@ def _match_route_rules(
                         f"Multiple route rules match '{rel_str}' with equal specificity; "
                         f"using first in declaration order: '{pattern}'."
                     ),
+                    )
                 )
-            )
 
-    dest = _resolve_route_target(ctx, target, pdf_name, rel_source)
+    dest = _resolve_route_target(ctx, pattern, target, pdf_name, rel_source)
     return RouteDecision(destination=dest, matched_rule=pattern, diagnostics=diagnostics)
 
 
 def _resolve_route_target(
-    ctx: SourceContext, target: str, pdf_name: str, rel_source: Path
+    ctx: SourceContext,
+    pattern: str,
+    target: str,
+    pdf_name: str,
+    rel_source: Path,
 ) -> Path:
     """Resolve a route target to an absolute destination path."""
     target_path = Path(target).expanduser()
     if not target_path.is_absolute():
         target_path = ctx.workspace_root / target_path
 
-    if target.endswith("/"):
-        return target_path / pdf_name
-    return target_path / pdf_name
+    if _is_explicit_file_target(target):
+        return target_path
+
+    relative_parent = _matched_relative_parent(pattern, rel_source)
+    return target_path / relative_parent / pdf_name
+
+
+def _is_explicit_file_target(target: str) -> bool:
+    return not target.endswith("/") and Path(target).suffix != ""
+
+
+def _matched_relative_parent(pattern: str, rel_source: Path) -> Path:
+    """Return the relative parent path preserved by a wildcard route match."""
+    if "*" not in pattern and "?" not in pattern:
+        return Path()
+
+    prefix_parts: list[str] = []
+    for part in PurePosixPath(pattern).parts:
+        if "*" in part or "?" in part:
+            break
+        prefix_parts.append(part)
+
+    rel_parts = PurePosixPath(rel_source).parts
+    suffix_parts = rel_parts[len(prefix_parts) :]
+    if not suffix_parts:
+        return Path()
+    return Path(*suffix_parts).parent
 
 
 def _specificity_score(pattern: str) -> int:

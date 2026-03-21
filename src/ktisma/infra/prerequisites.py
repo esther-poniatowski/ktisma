@@ -3,10 +3,11 @@ from __future__ import annotations
 import shutil
 import subprocess
 import sys
+from typing import Optional
 
 from ..app.protocols import PrerequisiteCheck
 
-MIN_PYTHON_VERSION = (3, 12)
+MIN_PYTHON_VERSION = (3, 9)
 
 
 class SystemPrerequisiteProbe:
@@ -72,15 +73,35 @@ class SystemPrerequisiteProbe:
 
     def check_toml_support(self) -> PrerequisiteCheck:
         """Check if TOML parsing is available."""
-        return PrerequisiteCheck(
-            name="toml",
-            available=True,
-            version="tomllib (stdlib)",
-            message="TOML parsing available via tomllib (Python 3.12+).",
-        )
+        try:
+            if sys.version_info >= (3, 11):
+                import tomllib  # noqa: F401
+
+                return PrerequisiteCheck(
+                    name="toml",
+                    available=True,
+                    version="tomllib (stdlib)",
+                    message="TOML parsing available via tomllib.",
+                )
+
+            import tomli  # noqa: F401
+
+            return PrerequisiteCheck(
+                name="toml",
+                available=True,
+                version="tomli",
+                message="TOML parsing available via tomli.",
+            )
+        except ImportError:
+            missing = "tomllib" if sys.version_info >= (3, 11) else "tomli"
+            return PrerequisiteCheck(
+                name="toml",
+                available=False,
+                message=f"TOML parsing support is unavailable: missing {missing}.",
+            )
 
 
-def _get_command_version(args: list[str]) -> str | None:
+def _get_command_version(args: list[str]) -> Optional[str]:
     """Try to get a version string from a command."""
     try:
         result = subprocess.run(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Optional
 
 import pytest
 
@@ -37,17 +38,17 @@ def _ctx(
     )
 
 
-def _inputs(magic: dict[str, str] | None = None) -> SourceInputs:
+def _inputs(magic: Optional[dict[str, str]] = None) -> SourceInputs:
     return SourceInputs(preamble="", magic_comments=magic or {})
 
 
 def _cfg(
-    routes: dict[str, str] | None = None,
+    routes: Optional[dict[str, str]] = None,
     source_suffix: str = "-tex",
     output_suffix: str = "-pdfs",
     preserve_relative: bool = True,
     collapse_entrypoint_names: bool = False,
-    entrypoint_names: list[str] | None = None,
+    entrypoint_names: Optional[list[str]] = None,
 ) -> ResolvedConfig:
     base = default_config()
     return ResolvedConfig(
@@ -167,6 +168,12 @@ class TestConfigRouteRules:
         ctx = _ctx(source="project-tex/main.tex")
         decision = resolve_route(ctx, _inputs(), cfg)
         assert decision.destination == WS / "build/main.pdf"
+
+    def test_wildcard_route_preserves_relative_subtree(self) -> None:
+        cfg = _cfg(routes={"lectures-tex/**": "lectures-pdfs/"})
+        ctx = _ctx(source="lectures-tex/week1/notes.tex")
+        decision = resolve_route(ctx, _inputs(), cfg)
+        assert decision.destination == WS / "lectures-pdfs/week1/notes.pdf"
 
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -56,3 +57,22 @@ def _find_config_ancestor(start: Path) -> Optional[Path]:
             break
         current = parent
     return None
+
+
+class FileWorkspaceOps:
+    """Filesystem implementation for build-dir creation and cleanup helpers."""
+
+    def ensure_directory(self, path: Path) -> None:
+        path.mkdir(parents=True, exist_ok=True)
+
+    def path_exists(self, path: Path) -> bool:
+        return path.exists()
+
+    def is_directory(self, path: Path) -> bool:
+        return path.is_dir()
+
+    def list_directory(self, path: Path) -> list[Path]:
+        return list(path.iterdir())
+
+    def remove_tree(self, path: Path) -> None:
+        shutil.rmtree(path)

@@ -14,7 +14,7 @@ from ktisma.app.build import (
     ConfigError,
     execute_build,
 )
-from ktisma.app.protocols import BackendResult, PrerequisiteCheck
+from ktisma.app.protocols import BackendResult, PrerequisiteCheck, WatchUpdate
 from ktisma.domain.config import ConfigLayer, CleanupPolicy
 from ktisma.domain.context import BuildRequest, SourceContext, SourceInputs
 from ktisma.domain.diagnostics import Diagnostic, DiagnosticLevel
@@ -66,6 +66,23 @@ class FakeLockManager:
 
     def release(self, lock_file: Path) -> None:
         self.released.append(lock_file)
+
+
+class FakeWatchSession:
+    def __init__(self, result: BackendResult) -> None:
+        self._result = result
+        self._returned = False
+        self.terminated = False
+
+    def poll(self, timeout_seconds: float = 0.5) -> Optional[WatchUpdate]:
+        if self._returned:
+            return None
+        self._returned = True
+        return WatchUpdate(result=self._result, finished=True)
+
+    def terminate(self) -> BackendResult:
+        self.terminated = True
+        return self._result
 
 
 class FakeBackendRunner:
@@ -120,14 +137,14 @@ class FakeBackendRunner:
             diagnostics=self._diagnostics,
         )
 
-    def compile_watch(
+    def start_watch(
         self,
         source_file: Path,
         build_dir: Path,
         engine: str,
         synctex: bool,
         extra_args: Optional[list[str]] = None,
-    ) -> BackendResult:
+    ) -> FakeWatchSession:
         self.watch_calls.append(
             {
                 "source_file": source_file,
@@ -137,10 +154,17 @@ class FakeBackendRunner:
                 "extra_args": extra_args,
             }
         )
-        return BackendResult(
-            success=self._success,
-            exit_code=self._exit_code,
-            diagnostics=self._diagnostics,
+        pdf_path = build_dir / f"{source_file.stem}.pdf" if self._success else None
+        if pdf_path is not None:
+            build_dir.mkdir(parents=True, exist_ok=True)
+            pdf_path.write_bytes(b"%PDF-1.4 fake")
+        return FakeWatchSession(
+            BackendResult(
+                success=self._success,
+                exit_code=self._exit_code,
+                pdf_path=pdf_path,
+                diagnostics=self._diagnostics,
+            )
         )
 
 
@@ -163,6 +187,56 @@ class FakeMaterializer:
             destination.write_bytes(b"fake")
 
 
+class FakePrerequisiteProbe:
+    def __init__(
+        self,
+        *,
+        latexmk_available: bool = True,
+        engine_available: bool = True,
+    ) -> None:
+        self._latexmk_available = latexmk_available
+        self._engine_available = engine_available
+
+    def check_latexmk(self) -> PrerequisiteCheck:
+        return PrerequisiteCheck(
+            name="latexmk",
+            available=self._latexmk_available,
+            message="" if self._latexmk_available else "latexmk missing",
+        )
+
+    def check_engine(self, engine: str) -> PrerequisiteCheck:
+        return PrerequisiteCheck(
+            name=engine,
+            available=self._engine_available,
+            message="" if self._engine_available else f"{engine} missing",
+        )
+
+    def check_python_version(self) -> PrerequisiteCheck:
+        return PrerequisiteCheck(name="python", available=True, message="")
+
+    def check_toml_support(self) -> PrerequisiteCheck:
+        return PrerequisiteCheck(name="toml", available=True, message="")
+
+
+class FakeWorkspaceOps:
+    def ensure_directory(self, path: Path) -> None:
+        path.mkdir(parents=True, exist_ok=True)
+
+    def path_exists(self, path: Path) -> bool:
+        return path.exists()
+
+    def is_directory(self, path: Path) -> bool:
+        return path.is_dir()
+
+    def list_directory(self, path: Path) -> list[Path]:
+        return list(path.iterdir())
+
+    def remove_tree(self, path: Path) -> None:
+        import shutil
+
+        shutil.rmtree(path)
+
+
 # ===========================================================================
 # Helpers
 # ===========================================================================
@@ -183,6 +257,12 @@ def _default_request(**overrides) -> BuildRequest:
     return BuildRequest(**overrides)
 
 
+def _execute_build(**kwargs) -> BuildResult:
+    kwargs.setdefault("prerequisite_probe", FakePrerequisiteProbe())
+    kwargs.setdefault("workspace_ops", FakeWorkspaceOps())
+    return execute_build(**kwargs)
+
+
 # ===========================================================================
 # Test: successful build flow
 # ===========================================================================
@@ -191,7 +271,7 @@ def _default_request(**overrides) -> BuildRequest:
 class TestSuccessfulBuild:
     def test_basic_build_returns_success(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
-        result = execute_build(
+        result = _execute_build(
             ctx=ctx,
             request=_default_request(),
             config_loader=FakeConfigLoader(),
@@ -204,7 +284,7 @@ class TestSuccessfulBuild:
 
     def test_engine_decision_populated(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
-        result = execute_build(
+        result = _execute_build(
             ctx=ctx,
             request=_default_request(),
             config_loader=FakeConfigLoader(),
@@ -218,7 +298,7 @@ class TestSuccessfulBuild:
 
     def test_route_decision_populated(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
-        result = execute_build(
+        result = _execute_build(
             ctx=ctx,
             request=_default_request(),
             config_loader=FakeConfigLoader(),
@@ -231,7 +311,7 @@ class TestSuccessfulBuild:
 
     def test_build_plan_populated(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
-        result = execute_build(
+        result = _execute_build(
             ctx=ctx,
             request=_default_request(),
             config_loader=FakeConfigLoader(),
@@ -246,7 +326,7 @@ class TestSuccessfulBuild:
     def test_backend_called_with_correct_source(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
         backend = FakeBackendRunner()
-        execute_build(
+        _execute_build(
             ctx=ctx,
             request=_default_request(),
             config_loader=FakeConfigLoader(),
@@ -261,7 +341,7 @@ class TestSuccessfulBuild:
     def test_materializer_called(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
         mat = FakeMaterializer()
-        execute_build(
+        _execute_build(
             ctx=ctx,
             request=_default_request(),
             config_loader=FakeConfigLoader(),
@@ -275,7 +355,7 @@ class TestSuccessfulBuild:
     def test_lock_acquired_and_released(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
         lock_mgr = FakeLockManager()
-        execute_build(
+        _execute_build(
             ctx=ctx,
             request=_default_request(),
             config_loader=FakeConfigLoader(),
@@ -291,7 +371,7 @@ class TestSuccessfulBuild:
 
     def test_produced_paths_non_empty(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
-        result = execute_build(
+        result = _execute_build(
             ctx=ctx,
             request=_default_request(),
             config_loader=FakeConfigLoader(),
@@ -305,7 +385,7 @@ class TestSuccessfulBuild:
     def test_engine_override_used(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
         backend = FakeBackendRunner()
-        execute_build(
+        _execute_build(
             ctx=ctx,
             request=_default_request(engine_override="xelatex"),
             config_loader=FakeConfigLoader(),
@@ -325,7 +405,7 @@ class TestSuccessfulBuild:
 class TestCompileFailure:
     def test_compilation_failure_exit_code(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
-        result = execute_build(
+        result = _execute_build(
             ctx=ctx,
             request=_default_request(),
             config_loader=FakeConfigLoader(),
@@ -339,7 +419,7 @@ class TestCompileFailure:
     def test_materializer_not_called_on_failure(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
         mat = FakeMaterializer()
-        execute_build(
+        _execute_build(
             ctx=ctx,
             request=_default_request(),
             config_loader=FakeConfigLoader(),
@@ -353,7 +433,7 @@ class TestCompileFailure:
     def test_lock_released_on_failure(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
         lock_mgr = FakeLockManager()
-        execute_build(
+        _execute_build(
             ctx=ctx,
             request=_default_request(),
             config_loader=FakeConfigLoader(),
@@ -366,7 +446,7 @@ class TestCompileFailure:
 
     def test_backend_result_included_on_failure(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
-        result = execute_build(
+        result = _execute_build(
             ctx=ctx,
             request=_default_request(),
             config_loader=FakeConfigLoader(),
@@ -386,7 +466,7 @@ class TestCompileFailure:
             message="Undefined control sequence",
         )
         ctx = _make_ctx(tmp_path)
-        result = execute_build(
+        result = _execute_build(
             ctx=ctx,
             request=_default_request(),
             config_loader=FakeConfigLoader(),
@@ -407,7 +487,7 @@ class TestCompileFailure:
 class TestLockContention:
     def test_lock_contention_exit_code(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
-        result = execute_build(
+        result = _execute_build(
             ctx=ctx,
             request=_default_request(),
             config_loader=FakeConfigLoader(),
@@ -421,7 +501,7 @@ class TestLockContention:
     def test_backend_not_called_on_contention(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
         backend = FakeBackendRunner()
-        execute_build(
+        _execute_build(
             ctx=ctx,
             request=_default_request(),
             config_loader=FakeConfigLoader(),
@@ -435,7 +515,7 @@ class TestLockContention:
     def test_materializer_not_called_on_contention(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
         mat = FakeMaterializer()
-        execute_build(
+        _execute_build(
             ctx=ctx,
             request=_default_request(),
             config_loader=FakeConfigLoader(),
@@ -448,7 +528,7 @@ class TestLockContention:
 
     def test_contention_diagnostic_present(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
-        result = execute_build(
+        result = _execute_build(
             ctx=ctx,
             request=_default_request(),
             config_loader=FakeConfigLoader(),
@@ -473,7 +553,7 @@ class TestLockContention:
 class TestDryRun:
     def test_dry_run_returns_success(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
-        result = execute_build(
+        result = _execute_build(
             ctx=ctx,
             request=_default_request(dry_run=True),
             config_loader=FakeConfigLoader(),
@@ -487,7 +567,7 @@ class TestDryRun:
     def test_dry_run_no_backend_call(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
         backend = FakeBackendRunner()
-        execute_build(
+        _execute_build(
             ctx=ctx,
             request=_default_request(dry_run=True),
             config_loader=FakeConfigLoader(),
@@ -501,7 +581,7 @@ class TestDryRun:
     def test_dry_run_no_lock_acquired(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
         lock_mgr = FakeLockManager()
-        execute_build(
+        _execute_build(
             ctx=ctx,
             request=_default_request(dry_run=True),
             config_loader=FakeConfigLoader(),
@@ -515,7 +595,7 @@ class TestDryRun:
     def test_dry_run_no_materialization(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
         mat = FakeMaterializer()
-        execute_build(
+        _execute_build(
             ctx=ctx,
             request=_default_request(dry_run=True),
             config_loader=FakeConfigLoader(),
@@ -528,7 +608,7 @@ class TestDryRun:
 
     def test_dry_run_populates_plan(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
-        result = execute_build(
+        result = _execute_build(
             ctx=ctx,
             request=_default_request(dry_run=True),
             config_loader=FakeConfigLoader(),
@@ -543,7 +623,7 @@ class TestDryRun:
 
     def test_dry_run_no_produced_paths(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
-        result = execute_build(
+        result = _execute_build(
             ctx=ctx,
             request=_default_request(dry_run=True),
             config_loader=FakeConfigLoader(),
@@ -564,7 +644,7 @@ class TestCleanupPolicies:
     def test_cleanup_override_always(self, tmp_path: Path) -> None:
         """With cleanup_override='always', build dir should be removed after success."""
         ctx = _make_ctx(tmp_path)
-        result = execute_build(
+        result = _execute_build(
             ctx=ctx,
             request=_default_request(cleanup_override="always"),
             config_loader=FakeConfigLoader(),
@@ -580,7 +660,7 @@ class TestCleanupPolicies:
     def test_cleanup_never_preserves_build_dir(self, tmp_path: Path) -> None:
         """With cleanup='never', the build dir should be preserved."""
         ctx = _make_ctx(tmp_path)
-        result = execute_build(
+        result = _execute_build(
             ctx=ctx,
             request=_default_request(cleanup_override="never"),
             config_loader=FakeConfigLoader(),
@@ -596,7 +676,7 @@ class TestCleanupPolicies:
 
     def test_cleanup_on_success_removes_on_success(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
-        result = execute_build(
+        result = _execute_build(
             ctx=ctx,
             request=_default_request(cleanup_override="on_success"),
             config_loader=FakeConfigLoader(),
@@ -610,7 +690,7 @@ class TestCleanupPolicies:
     def test_cleanup_on_success_preserves_on_failure(self, tmp_path: Path) -> None:
         """On compilation failure with on_success policy, build dir is preserved."""
         ctx = _make_ctx(tmp_path)
-        result = execute_build(
+        result = _execute_build(
             ctx=ctx,
             request=_default_request(cleanup_override="on_success"),
             config_loader=FakeConfigLoader(),
@@ -623,6 +703,45 @@ class TestCleanupPolicies:
 
 
 # ===========================================================================
+# Test: prerequisite failures
+# ===========================================================================
+
+
+class TestPrerequisiteFailures:
+    def test_missing_latexmk_returns_prerequisite_failure(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        backend = FakeBackendRunner()
+        result = _execute_build(
+            ctx=ctx,
+            request=_default_request(),
+            config_loader=FakeConfigLoader(),
+            source_reader=FakeSourceReader(),
+            lock_manager=FakeLockManager(),
+            backend_runner=backend,
+            materializer=FakeMaterializer(),
+            prerequisite_probe=FakePrerequisiteProbe(latexmk_available=False),
+        )
+        assert result.exit_code == ExitCode.PREREQUISITE_FAILURE
+        assert backend.compile_calls == []
+        assert "missing-latexmk" in [d.code for d in result.diagnostics]
+
+    def test_missing_engine_returns_prerequisite_failure(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        result = _execute_build(
+            ctx=ctx,
+            request=_default_request(engine_override="xelatex"),
+            config_loader=FakeConfigLoader(),
+            source_reader=FakeSourceReader(),
+            lock_manager=FakeLockManager(),
+            backend_runner=FakeBackendRunner(),
+            materializer=FakeMaterializer(),
+            prerequisite_probe=FakePrerequisiteProbe(engine_available=False),
+        )
+        assert result.exit_code == ExitCode.PREREQUISITE_FAILURE
+        assert "missing-engine" in [d.code for d in result.diagnostics]
+
+
+# ===========================================================================
 # Test: variant builds
 # ===========================================================================
 
@@ -631,7 +750,7 @@ class TestVariantBuilds:
     def test_variant_build_with_payload(self, tmp_path: Path) -> None:
         """When variant and variant_payload are both given, uses them directly."""
         ctx = _make_ctx(tmp_path)
-        result = execute_build(
+        result = _execute_build(
             ctx=ctx,
             request=_default_request(
                 variant="draft",
@@ -657,7 +776,7 @@ class TestVariantBuilds:
             label="test config",
         )
         ctx = _make_ctx(tmp_path)
-        result = execute_build(
+        result = _execute_build(
             ctx=ctx,
             request=_default_request(variant="draft"),
             config_loader=FakeConfigLoader(layers=[config_layer]),
@@ -675,9 +794,25 @@ class TestVariantBuilds:
         """Requesting a variant that doesn't exist in config raises ConfigError."""
         ctx = _make_ctx(tmp_path)
         with pytest.raises(ConfigError):
-            execute_build(
+            _execute_build(
                 ctx=ctx,
                 request=_default_request(variant="nonexistent"),
+                config_loader=FakeConfigLoader(),
+                source_reader=FakeSourceReader(),
+                lock_manager=FakeLockManager(),
+                backend_runner=FakeBackendRunner(),
+                    materializer=FakeMaterializer(),
+                )
+
+    def test_invalid_variant_name_raises_config_error(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        with pytest.raises(ConfigError):
+            _execute_build(
+                ctx=ctx,
+                request=_default_request(
+                    variant="../../bad",
+                    variant_payload="\\def\\isdraft{1}",
+                ),
                 config_loader=FakeConfigLoader(),
                 source_reader=FakeSourceReader(),
                 lock_manager=FakeLockManager(),
@@ -688,7 +823,7 @@ class TestVariantBuilds:
     def test_variant_affects_output_filename(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
         mat = FakeMaterializer()
-        result = execute_build(
+        result = _execute_build(
             ctx=ctx,
             request=_default_request(
                 variant="final",
@@ -709,7 +844,7 @@ class TestVariantBuilds:
     def test_variant_extra_args_passed_to_backend(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
         backend = FakeBackendRunner()
-        execute_build(
+        _execute_build(
             ctx=ctx,
             request=_default_request(
                 variant="draft",
@@ -729,7 +864,7 @@ class TestVariantBuilds:
     def test_no_variant_no_extra_args(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
         backend = FakeBackendRunner()
-        execute_build(
+        _execute_build(
             ctx=ctx,
             request=_default_request(),
             config_loader=FakeConfigLoader(),
@@ -744,7 +879,7 @@ class TestVariantBuilds:
 
     def test_variant_build_dir_includes_variant_name(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
-        result = execute_build(
+        result = _execute_build(
             ctx=ctx,
             request=_default_request(
                 variant="draft",
@@ -770,7 +905,7 @@ class TestMaterializationFailure:
         self, tmp_path: Path
     ) -> None:
         ctx = _make_ctx(tmp_path)
-        result = execute_build(
+        result = _execute_build(
             ctx=ctx,
             request=_default_request(),
             config_loader=FakeConfigLoader(),
@@ -783,7 +918,7 @@ class TestMaterializationFailure:
 
     def test_materialization_failure_diagnostic(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
-        result = execute_build(
+        result = _execute_build(
             ctx=ctx,
             request=_default_request(),
             config_loader=FakeConfigLoader(),
@@ -798,7 +933,7 @@ class TestMaterializationFailure:
     def test_lock_released_on_materialization_failure(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
         lock_mgr = FakeLockManager()
-        execute_build(
+        _execute_build(
             ctx=ctx,
             request=_default_request(),
             config_loader=FakeConfigLoader(),
@@ -807,6 +942,35 @@ class TestMaterializationFailure:
             backend_runner=FakeBackendRunner(),
             materializer=FakeMaterializer(fail=True),
         )
+        assert len(lock_mgr.released) == 1
+
+
+# ===========================================================================
+# Test: watch mode
+# ===========================================================================
+
+
+class TestWatchMode:
+    def test_watch_uses_watch_session_and_materializes_output(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        backend = FakeBackendRunner()
+        materializer = FakeMaterializer()
+        lock_mgr = FakeLockManager()
+
+        result = _execute_build(
+            ctx=ctx,
+            request=_default_request(watch=True),
+            config_loader=FakeConfigLoader(),
+            source_reader=FakeSourceReader(),
+            lock_manager=lock_mgr,
+            backend_runner=backend,
+            materializer=materializer,
+        )
+
+        assert result.exit_code == ExitCode.SUCCESS
+        assert backend.compile_calls == []
+        assert len(backend.watch_calls) == 1
+        assert len(materializer.calls) == 1
         assert len(lock_mgr.released) == 1
 
 
@@ -825,7 +989,7 @@ class TestConfigIntegration:
         )
         ctx = _make_ctx(tmp_path)
         backend = FakeBackendRunner()
-        execute_build(
+        _execute_build(
             ctx=ctx,
             request=_default_request(),
             config_loader=FakeConfigLoader(layers=[config_layer]),
@@ -845,7 +1009,7 @@ class TestConfigIntegration:
         )
         ctx = _make_ctx(tmp_path)
         backend = FakeBackendRunner()
-        execute_build(
+        _execute_build(
             ctx=ctx,
             request=_default_request(),
             config_loader=FakeConfigLoader(layers=[config_layer]),

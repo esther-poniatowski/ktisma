@@ -6,26 +6,24 @@ from pathlib import Path
 from typing import Optional
 
 from ..domain.build_dir import BuildDirPlan, plan_build_dir
-from ..domain.config import (
-    CleanupPolicy,
-    ConfigLayer,
-    ResolvedConfig,
-    merge_config_layers,
-    resolve_config,
-    validate_config,
-)
-from ..domain.context import BuildRequest, SourceContext, VariantSpec
+from ..domain.config import CleanupPolicy, ConfigLayer, ResolvedConfig
+from ..domain.context import BuildRequest, SourceContext, VariantSpec, is_valid_variant_name
 from ..domain.diagnostics import Diagnostic, DiagnosticLevel
-from ..domain.engine import EngineDecision, detect_engine
+from ..domain.engine import EngineDecision, EngineRule, detect_engine
+from ..domain.errors import ConfigError, LockContention
 from ..domain.exit_codes import ExitCode
-from ..domain.routing import RouteDecision, resolve_route
+from ..domain.routing import RouteDecision, RouteResolver, resolve_route
+from .configuration import load_resolved_config
 from .protocols import (
     BackendResult,
     BackendRunner,
     ConfigLoader,
     LockManager,
     Materializer,
+    PostProcessor,
+    PrerequisiteProbe,
     SourceReader,
+    WorkspaceOps,
 )
 
 
@@ -40,28 +38,6 @@ class BuildResult:
     diagnostics: list[Diagnostic] = field(default_factory=list)
 
 
-class BuildError(Exception):
-    def __init__(self, exit_code: ExitCode, message: str, diagnostics: Optional[list[Diagnostic]] = None):
-        super().__init__(message)
-        self.exit_code = exit_code
-        self.diagnostics = diagnostics or []
-
-
-class LockContention(BuildError):
-    def __init__(self, message: str, diagnostics: Optional[list[Diagnostic]] = None):
-        super().__init__(ExitCode.LOCK_CONTENTION, message, diagnostics)
-
-
-class ConfigError(BuildError):
-    def __init__(self, message: str, diagnostics: Optional[list[Diagnostic]] = None):
-        super().__init__(ExitCode.CONFIG_ERROR, message, diagnostics)
-
-
-class PrerequisiteError(BuildError):
-    def __init__(self, message: str, diagnostics: Optional[list[Diagnostic]] = None):
-        super().__init__(ExitCode.PREREQUISITE_FAILURE, message, diagnostics)
-
-
 def execute_build(
     ctx: SourceContext,
     request: BuildRequest,
@@ -70,55 +46,55 @@ def execute_build(
     lock_manager: LockManager,
     backend_runner: BackendRunner,
     materializer: Materializer,
+    prerequisite_probe: PrerequisiteProbe,
+    workspace_ops: WorkspaceOps,
+    post_processor: Optional[PostProcessor] = None,
+    route_resolvers: Optional[list[RouteResolver]] = None,
+    engine_rules: Optional[list[EngineRule]] = None,
 ) -> BuildResult:
-    """Execute the build use-case.
-
-    Steps per roadmap / design-principles section 6.1:
-    1. Load and merge configuration layers.
-    2. Read source inputs.
-    3. Resolve engine.
-    4. Resolve route.
-    5. Plan build directory.
-    6. Acquire lock.
-    7. Run backend compilation.
-    8. Materialize final output.
-    9. Apply cleanup policy.
-    10. Return structured result with diagnostics.
-    """
+    """Execute the build use-case."""
     all_diagnostics: list[Diagnostic] = []
+    lock_acquired = False
+    build_plan: Optional[BuildDirPlan] = None
 
-    # Step 1: Load and merge config
-    config, config_diags = _load_config(ctx, request, config_loader)
+    cli_layer = _build_cli_config_layer(request)
+    extra_layers = [cli_layer] if cli_layer.data else None
+    config, config_diags = load_resolved_config(
+        ctx.workspace_root,
+        ctx.source_dir,
+        config_loader,
+        extra_layers=extra_layers,
+    )
     all_diagnostics.extend(config_diags)
 
-    # Step 2: Read source inputs
     source_inputs = source_reader.read_source(ctx.source_file)
 
-    # Step 3: Resolve engine
-    engine_override = request.engine_override
-    if engine_override:
+    if request.engine_override:
         engine_decision = EngineDecision(
-            engine=engine_override, evidence=["--engine CLI override"]
+            engine=request.engine_override,
+            evidence=["--engine CLI override"],
         )
     else:
-        engine_decision = detect_engine(source_inputs, config)
+        engine_decision = detect_engine(source_inputs, config, custom_rules=engine_rules)
     all_diagnostics.extend(engine_decision.diagnostics)
 
-    if _has_errors(engine_decision.diagnostics) and config.engines.strict_detection:
+    if _has_errors(engine_decision.diagnostics):
         return BuildResult(
             exit_code=ExitCode.CONFIG_ERROR,
             engine=engine_decision,
             diagnostics=all_diagnostics,
         )
 
-    # Step 4: Resolve route
-    route_decision = resolve_route(ctx, source_inputs, config, request.output_dir_override)
+    route_decision = resolve_route(
+        ctx,
+        source_inputs,
+        config,
+        request.output_dir_override,
+        extra_resolvers=route_resolvers,
+    )
     all_diagnostics.extend(route_decision.diagnostics)
 
-    # Step 5: Resolve variant
     variant = _resolve_variant(request, config)
-
-    # Step 6: Plan build directory
     build_plan = plan_build_dir(ctx, config, variant)
 
     if request.dry_run:
@@ -130,12 +106,24 @@ def execute_build(
             diagnostics=all_diagnostics,
         )
 
-    # Step 7: Acquire lock
-    build_plan.build_dir.mkdir(parents=True, exist_ok=True)
+    prerequisite_diags = _check_build_prerequisites(prerequisite_probe, engine_decision.engine)
+    all_diagnostics.extend(prerequisite_diags)
+    if prerequisite_diags:
+        return BuildResult(
+            exit_code=ExitCode.PREREQUISITE_FAILURE,
+            engine=engine_decision,
+            route=route_decision,
+            build_plan=build_plan,
+            diagnostics=all_diagnostics,
+        )
+
+    workspace_ops.ensure_directory(build_plan.build_dir)
     try:
         mode = "watch" if request.watch else "build"
         lock_manager.acquire(build_plan.lock_file, ctx.source_file, mode)
-    except Exception as exc:
+        lock_acquired = True
+    except LockContention as exc:
+        all_diagnostics.extend(exc.diagnostics)
         all_diagnostics.append(
             Diagnostic(
                 level=DiagnosticLevel.ERROR,
@@ -153,14 +141,20 @@ def execute_build(
         )
 
     try:
-        # Step 8: Compile
-        extra_args = _build_extra_args(variant, config)
+        extra_args = _build_extra_args(variant)
 
         if request.watch:
             return _execute_watch(
-                ctx, config, engine_decision, route_decision, build_plan,
-                backend_runner, materializer, lock_manager, extra_args,
-                all_diagnostics,
+                ctx=ctx,
+                config=config,
+                engine_decision=engine_decision,
+                route_decision=route_decision,
+                build_plan=build_plan,
+                variant=variant,
+                backend_runner=backend_runner,
+                materializer=materializer,
+                post_processor=post_processor,
+                diagnostics=all_diagnostics,
             )
 
         backend_result = backend_runner.compile(
@@ -182,23 +176,17 @@ def execute_build(
                 diagnostics=all_diagnostics,
             )
 
-        # Step 9: Materialize
-        produced_paths: list[Path] = []
-        output_name = _output_pdf_name(ctx, variant)
-        final_dest = route_decision.destination.parent / output_name
-
-        try:
-            materializer.materialize(build_plan.expected_pdf, final_dest)
-            produced_paths.append(final_dest)
-        except Exception as exc:
-            all_diagnostics.append(
-                Diagnostic(
-                    level=DiagnosticLevel.ERROR,
-                    component="materialize",
-                    code="materialization-failed",
-                    message=f"Failed to materialize PDF: {exc}",
-                )
-            )
+        final_dest = _final_destination(ctx, route_decision, variant)
+        materialized = _materialize_output(
+            source=backend_result.pdf_path or build_plan.expected_pdf,
+            destination=final_dest,
+            ctx=ctx,
+            variant=variant,
+            materializer=materializer,
+            post_processor=post_processor,
+            diagnostics=all_diagnostics,
+        )
+        if not materialized:
             return BuildResult(
                 exit_code=ExitCode.INTERNAL_ERROR,
                 engine=engine_decision,
@@ -208,9 +196,15 @@ def execute_build(
                 diagnostics=all_diagnostics,
             )
 
-        # Step 10: Cleanup
         cleanup = _effective_cleanup(config, request)
-        _apply_cleanup(cleanup, build_plan, backend_result.success, bool(produced_paths), all_diagnostics)
+        _apply_cleanup(
+            policy=cleanup,
+            build_plan=build_plan,
+            compile_success=backend_result.success,
+            materialize_success=True,
+            workspace_ops=workspace_ops,
+            diagnostics=all_diagnostics,
+        )
 
         return BuildResult(
             exit_code=ExitCode.SUCCESS,
@@ -218,12 +212,11 @@ def execute_build(
             route=route_decision,
             build_plan=build_plan,
             backend_result=backend_result,
-            produced_paths=produced_paths,
+            produced_paths=[final_dest],
             diagnostics=all_diagnostics,
         )
-
     finally:
-        if not request.watch:
+        if lock_acquired and build_plan is not None:
             lock_manager.release(build_plan.lock_file)
 
 
@@ -233,113 +226,140 @@ def _execute_watch(
     engine_decision: EngineDecision,
     route_decision: RouteDecision,
     build_plan: BuildDirPlan,
+    variant: Optional[VariantSpec],
     backend_runner: BackendRunner,
     materializer: Materializer,
-    lock_manager: LockManager,
-    extra_args: Optional[list[str]],
+    post_processor: Optional[PostProcessor],
     diagnostics: list[Diagnostic],
 ) -> BuildResult:
-    """Execute watch mode: hold lock, launch latexmk -pvc, materialize after each rebuild."""
-    teardown_done = False
+    """Execute watch mode with a long-lived backend session."""
+    session = backend_runner.start_watch(
+        source_file=ctx.source_file,
+        build_dir=build_plan.build_dir,
+        engine=engine_decision.engine,
+        synctex=config.build.synctex,
+        extra_args=_build_extra_args(variant),
+    )
+    final_dest = _final_destination(ctx, route_decision, variant)
+    produced_paths: list[Path] = []
+    last_backend_result: Optional[BackendResult] = None
+    signal_exit_code: Optional[int] = None
+    session_finished = False
+    session_closed = False
 
     def _teardown(signum: int, frame: object) -> None:
-        nonlocal teardown_done
-        if not teardown_done:
-            teardown_done = True
-            lock_manager.release(build_plan.lock_file)
-        raise SystemExit(128 + signum)
+        nonlocal signal_exit_code, session_closed
+        signal_exit_code = 128 + signum
+        if not session_closed:
+            session.terminate()
+            session_closed = True
 
     old_sigint = signal.signal(signal.SIGINT, _teardown)
     old_sigterm = signal.signal(signal.SIGTERM, _teardown)
 
     try:
-        backend_result = backend_runner.compile_watch(
-            source_file=ctx.source_file,
-            build_dir=build_plan.build_dir,
-            engine=engine_decision.engine,
-            synctex=config.build.synctex,
-            extra_args=extra_args,
-        )
-        diagnostics.extend(backend_result.diagnostics)
+        while True:
+            if signal_exit_code is not None:
+                raise SystemExit(signal_exit_code)
 
-        exit_code = ExitCode.SUCCESS if backend_result.success else ExitCode.COMPILATION_FAILURE
-        return BuildResult(
-            exit_code=exit_code,
-            engine=engine_decision,
-            route=route_decision,
-            build_plan=build_plan,
-            backend_result=backend_result,
-            diagnostics=diagnostics,
-        )
+            update = session.poll(timeout_seconds=0.5)
+            if update is None:
+                continue
+
+            last_backend_result = update.result
+            diagnostics.extend(update.result.diagnostics)
+
+            if update.result.success and update.result.pdf_path is not None:
+                materialized = _materialize_output(
+                    source=update.result.pdf_path,
+                    destination=final_dest,
+                    ctx=ctx,
+                    variant=variant,
+                    materializer=materializer,
+                    post_processor=post_processor,
+                    diagnostics=diagnostics,
+                )
+                if not materialized:
+                    return BuildResult(
+                        exit_code=ExitCode.INTERNAL_ERROR,
+                        engine=engine_decision,
+                        route=route_decision,
+                        build_plan=build_plan,
+                        backend_result=last_backend_result,
+                        produced_paths=produced_paths,
+                        diagnostics=diagnostics,
+                    )
+                produced_paths = [final_dest]
+
+            if update.finished:
+                session_finished = True
+                exit_code = (
+                    ExitCode.SUCCESS
+                    if update.result.exit_code == 0
+                    else ExitCode.COMPILATION_FAILURE
+                )
+                return BuildResult(
+                    exit_code=exit_code,
+                    engine=engine_decision,
+                    route=route_decision,
+                    build_plan=build_plan,
+                    backend_result=last_backend_result,
+                    produced_paths=produced_paths,
+                    diagnostics=diagnostics,
+                )
     finally:
         signal.signal(signal.SIGINT, old_sigint)
         signal.signal(signal.SIGTERM, old_sigterm)
-        if not teardown_done:
-            lock_manager.release(build_plan.lock_file)
-
-
-def _load_config(
-    ctx: SourceContext, request: BuildRequest, config_loader: ConfigLoader
-) -> tuple[ResolvedConfig, list[Diagnostic]]:
-    """Load, merge, validate config layers."""
-    from ..domain.config import BUILTIN_DEFAULTS
-
-    layers = [ConfigLayer(data=dict(BUILTIN_DEFAULTS), source=None, label="built-in defaults")]
-    file_layers = config_loader.load_layers(ctx.workspace_root, ctx.source_dir)
-    layers.extend(file_layers)
-
-    cli_overrides = _build_cli_config_layer(request)
-    if cli_overrides.data:
-        layers.append(cli_overrides)
-
-    merged, provenance = merge_config_layers(layers)
-
-    schema_version = merged.get("schema_version", 1)
-    diagnostics = validate_config(merged, schema_version)
-
-    errors = [d for d in diagnostics if d.level == DiagnosticLevel.ERROR]
-    if errors:
-        raise ConfigError(
-            f"Configuration validation failed with {len(errors)} error(s).",
-            diagnostics=diagnostics,
-        )
-
-    config = resolve_config(merged, provenance)
-    return config, diagnostics
+        if not session_finished and not session_closed:
+            session.terminate()
 
 
 def _build_cli_config_layer(request: BuildRequest) -> ConfigLayer:
-    """Build a config layer from CLI flags."""
-    data: dict = {}
-    if request.engine_override:
-        data.setdefault("engines", {})["default"] = request.engine_override
+    """Build a config layer from CLI flags that participate in config precedence."""
+    data: dict[str, dict[str, str]] = {}
     if request.cleanup_override:
         data.setdefault("build", {})["cleanup"] = request.cleanup_override
     return ConfigLayer(data=data, source=None, label="CLI flags")
 
 
 def _resolve_variant(request: BuildRequest, config: ResolvedConfig) -> Optional[VariantSpec]:
-    """Resolve variant from request and config."""
-    if request.variant_payload is not None and request.variant is not None:
+    """Resolve and validate a variant from request and config."""
+    if request.variant is None:
+        return None
+
+    if not is_valid_variant_name(request.variant):
+        raise ConfigError(
+            f"Invalid variant name '{request.variant}'; names must match "
+            f"{VariantSpec.VALID_NAME_PATTERN}."
+        )
+
+    if request.variant_payload is not None:
         return VariantSpec(name=request.variant, payload=request.variant_payload)
 
-    if request.variant is not None:
-        payload = config.variants.get(request.variant)
-        if payload is None:
-            available = ", ".join(sorted(config.variants.keys())) if config.variants else "none"
-            raise ConfigError(
-                f"Unknown variant '{request.variant}'; available: {available}."
-            )
-        return VariantSpec(name=request.variant, payload=payload)
-
-    return None
+    payload = config.variants.get(request.variant)
+    if payload is None:
+        available = ", ".join(sorted(config.variants.keys())) if config.variants else "none"
+        raise ConfigError(
+            f"Unknown variant '{request.variant}'; available: {available}."
+        )
+    return VariantSpec(name=request.variant, payload=payload)
 
 
-def _build_extra_args(variant: Optional[VariantSpec], config: ResolvedConfig) -> Optional[list[str]]:
+def _build_extra_args(variant: Optional[VariantSpec]) -> Optional[list[str]]:
     """Build extra latexmk arguments for variant injection."""
     if variant is None or not variant.payload:
         return None
     return ["-usepretex", f"-pretex={variant.payload}"]
+
+
+def _final_destination(
+    ctx: SourceContext,
+    route_decision: RouteDecision,
+    variant: Optional[VariantSpec],
+) -> Path:
+    if variant is None:
+        return route_decision.destination
+    return route_decision.destination.parent / _output_pdf_name(ctx, variant)
 
 
 def _output_pdf_name(ctx: SourceContext, variant: Optional[VariantSpec]) -> str:
@@ -348,6 +368,62 @@ def _output_pdf_name(ctx: SourceContext, variant: Optional[VariantSpec]) -> str:
     if variant is not None:
         return f"{stem}_{variant.name}.pdf"
     return f"{stem}.pdf"
+
+
+def _check_build_prerequisites(
+    probe: PrerequisiteProbe,
+    engine: str,
+) -> list[Diagnostic]:
+    diagnostics: list[Diagnostic] = []
+    latexmk_check = probe.check_latexmk()
+    if not latexmk_check.available:
+        diagnostics.append(
+            Diagnostic(
+                level=DiagnosticLevel.ERROR,
+                component="prerequisite",
+                code="missing-latexmk",
+                message=latexmk_check.message or "latexmk is not available on PATH.",
+            )
+        )
+
+    engine_check = probe.check_engine(engine)
+    if not engine_check.available:
+        diagnostics.append(
+            Diagnostic(
+                level=DiagnosticLevel.ERROR,
+                component="prerequisite",
+                code="missing-engine",
+                message=engine_check.message or f"Engine '{engine}' is not available.",
+            )
+        )
+
+    return diagnostics
+
+
+def _materialize_output(
+    source: Path,
+    destination: Path,
+    ctx: SourceContext,
+    variant: Optional[VariantSpec],
+    materializer: Materializer,
+    post_processor: Optional[PostProcessor],
+    diagnostics: list[Diagnostic],
+) -> bool:
+    try:
+        materializer.materialize(source, destination)
+        if post_processor is not None:
+            diagnostics.extend(post_processor.process(destination, ctx, variant))
+        return True
+    except Exception as exc:
+        diagnostics.append(
+            Diagnostic(
+                level=DiagnosticLevel.ERROR,
+                component="materialize",
+                code="materialization-failed",
+                message=f"Failed to materialize PDF: {exc}",
+            )
+        )
+        return False
 
 
 def _effective_cleanup(config: ResolvedConfig, request: BuildRequest) -> CleanupPolicy:
@@ -364,22 +440,25 @@ def _apply_cleanup(
     build_plan: BuildDirPlan,
     compile_success: bool,
     materialize_success: bool,
+    workspace_ops: WorkspaceOps,
     diagnostics: list[Diagnostic],
 ) -> None:
     """Apply the cleanup policy to the build directory."""
-    import shutil
-
     should_clean = False
     if policy == CleanupPolicy.ALWAYS:
         should_clean = True
     elif policy == CleanupPolicy.ON_SUCCESS and compile_success:
         should_clean = True
-    elif policy == CleanupPolicy.ON_OUTPUT_SUCCESS and compile_success and materialize_success:
+    elif (
+        policy == CleanupPolicy.ON_OUTPUT_SUCCESS
+        and compile_success
+        and materialize_success
+    ):
         should_clean = True
 
-    if should_clean and build_plan.build_dir.exists():
+    if should_clean and workspace_ops.path_exists(build_plan.build_dir):
         try:
-            shutil.rmtree(build_plan.build_dir)
+            workspace_ops.remove_tree(build_plan.build_dir)
         except Exception as exc:
             diagnostics.append(
                 Diagnostic(

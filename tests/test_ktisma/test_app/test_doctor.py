@@ -385,6 +385,20 @@ class TestConfigValidation:
         # Should not have config-valid or config-load-failed
         assert "config-load-failed" not in _diag_codes(result)
 
+    def test_invalid_config_returns_config_error(self, tmp_path: Path) -> None:
+        config_layer = ConfigLayer(
+            data={"build": {"cleanup": "bogus"}},
+            source=tmp_path,
+            label="invalid",
+        )
+        result = execute_doctor(
+            workspace_root=tmp_path,
+            config_loader=FakeConfigLoader(layers=[config_layer]),
+            probe=FakePrerequisiteProbe(),
+        )
+        assert result.exit_code == ExitCode.CONFIG_ERROR
+        assert "invalid-cleanup-policy" in _diag_codes(result)
+
 
 # ===========================================================================
 # Engine checks from config

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 import pytest
 
 from ktisma.domain.config import EngineConfig, ResolvedConfig, default_config
@@ -38,7 +40,10 @@ def _cfg(**engine_kwargs: object) -> ResolvedConfig:
     )
 
 
-def _inputs(preamble: str = "", magic: dict[str, str] | None = None) -> SourceInputs:
+def _inputs(
+    preamble: str = "",
+    magic: Optional[dict[str, str]] = None,
+) -> SourceInputs:
     return SourceInputs(preamble=preamble, magic_comments=magic or {})
 
 

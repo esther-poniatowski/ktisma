@@ -25,6 +25,12 @@ class EngineDecision:
         }
 
 
+@dataclass(frozen=True)
+class EngineRule:
+    engine: str
+    markers: list[tuple[str, str]]
+
+
 # --- Marker definitions ---
 
 XELATEX_MARKERS: list[tuple[str, str]] = [
@@ -51,7 +57,11 @@ AMBIGUOUS_MODERN_MARKERS: list[tuple[str, str]] = [
 ]
 
 
-def detect_engine(source_inputs: SourceInputs, config: ResolvedConfig) -> EngineDecision:
+def detect_engine(
+    source_inputs: SourceInputs,
+    config: ResolvedConfig,
+    custom_rules: Optional[list[EngineRule]] = None,
+) -> EngineDecision:
     """Detect the appropriate LaTeX engine from source inputs and config.
 
     Detection steps per roadmap:
@@ -72,13 +82,27 @@ def detect_engine(source_inputs: SourceInputs, config: ResolvedConfig) -> Engine
     # Step 2: Scan preamble for definitive markers
     preamble = _extract_preamble(source_inputs.preamble)
 
-    xelatex_evidence = _scan_markers(preamble, XELATEX_MARKERS)
-    lualatex_evidence = _scan_markers(preamble, LUALATEX_MARKERS)
+    definitive_matches: dict[str, list[str]] = {}
+    for rule in custom_rules or []:
+        evidence = _scan_markers(preamble, rule.markers)
+        if evidence:
+            definitive_matches[rule.engine] = evidence
 
-    if xelatex_evidence and lualatex_evidence:
+    xelatex_evidence = _scan_markers(preamble, XELATEX_MARKERS)
+    if xelatex_evidence:
+        definitive_matches["xelatex"] = xelatex_evidence
+
+    lualatex_evidence = _scan_markers(preamble, LUALATEX_MARKERS)
+    if lualatex_evidence:
+        definitive_matches["lualatex"] = lualatex_evidence
+
+    if len(definitive_matches) > 1:
+        combined_evidence: list[str] = []
+        for evidence in definitive_matches.values():
+            combined_evidence.extend(evidence)
         return EngineDecision(
             engine=config.engines.default,
-            evidence=xelatex_evidence + lualatex_evidence,
+            evidence=combined_evidence,
             ambiguous=True,
             diagnostics=[
                 Diagnostic(
@@ -86,16 +110,14 @@ def detect_engine(source_inputs: SourceInputs, config: ResolvedConfig) -> Engine
                     component="engine",
                     code="conflicting-engine-markers",
                     message="Found markers for both XeLaTeX and LuaLaTeX; falling back to config default.",
-                    evidence=xelatex_evidence + lualatex_evidence,
+                    evidence=combined_evidence,
                 )
             ],
         )
 
-    if xelatex_evidence:
-        return EngineDecision(engine="xelatex", evidence=xelatex_evidence)
-
-    if lualatex_evidence:
-        return EngineDecision(engine="lualatex", evidence=lualatex_evidence)
+    if len(definitive_matches) == 1:
+        engine, evidence = next(iter(definitive_matches.items()))
+        return EngineDecision(engine=engine, evidence=evidence)
 
     # Step 3: Ambiguous modern markers
     ambiguous_evidence = _scan_markers(preamble, AMBIGUOUS_MODERN_MARKERS)
