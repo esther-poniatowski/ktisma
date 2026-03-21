@@ -4,87 +4,47 @@
 [![Last Commit](https://img.shields.io/github/last-commit/esther-poniatowski/ktisma)](https://github.com/esther-poniatowski/ktisma/commits/main)
 [![License: GPL](https://img.shields.io/badge/License-GPL-yellow.svg)](https://opensource.org/licenses/GPL-3.0)
 
----
+Portable LaTeX build toolkit for predictable, shared document builds across multiple workspaces.
 
-Portable LaTeX build toolkit providing automatic engine detection, convention-based PDF
-routing, artifact cleanup, and VS Code integration across multiple workspaces.
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Features](#features)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Configuration](#configuration)
-- [Support](#support)
-- [Contributing](#contributing)
-- [Acknowledgments](#acknowledgments)
-- [License](#license)
+This repository is still plan-first. `ROADMAP.md` is the authoritative contract for architecture,
+CLI surface, configuration semantics, and rollout sequencing. `docs/design-principles.md`
+documents implementation rules and coding standards, but it must not redefine the public contract.
 
 ## Overview
 
-### Motivation
+Ktisma replaces duplicated `.latexmkrc` files, helper scripts, and editor-specific shell glue with
+one stable CLI and a layered build system:
 
-LaTeX projects across multiple workspaces share a common compilation workflow: invoke `latexmk`,
-route the compiled PDF to a designated output directory, and clean up intermediate artifacts. Each
-workspace currently reimplements this workflow independently through duplicated `.latexmkrc` files,
-post-compilation shell scripts, and VS Code LaTeX Workshop configurations.
+- One front door for build, inspect, clean, and prerequisite checks.
+- Explicit workspace and configuration resolution instead of `.git`-driven guesswork.
+- Safe output handling: a successful PDF must never be lost because routing did not match.
+- Per-job build directories and lockfiles to avoid collisions across watch mode, variants, and
+  concurrent builds.
+- Typed TOML configuration with deterministic precedence and merge rules.
+- Thin editor adapters that wrap the canonical CLI instead of bypassing it.
 
-This duplication introduces several problems:
+## Current Contract
 
-- **Divergent evolution**: Copies of the same helper script evolve independently. Fixes and
-  improvements in one workspace do not propagate to others (e.g., nested directory support exists in
-  some workspaces but not others).
-- **Hardcoded paths**: Each `.latexmkrc` embeds an absolute path to its helper script, tying the
-  build configuration to a specific machine layout.
-- **Engine mismatch**: A single `pdflatex` configuration is assumed globally, but some projects
-  require `lualatex` or `xelatex` (e.g., for `fontspec` or `polyglossia`). Compilation fails
-  silently or requires manual overrides.
-- **Redundant VS Code configuration**: LaTeX Workshop tool definitions, recipes, and cleanup
-  settings are copied verbatim across workspace files.
+Initial public commands:
 
-### Advantages
+- `build <source.tex>`
+- `inspect engine <source.tex>`
+- `inspect route <source.tex>`
+- `clean <source.tex|build-dir>`
+- `doctor`
 
-Ktisma centralizes the LaTeX build pipeline into a single, portable toolkit that can be imported
-into any workspace as a git submodule or symlink.
+Planned later commands:
 
-It provides the following benefits:
+- `batch <source-dir>`
+- `variants <source.tex>`
 
-- **Automatic engine detection**: Scans the document preamble (including `\input` chains) for
-  engine-specific packages (`fontspec`, `polyglossia`, `\RequireXeTeX`) and selects the appropriate
-  compiler without manual configuration.
-- **Convention-based PDF routing**: Moves compiled PDFs from the build directory to a sibling output
-  directory following the `*-tex/` to `*-pdfs/` naming convention, supporting both flat and nested
-  source layouts.
-- **Zero-residue builds**: Intermediate artifacts are confined to a temporary `.latexmk_build/`
-  directory and removed after successful compilation.
-- **Portable configuration**: No hardcoded absolute paths. Workspaces reference the toolkit via a
-  single environment variable, and per-workspace or per-project overrides layer cleanly on top of
-  shared defaults.
-- **Single source of truth**: Bug fixes, new build modes (batch, dual-version), and convention
-  changes propagate to all consuming workspaces through a submodule update.
+Deferred adapter command:
 
----
-
-## Features
-
-- [ ] Automatic TeX engine detection from document preamble analysis.
-- [ ] Post-compilation PDF relocation following `*-tex/` to `*-pdfs/` convention.
-- [ ] Automatic cleanup of `.latexmk_build/` intermediate artifacts.
-- [ ] Support for flat and nested source directory layouts.
-- [ ] Layered configuration: package defaults, workspace overrides, project overrides.
-- [ ] Batch compilation of all `.tex` files in a directory.
-- [ ] Dual-version compilation (e.g., blank and corrected variants).
-- [ ] VS Code LaTeX Workshop tool and recipe definitions (importable snippets).
-- [ ] Portable `.gitignore` fragment for LaTeX build artifacts.
-
----
+- `init <workspace-root>` after workspace-editing behavior is proven stable
 
 ## Installation
 
 ### As a Git Submodule
-
-Add ktisma to any workspace (recommended location: `vendor/ktisma/`):
 
 ```bash
 git submodule add https://github.com/esther-poniatowski/ktisma.git vendor/ktisma
@@ -92,128 +52,165 @@ git submodule add https://github.com/esther-poniatowski/ktisma.git vendor/ktisma
 
 ### As a Symlink
 
-For local-only use, symlink from a central installation:
-
 ```bash
 ln -s /path/to/ktisma vendor/ktisma
 ```
 
-### Workspace Integration
-
-In the consuming workspace's `.latexmkrc`, source the shared configuration:
-
-```perl
-do "$ENV{KTISMA}/latexmkrc";
-```
-
-The `KTISMA` environment variable is set by the VS Code tool definition (see
-[Configuration](#configuration)).
-
----
-
 ## Usage
 
-### Automatic Compilation (VS Code)
-
-With the LaTeX Workshop tool and recipe configured (see [Configuration](#configuration)),
-compilation triggers on save. The toolkit automatically:
-
-1. Detects the required TeX engine.
-2. Compiles the document into `.latexmk_build/`.
-3. Moves the PDF to the appropriate `*-pdfs/` directory.
-4. Removes all intermediate artifacts.
-
-### Command Line
-
-Compile a single document:
+Build a document from a vendored checkout:
 
 ```bash
-cd project-tex/ && KTISMA=/path/to/ktisma latexmk -r "$KTISMA/latexmkrc" main.tex
+python3 vendor/ktisma/bin/ktisma build project-tex/main.tex --workspace-root .
 ```
 
-Batch compile all documents in a directory:
+Installed or development use:
 
 ```bash
-ktisma/scripts/compile-batch.sh path/to/sources-tex/
+python3 -m ktisma build project-tex/main.tex --workspace-root .
 ```
 
-Compile dual versions (blank + corrected):
+Inspect engine selection without compiling:
 
 ```bash
-ktisma/scripts/compile-dual.sh path/to/document.tex
+python3 vendor/ktisma/bin/ktisma inspect engine project-tex/main.tex --workspace-root .
 ```
 
----
+Inspect routing without compiling:
+
+```bash
+python3 vendor/ktisma/bin/ktisma inspect route project-tex/main.tex --workspace-root .
+```
+
+Verify prerequisites:
+
+```bash
+python3 vendor/ktisma/bin/ktisma doctor --workspace-root .
+```
 
 ## Configuration
 
-### Layered Override System
+Ktisma uses a single typed configuration format: `.ktisma.toml`.
 
-Ktisma uses latexmk's native configuration layering:
+Precedence, highest first:
 
-| Layer | File | Scope |
-|-------|------|-------|
-| Package defaults | `ktisma/latexmkrc` | Engine detection, post-compile, cleanup |
-| Workspace overrides | `<workspace>/.latexmkrc` | Custom hooks, additional rules |
-| Project overrides | `<project>/.latexmkrc` | Force a specific engine, disable cleanup |
+1. CLI flags
+2. Per-file magic comments
+3. Project-local `.ktisma.toml` overlays between the source directory and the workspace root
+4. Workspace `.ktisma.toml`
+5. Built-in defaults
 
-### VS Code Integration
+Deterministic merge semantics:
 
-Add the following to your `.code-workspace` or `.vscode/settings.json`:
+- Tables merge by key.
+- Scalars and arrays replace the lower-precedence value.
+- Route rules merge by pattern key; if the same pattern is declared more than once, the nearer
+  layer wins.
+- Relative paths from config resolve against the directory of the config file that declared them.
+- Relative paths from magic comments resolve against the source file directory.
+- Relative paths from CLI flags resolve against the current working directory.
+
+Example:
+
+```toml
+schema_version = 1
+
+[build]
+out_dir_name = ".ktisma_build"
+cleanup = "on_output_success"
+synctex = true
+
+[engines]
+default = "pdflatex"
+modern_default = "lualatex"
+strict_detection = false
+
+[routing]
+source_suffix = "-tex"
+output_suffix = "-pdfs"
+preserve_relative = true
+collapse_entrypoint_names = false
+entrypoint_names = ["main", "index"]
+
+[routes]
+"lectures-tex/**" = "lectures-pdfs/"
+"drafts/*.tex" = "output/"
+
+[variants]
+blank = ""
+corrected = "\\ForceSolutions"
+```
+
+## Architecture Summary
+
+Ktisma uses four layers:
+
+| Layer | Responsibility |
+| --- | --- |
+| Domain | Pure decisions, data models, merge rules, engine detection, routing decisions, build planning |
+| Application | Build, inspect, clean, doctor, batch, and variant use-cases |
+| Infrastructure | TOML loading, source reading, lockfiles, filesystem mutation, subprocess execution, prerequisite probing |
+| Adapters | CLI, editor integration, diagnostic formatting, composition root, optional compatibility shims |
+
+Dependency direction is one-way: adapters -> application -> domain. Application depends on
+infrastructure through protocol interfaces, not concrete imports. Infrastructure implements
+protocols defined in the application layer. The composition root in the adapter layer wires
+concrete implementations at startup.
+
+## VS Code Integration
+
+The preferred integration path is to call the ktisma CLI directly from LaTeX Workshop:
 
 ```jsonc
 "latex-workshop.latex.tools": [
-    {
-        "name": "latexmk_custom",
-        "command": "bash",
-        "args": [
-            "-c",
-            "cd '%DIR%' && mkdir -p .latexmk_build && KTISMA='%WORKSPACE_FOLDER%/vendor/ktisma' latexmk -outdir=.latexmk_build -interaction=nonstopmode -file-line-error -r '%WORKSPACE_FOLDER%/.latexmkrc' '%DOCFILE%'"
-        ],
-        "env": {}
-    }
+  {
+    "name": "ktisma",
+    "command": "python3",
+    "args": [
+      "%WORKSPACE_FOLDER%/vendor/ktisma/bin/ktisma",
+      "build",
+      "%DOC%",
+      "--workspace-root",
+      "%WORKSPACE_FOLDER%"
+    ]
+  }
 ],
 "latex-workshop.latex.recipes": [
-    {
-        "name": "latexmk (ktisma)",
-        "tools": ["latexmk_custom"]
-    }
+  {
+    "name": "ktisma",
+    "tools": ["ktisma"]
+  }
 ],
 "latex-workshop.latex.autoClean.run": "never"
 ```
 
-### Directory Conventions
+The exact root-document placeholder may vary by LaTeX Workshop version. The important part is that
+the recipe calls ktisma directly rather than wrapping `latexmk` in `bash -c`.
+
+## Directory Conventions
 
 | Pattern | Purpose |
-|---------|---------|
+| --- | --- |
 | `*-tex/` | Source directories containing `.tex` files |
-| `*-pdfs/` | Output directories for compiled PDFs (auto-created) |
-| `.latexmk_build/` | Temporary build directory (auto-removed) |
+| `*-pdfs/` | Default sibling output directories for compiled PDFs |
+| `.ktisma_build/<job>/` | Per-job build directory for intermediate artifacts |
 
----
+Default routing preserves relative paths and basenames:
+
+- `slides-tex/week1.tex` -> `slides-pdfs/week1.pdf`
+- `slides-tex/decks/main.tex` -> `slides-pdfs/decks/main.pdf`
+
+Repositories that want `main.tex` to collapse to the parent directory name can opt in through
+configuration.
 
 ## Support
 
-**Issues**: [GitHub Issues](https://github.com/esther-poniatowski/ktisma/issues)
-
----
+Issues: [GitHub Issues](https://github.com/esther-poniatowski/ktisma/issues)
 
 ## Contributing
 
-Please refer to the [contribution guidelines](CONTRIBUTING.md).
-
----
-
-## Acknowledgments
-
-### Authors & Contributors
-
-**Author**: @esther-poniatowski
-
-For academic use, please cite using the GitHub "Cite this repository" feature to
-generate a citation in various formats.
-
----
+Open a pull request or issue against the plan documents first when changing the public contract.
+For implementation work, follow `docs/design-principles.md`.
 
 ## License
 
