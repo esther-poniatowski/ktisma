@@ -1,6 +1,17 @@
 # gitignore file for ktisma
 # -------------------------
 
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+build/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
 # Temporary files
 *.tmp
 *.temp

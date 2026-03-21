@@ -1,0 +1,15 @@
+#!/usr/bin/env python3
+"""Entry point for vendored use: python3 /path/to/ktisma/bin/ktisma."""
+
+import sys
+from pathlib import Path
+
+# Add the src/ directory to sys.path so ktisma is importable without installation.
+_toolkit_root = Path(__file__).resolve().parent.parent
+_src_dir = _toolkit_root / "src"
+if str(_src_dir) not in sys.path:
+    sys.path.insert(0, str(_src_dir))
+
+from ktisma.adapters.cli import main
+
+sys.exit(main())

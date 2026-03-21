@@ -1,0 +1,38 @@
+# --------------------------------------------------------------------------------------------------
+# Conda Environment Specification for the Ktisma Package
+#
+# To create the environment, run:
+# ```sh
+# conda env create -f environment.yml
+# ```
+#
+# To activate the environment, run:
+# ```sh
+# conda activate ktisma
+# ```
+# --------------------------------------------------------------------------------------------------
+name: ktisma
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.12
+  # Development tools
+  - black                  # code formatting
+  - mypy                   # static type checking
+  - pylint                 # code linting
+  - pyright                # code linting
+  # Testing
+  - pytest
+  - pytest-mock
+  - pytest-pylint          # Pylint plugin for Pytest
+  # Documentation
+  - sphinx                 # documentation generator
+  - sphinxcontrib-napoleon # for numpydoc-style docstrings
+  - sphinx-rtd-theme       # ReadTheDocs theme
+  - sphinx-needs           # for requirements and specifications in Sphinx
+  - esbonio                # language server for Sphinx
+  # Build
+  - pip
+  - pip:
+      - -e .
