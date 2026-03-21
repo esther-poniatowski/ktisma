@@ -7,11 +7,9 @@ patterns. It does not define the public product contract.
 
 Authority order:
 
-1. `ROADMAP.md` defines the architecture, CLI surface, and behavioral contract.
+1. The technical docs in `docs/` define the architecture, CLI surface, and behavioral contract.
 2. This file explains how to implement that contract cleanly.
 3. `README.md` is a user-facing summary.
-
-If this document ever disagrees with `ROADMAP.md`, the roadmap wins and this file must be updated.
 
 ## 1. Architectural Layering
 
@@ -185,7 +183,7 @@ The second form hides I/O behind what should be a policy function.
 
 ### 5.1 Contract Source
 
-The public config contract lives in `ROADMAP.md`. This file only constrains how to implement it.
+The public config contract lives in `docs/configuration.md`. This file only constrains how to implement it.
 
 ### 5.2 Parsing vs. Policy
 
@@ -477,7 +475,7 @@ Prefer parametrized tests and fixtures. Avoid `unittest.TestCase` unless interop
 ## 14. Documentation Discipline
 
 - Do not add a second authoritative contract document.
-- When behavior changes, update `ROADMAP.md` first, then this file, then `README.md`.
+- When behavior changes, update the relevant doc in `docs/` first, then this file, then `README.md`.
 - Document deferred behavior explicitly instead of leaving silent gaps.
 - Keep examples synchronized with the actual contract.
 

@@ -6,41 +6,34 @@
 
 Portable LaTeX build toolkit for predictable, shared document builds across multiple workspaces.
 
-This repository is still plan-first. `ROADMAP.md` is the authoritative contract for architecture,
-CLI surface, configuration semantics, and rollout sequencing. `docs/design-principles.md`
-documents implementation rules and coding standards, but it must not redefine the public contract.
-
 ## Overview
 
 Ktisma replaces duplicated `.latexmkrc` files, helper scripts, and editor-specific shell glue with
 one stable CLI and a layered build system:
 
 - One front door for build, inspect, clean, and prerequisite checks.
+- Automatic engine detection from source file preambles and magic comments.
 - Explicit workspace and configuration resolution instead of `.git`-driven guesswork.
-- Safe output handling: a successful PDF must never be lost because routing did not match.
+- Safe output handling: a successful PDF is never lost because routing did not match.
 - Per-job build directories and lockfiles to avoid collisions across watch mode, variants, and
   concurrent builds.
 - Typed TOML configuration with deterministic precedence and merge rules.
 - Thin editor adapters that wrap the canonical CLI instead of bypassing it.
 
-## Current Contract
+## Commands
 
-Initial public commands:
+```text
+ktisma build <source.tex>          Compile a LaTeX document
+ktisma inspect engine <source.tex> Show which engine would be selected
+ktisma inspect route <source.tex>  Show where the PDF would be routed
+ktisma clean <source.tex|dir>      Remove build artifacts
+ktisma doctor                      Verify prerequisites
+ktisma batch <source-dir>          Build all .tex files in a directory
+ktisma variants <source.tex>       Build all configured variants
+```
 
-- `build <source.tex>`
-- `inspect engine <source.tex>`
-- `inspect route <source.tex>`
-- `clean <source.tex|build-dir>`
-- `doctor`
-
-Planned later commands:
-
-- `batch <source-dir>`
-- `variants <source.tex>`
-
-Deferred adapter command:
-
-- `init <workspace-root>` after workspace-editing behavior is proven stable
+All commands accept `--workspace-root` to set the workspace explicitly. `build` and `inspect`
+support `--json` for machine-readable output.
 
 ## Installation
 
@@ -141,21 +134,23 @@ blank = ""
 corrected = "\\ForceSolutions"
 ```
 
-## Architecture Summary
+## Architecture
 
-Ktisma uses four layers:
+Ktisma uses a four-layer architecture with strict dependency boundaries:
 
 | Layer | Responsibility |
 | --- | --- |
-| Domain | Pure decisions, data models, merge rules, engine detection, routing decisions, build planning |
-| Application | Build, inspect, clean, doctor, batch, and variant use-cases |
-| Infrastructure | TOML loading, source reading, lockfiles, filesystem mutation, subprocess execution, prerequisite probing |
-| Adapters | CLI, editor integration, diagnostic formatting, composition root, optional compatibility shims |
+| Domain | Pure decisions, data models, merge rules, engine detection, routing, build planning |
+| Application | Use-case orchestration: build, inspect, clean, doctor, batch, variants |
+| Infrastructure | Filesystem, TOML loading, lockfiles, subprocess execution, prerequisite probing |
+| Adapters | CLI parsing, editor integration, diagnostic formatting, composition root |
 
 Dependency direction is one-way: adapters -> application -> domain. Application depends on
 infrastructure through protocol interfaces, not concrete imports. Infrastructure implements
-protocols defined in the application layer. The composition root in the adapter layer wires
+protocols defined in the application layer. The composition root in `adapters/bootstrap.py` wires
 concrete implementations at startup.
+
+See [docs/architecture.md](docs/architecture.md) for the full technical reference.
 
 ## VS Code Integration
 
@@ -207,10 +202,23 @@ configuration.
 
 Issues: [GitHub Issues](https://github.com/esther-poniatowski/ktisma/issues)
 
+## Documentation
+
+| Document | Scope |
+| --- | --- |
+| [Architecture](docs/architecture.md) | Layers, protocols, data flow, module inventory |
+| [Configuration](docs/configuration.md) | `.ktisma.toml` reference, precedence, merge rules, path resolution |
+| [CLI Reference](docs/cli-reference.md) | Commands, flags, output modes, exit codes |
+| [Engine Detection](docs/engine-detection.md) | Detection steps, marker classes, ambiguity handling |
+| [Routing](docs/routing.md) | Resolution chain, suffix conventions, route rules, fallback |
+| [Build Lifecycle](docs/build-lifecycle.md) | Build pipeline, watch mode, cleanup, locks, variants |
+| [Editor Integration](docs/editor-integration.md) | VS Code, LaTeX Workshop, latexmkrc migration |
+| [Design Principles](docs/design-principles.md) | Coding standards and implementation patterns |
+
 ## Contributing
 
 Open a pull request or issue against the plan documents first when changing the public contract.
-For implementation work, follow `docs/design-principles.md`.
+For implementation work, follow [docs/design-principles.md](docs/design-principles.md).
 
 ## License
 
