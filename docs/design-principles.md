@@ -2,14 +2,15 @@
 
 Implementation guide for ktisma.
 
-This document governs coding style, module boundaries, testing discipline, and implementation
-patterns. It does not define the public product contract.
+This document extends the [shared design principles](../../dev/design-principles.md) with
+ktisma-specific guidelines. It does not define the public product contract.
 
 Authority order:
 
-1. The technical docs in `docs/` define the architecture, CLI surface, and behavioral contract.
-2. This file explains how to implement that contract cleanly.
-3. `README.md` is a user-facing summary.
+1. The shared design principles define ecosystem-wide conventions.
+2. The technical docs in `docs/` define the architecture, CLI surface, and behavioral contract.
+3. This file explains how to implement that contract cleanly.
+4. `README.md` is a user-facing summary.
 
 ## 1. Architectural Layering
 
@@ -376,12 +377,11 @@ Pass dependencies explicitly.
 
 ### 11.1 Baseline
 
-Target Python 3.9+.
+Target Python 3.12+.
 
-- Use PEP 585 built-in generics such as `list[str]`.
-- Use syntax compatible with Python 3.9 for unions, such as `Optional[str]`, unless the minimum
-  supported version is raised.
-- Add `from __future__ import annotations` where it simplifies forward references.
+- Use PEP 585 built-in generics: `list[str]`, `dict[str, int]`.
+- Use PEP 604 union syntax: `str | None`.
+- Use PEP 695 `type` keyword for type aliases.
 
 ### 11.2 Requirements
 
