@@ -1,0 +1,47 @@
+# ==================================================================================================
+# GitHub Actions Workflow: Semantic Release
+#
+# File: `.github/workflows/release.yml`
+#
+# Automates version bumping, changelog generation, and GitHub release creation
+# based on conventional commit messages.
+#
+# Trigger: Manual only (workflow_dispatch) for safety.
+#
+# See Also
+# --------
+# - Python Semantic Release: https://python-semantic-release.readthedocs.io/
+# - config/tools/releaserc.toml: Release configuration
+# ==================================================================================================
+
+name: Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Semantic Release
+        run: pip install python-semantic-release
+
+      - name: Run Semantic Release
+        run: semantic-release --config config/tools/releaserc.toml version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

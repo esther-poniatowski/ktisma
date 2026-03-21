@@ -1,0 +1,77 @@
+# ==================================================================================================
+# GitHub Actions Workflow File for the Ktisma Package
+#
+# File: `.github/workflows/ci.yml`
+#
+# This workflow runs continuous integration checks on every push and pull request to the main branch.
+#
+# Steps
+# -----
+# 1. Checkout the repository.
+# 2. Set up Python.
+# 3. Install the package in editable mode with dev dependencies.
+# 4. Run linting, type checking, and tests.
+#
+# See Also
+# --------
+# - Checkout Action: https://github.com/actions/checkout
+# - Setup Python Action: https://github.com/actions/setup-python
+# ==================================================================================================
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install black pylint mypy pyright
+
+      - name: Run Black (check only)
+        run: black --config config/tools/black.toml --check .
+
+      - name: Run Pylint
+        run: pylint --rcfile=config/tools/pylintrc.ini src/ktisma
+
+      - name: Run MyPy
+        run: mypy --config-file config/tools/mypy.ini src/ktisma
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest pytest-mock pytest-cov
+
+      - name: Run Tests
+        run: pytest tests/ --cov=ktisma --cov-report=term-missing

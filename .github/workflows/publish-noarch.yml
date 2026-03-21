@@ -1,0 +1,115 @@
+# ==================================================================================================
+# GitHub Actions Workflow File for the Ktisma Package
+#
+# File: `.github/workflows/publish-noarch.yml`
+#
+# This workflow automates the build and deployment of the package to a private static Conda channel
+# hosted on GitHub Pages, for a platform-independent package.
+#
+# Environment Variables
+# ---------------------
+# - CHANNEL_REPO    : Name of the GitHub repository used to host the Conda channel.
+#                     Current value: `eresthanaconda`.
+# - CHANNEL_DIR     : Path to the cloned Conda channel repository.
+#                     Current value: `../eresthanaconda`.
+# - BUILD_DIR       : Output directory for built packages within the package repository.
+#                     Current value: `build`.
+#
+# Secrets
+# -------
+# - CHANNEL_TOKEN   : GitHub Personal Access Token to the channel, with `repo` scope.
+# - CHANNEL_USERNAME: Username associated with the token.
+#
+# Notes
+# -----
+# Trigger: On every push to the `main` branch.
+#
+# Platform: `noarch` (pure python, no architecture-specific dependencies).
+#
+# Key Steps:
+#
+# 1. Setup:
+#    - Checkout the package repository.
+#    - Create a Conda build environment.
+#    - Install `conda-build`.
+#
+# 2. Build:
+#    - Build the package (`noarch` platform).
+#    - Store artifacts in the specified local build directory.
+#
+# 3. Deploy:
+#    - Clone the remote Conda channel repository.
+#    - Copy built artifacts into platform-independent subdirectory.
+#    - Index the channel to update metadata.
+#
+# 4. Publish:
+#    - Commit and push the updated channel repository to GitHub.
+#
+# See Also
+# --------
+# - Conda Build: https://docs.conda.io/projects/conda-build
+# - Checkout Action: https://github.com/actions/checkout
+# - Setup Miniconda Action: https://github.com/conda-incubator/setup-miniconda
+# ==================================================================================================
+
+name: Build and Deploy
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      CHANNEL_REPO: eresthanaconda
+      CHANNEL_DIR: ../eresthanaconda
+      BUILD_DIR: build
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Package Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Conda Environment
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-variant: Miniforge3
+          use-mamba: true
+
+      - name: Install Conda Tools
+        run: conda install -y conda-build conda-index
+
+      - name: Build Package
+        run: conda build conda.recipe --output-folder ${{ env.BUILD_DIR }}
+
+      - name: Clone Channel Repository
+        run: git clone "https://x-access-token:${{ secrets.CHANNEL_TOKEN }}@github.com/${{ secrets.CHANNEL_USERNAME }}/${{ env.CHANNEL_REPO }}.git" ${{ env.CHANNEL_DIR }}
+
+      - name: Ensure Platform Directory Exists
+        run: |
+          mkdir -p ${{ env.CHANNEL_DIR }}/noarch
+
+      - name: Deploy Built Packages
+        run:  |
+          cp -r ${{ env.BUILD_DIR }}/noarch/* ${{ env.CHANNEL_DIR }}/noarch/
+
+      - name: Index Channel Repository
+        run: conda run python -m conda_index ${{ env.CHANNEL_DIR }}
+
+      - name: Configure Git Identity
+        run: |
+          cd ${{ env.CHANNEL_DIR }}
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+      - name: Push to Channel Repository
+        run: |
+          cd ${{ env.CHANNEL_DIR }}
+          git add .
+          git commit -m "chore(conda): Publish ${{ github.repository }} for noarch" || true
+          git push "https://x-access-token:${{ secrets.CHANNEL_TOKEN }}@github.com/${{ secrets.CHANNEL_USERNAME }}/${{ env.CHANNEL_REPO }}.git"

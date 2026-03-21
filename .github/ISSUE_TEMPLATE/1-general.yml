@@ -1,0 +1,57 @@
+# ISSUE TEMPLATE
+
+name: Issue Template
+description: General template for new issues
+title: "[Issue] - "
+labels: ["feat"]
+assignees: esther-poniatowski
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: Brief statement of the goal
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria
+      description: Requirements to achieve this goal
+      value: |
+        - [ ]
+
+  - type: textarea
+    id: tasks
+    attributes:
+      label: Tasks
+      description: Sub-tasks or implementation steps
+      value: |
+        - [ ]
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Links to related issues or PRs
+      value: |
+        - Related to #
+      placeholder: |
+        - Related to #<issue_number>
+
+  - type: textarea
+    id: related_files
+    attributes:
+      label: Cross-References
+      description: Links to related branch, files, code lines...
+      value: |
+        - [](url)
+      placeholder: |
+        - [Branch](https://github.com/username/repository/tree/branch-name)
+        - [File](https://github.com/username/repository/main/file.txt)
+        - [Code](https://github.com/user/repository/blob/main/src/main.py#L10-L20)
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Any additional information or considerations.
