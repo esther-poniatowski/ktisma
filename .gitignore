@@ -1,25 +1,41 @@
 # gitignore file for ktisma
-# -------------------------
+# ----------------------------------
 
-# Python
+## Temporary files
+*.tmp
+*.temp
+
+## Credentials
+.git-credentials
+
+## macOS
+.DS_Store
+
+## Python Cache
 __pycache__/
 *.py[cod]
+
+## Python Distribution / Packaging
 *.egg-info/
 *.egg
 dist/
 build/
-.mypy_cache/
+
+## Test Coverage
+.coverage
+htmlcov/
+
+## Tool Caches
 .pytest_cache/
-.ruff_cache/
+.mypy_cache/
 
-# Temporary files
-*.tmp
-*.temp
+## Jupyter Notebook
+.ipynb_checkpoints/
 
-# MacOS
-.DS_Store
+## Documentation Build
+docs/_build/
 
-# LaTeX build artifacts
+## LaTeX build artifacts
 .latexmk_build/
 **/*-pdfs/
 *.aux

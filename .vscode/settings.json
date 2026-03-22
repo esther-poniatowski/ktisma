@@ -93,8 +93,10 @@
   ],
 
   // --- Documentation -----------------------------------------------------------------------------
+  "restructuredtext.linter.disabledLinters": ["doc8", "rstcheck", "rst-lint"],
   "esbonio.server.enabled": true,
   "esbonio.server.enabledInPyFiles": true,
+  "esbonio.server.excludedModules": [],
   "esbonio.sphinx.confDir": "docs",
   "esbonio.sphinx.srcDir": "docs",
   "esbonio.sphinx.builderName": "html",
@@ -102,10 +104,21 @@
   // --- Testing -----------------------------------------------------------------------------------
   "python.testing.pytestEnabled": true,
   "python.testing.unittestEnabled": false,
+  "pythonTestExplorer.testFramework": "pytest",
   "python.testing.pytestArgs": ["tests"],
 
   // --- Adaptive Language Assistance --------------------------------------------------------------
   "github.copilot.enable": {
-    "*": true
+    "*": true,
+    "python": true,
+    "restructuredtext": true,
+    "plaintext": true,
+    "markdown": true,
+    "yaml": true,
+    "json": true,
+    "ini": true,
+    "shellscript": true,
+    "gitignore": true,
+    "git": true
   },
 }

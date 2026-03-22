@@ -15,6 +15,7 @@
 // - Static Type Checking
 // - Documentation
 // - Version Control
+// - Interactive Development
 // - Adaptive Language Assistance
 // =================================================================================================
 {
@@ -36,6 +37,8 @@
     // --- Testing ---------------------------------------------------------------------------------
     "ms-vscode.test-adapter-converter",
     "hbenl.vscode-test-explorer",
+    "ms-python.python-test-adapter",
+    "littlefoxteam.vscode-python-test-adapter",
 
     // --- Formatting ------------------------------------------------------------------------------
     "ms-python.black-formatter",
@@ -48,14 +51,26 @@
     "ms-python.mypy-type-checker",
 
     // --- Documentation ---------------------------------------------------------------------------
+    "lextudio.restructuredtext",
+    "trond-snekvik.simple-rst",
+    "leonhard-s.python-sphinx-highlight",
+    "swyddfa.esbonio",
+    "njpwerner.autodocstring",
+    "noahsyn10.pydoctestbtn",
     "executablebookproject.myst-highlight",
     "davidanson.vscode-markdownlint",
-    "swyddfa.esbonio",
 
     // --- Version Control -------------------------------------------------------------------------
     "mhutchie.git-graph",
     "github.vscode-github-actions",
     "github.vscode-pull-request-github",
+
+    // --- Interactive Development ---------------------------------------------------------------
+    "ms-toolsai.jupyter",
+    "ms-toolsai.vscode-jupyter-cell-tags",
+    "ms-toolsai.jupyter-keymap",
+    "ms-toolsai.jupyter-renderers",
+    "ms-toolsai.vscode-jupyter-slideshow",
 
     // --- Adaptive Language Assistance ------------------------------------------------------------
     "github.copilot",
