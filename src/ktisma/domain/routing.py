@@ -225,7 +225,8 @@ def _apply_suffix_convention(
 
     Built-in convention:
     - *-tex/ maps to sibling *-pdfs/
-    - preserve relative path beneath the source root
+    - The -tex directory may appear at any depth below the workspace root
+    - preserve relative path beneath the matched -tex directory
     - preserve source basename
     """
     source_suffix = config.routing.source_suffix
@@ -240,29 +241,46 @@ def _apply_suffix_convention(
     if not parts:
         return None
 
-    top_dir = parts[0]
-    if not top_dir.endswith(source_suffix):
+    # Find the deepest directory component ending with the source suffix.
+    # Scan right-to-left (skipping the filename) to match the nearest ancestor,
+    # consistent with the behavior of walking up from the source file.
+    matched_index = None
+    for i in range(len(parts) - 2, -1, -1):
+        if parts[i].endswith(source_suffix):
+            matched_index = i
+            break
+
+    if matched_index is None:
         return None
 
-    output_dir_name = top_dir[: -len(source_suffix)] + output_suffix
+    prefix_parts = parts[:matched_index]
+    matched_dir = parts[matched_index]
+    output_dir_name = matched_dir[: -len(source_suffix)] + output_suffix
+    inner_parts = parts[matched_index + 1 :]  # after the matched dir, includes filename
+    inner_dirs = inner_parts[:-1]  # directory parts between -tex dir and file
 
-    if config.routing.collapse_entrypoint_names and len(parts) >= 3:
+    if prefix_parts:
+        base = ctx.workspace_root / Path(*prefix_parts) / output_dir_name
+    else:
+        base = ctx.workspace_root / output_dir_name
+
+    if config.routing.collapse_entrypoint_names and inner_dirs:
         stem = ctx.source_file.stem
         if stem in config.routing.entrypoint_names:
-            parent_name = parts[-2] if len(parts) >= 2 else stem
+            parent_name = inner_dirs[-1]
             collapsed_name = parent_name + ".pdf"
-            remaining = Path(*parts[1:-2]) if len(parts) > 3 else Path()
-            dest = ctx.workspace_root / output_dir_name / remaining / collapsed_name
+            remaining = Path(*inner_dirs[:-1]) if len(inner_dirs) > 1 else Path()
+            dest = base / remaining / collapsed_name
             return RouteDecision(
                 destination=dest,
                 matched_rule=f"suffix convention ({source_suffix} -> {output_suffix}) + entrypoint collapse",
             )
 
-    if config.routing.preserve_relative and len(parts) > 1:
-        remaining = Path(*parts[1:]).parent
-        dest = ctx.workspace_root / output_dir_name / remaining / pdf_name
+    if config.routing.preserve_relative and inner_dirs:
+        remaining = Path(*inner_dirs)
+        dest = base / remaining / pdf_name
     else:
-        dest = ctx.workspace_root / output_dir_name / pdf_name
+        dest = base / pdf_name
 
     return RouteDecision(
         destination=dest,

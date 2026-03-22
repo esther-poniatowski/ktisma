@@ -293,6 +293,28 @@ class TestSuffixConvention:
         decision = resolve_route(ctx, _inputs(), cfg)
         assert decision.destination == WS / "project-pdfs/paper.pdf"
 
+    def test_deep_nested_suffix_dir(self) -> None:
+        """Suffix dir at arbitrary depth below workspace root."""
+        ctx = _ctx(source="projects/subproject/presentations-tex/overview.tex")
+        cfg = _cfg()
+        decision = resolve_route(ctx, _inputs(), cfg)
+        assert decision.destination == WS / "projects/subproject/presentations-pdfs/overview.pdf"
+        assert decision.fallback is False
+        assert "suffix convention" in (decision.matched_rule or "")
+
+    def test_deep_nested_with_inner_subdir(self) -> None:
+        """Suffix dir at depth with further subdirectories inside."""
+        ctx = _ctx(source="content/math/lectures-tex/advanced/topic.tex")
+        cfg = _cfg(preserve_relative=True)
+        decision = resolve_route(ctx, _inputs(), cfg)
+        assert decision.destination == WS / "content/math/lectures-pdfs/advanced/topic.pdf"
+
+    def test_deep_nested_no_preserve_relative(self) -> None:
+        ctx = _ctx(source="content/math/lectures-tex/advanced/topic.tex")
+        cfg = _cfg(preserve_relative=False)
+        decision = resolve_route(ctx, _inputs(), cfg)
+        assert decision.destination == WS / "content/math/lectures-pdfs/topic.pdf"
+
 
 # ---------------------------------------------------------------------------
 # 4a. collapse_entrypoint_names
@@ -350,6 +372,14 @@ class TestCollapseEntrypointNames:
         cfg = _cfg(collapse_entrypoint_names=True)
         decision = resolve_route(ctx, _inputs(), cfg)
         assert decision.destination == WS / "project-pdfs/part1/ch1.pdf"
+
+    def test_collapse_deep_nested_suffix_dir(self) -> None:
+        """Collapse works when -tex dir is deep below workspace root."""
+        ctx = _ctx(source="projects/research/presentations-tex/deck-name/main.tex")
+        cfg = _cfg(collapse_entrypoint_names=True)
+        decision = resolve_route(ctx, _inputs(), cfg)
+        assert decision.destination == WS / "projects/research/presentations-pdfs/deck-name.pdf"
+        assert "entrypoint collapse" in (decision.matched_rule or "")
 
 
 # ---------------------------------------------------------------------------
