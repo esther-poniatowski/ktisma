@@ -24,6 +24,7 @@ class _StubResult:
         self.engine = None
         self.route = None
         self.build_plan = None
+        self.backend_result = None
         self.produced_paths: list = []
         self.removed_dirs: list = []
         self.checks: list = []
@@ -130,6 +131,14 @@ def test_build_with_output_dir(mock_build):
 
 
 @patch("ktisma.adapters.bootstrap.build")
+def test_build_with_output_path(mock_build):
+    mock_build.return_value = _StubResult()
+    main(["build", "main.tex", "--output", "/tmp/out/custom.pdf"])
+    request = mock_build.call_args[1]["request"]
+    assert request.output_path_override == Path("/tmp/out/custom.pdf").resolve()
+
+
+@patch("ktisma.adapters.bootstrap.build")
 def test_build_with_cleanup(mock_build):
     mock_build.return_value = _StubResult()
     main(["build", "main.tex", "--cleanup", "on_success"])
@@ -201,6 +210,14 @@ def test_inspect_route_with_output_dir(mock_fn):
     main(["inspect", "route", "main.tex", "--output-dir", "/tmp/pdf"])
     request = mock_fn.call_args[1]["request"]
     assert request.output_dir_override is not None
+
+
+@patch("ktisma.adapters.bootstrap.inspect_route_cmd")
+def test_inspect_route_with_output_path(mock_fn):
+    mock_fn.return_value = _StubDecision()
+    main(["inspect", "route", "main.tex", "--output", "/tmp/custom.pdf"])
+    request = mock_fn.call_args[1]["request"]
+    assert request.output_path_override == Path("/tmp/custom.pdf").resolve()
 
 
 # ---------------------------------------------------------------------------

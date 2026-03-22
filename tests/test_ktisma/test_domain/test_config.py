@@ -17,6 +17,7 @@ from ktisma.domain.config import (
     EngineConfig,
     ResolvedConfig,
     RoutingConfig,
+    VariantConfig,
     default_config,
     merge_config_layers,
     resolve_config,
@@ -329,7 +330,7 @@ class TestResolveConfig:
         assert cfg.routing.collapse_entrypoint_names is True
         assert cfg.routing.entrypoint_names == ["document"]
         assert cfg.routes == {"ch1/*.tex": "output/ch1/"}
-        assert cfg.variants == {"print": "\\printmodetrue"}
+        assert cfg.variants == {"print": VariantConfig(payload="\\printmodetrue")}
         assert cfg.provenance == ["custom"]
 
     def test_missing_sections_use_defaults(self) -> None:

@@ -18,9 +18,7 @@ Add the following to your workspace `.vscode/settings.json`:
       "args": [
         "%WORKSPACE_FOLDER%/vendor/ktisma/bin/ktisma",
         "build",
-        "%DOC%",
-        "--workspace-root",
-        "%WORKSPACE_FOLDER%"
+        "%DOC_EXT%"
       ]
     }
   ],
@@ -38,8 +36,10 @@ Key points:
 
 - The recipe calls ktisma directly rather than wrapping `latexmk` in `bash -c`.
 - `autoClean` is set to `"never"` because ktisma manages cleanup through its own policies.
-- The `--workspace-root` flag is set to `%WORKSPACE_FOLDER%` so ktisma finds `.ktisma.toml`
-  files and resolves paths correctly.
+- Use the placeholder that expands to the resolved root document including its `.tex` extension.
+  In LaTeX Workshop that is typically `%DOC_EXT%`.
+- Add `--workspace-root %WORKSPACE_FOLDER%` only when you want the editor recipe to pin the
+  workspace root explicitly instead of relying on ktisma's config discovery.
 
 ### Generating the Configuration
 
@@ -60,8 +60,8 @@ print(format_latex_workshop_snippet("/absolute/path/to/ktisma/bin/ktisma"))
 ### Adapter-Provided Workspace Root
 
 When ktisma is invoked from an editor, the adapter can pass the editor's workspace root via the
-`--workspace-root` flag or through the adapter API. This takes precedence over environment
-variables and `.ktisma.toml` discovery (see
+`--workspace-root` flag or through the adapter API when explicit pinning is needed. This takes
+precedence over environment variables and `.ktisma.toml` discovery (see
 [Configuration: Workspace Root Resolution](configuration.md#workspace-root-resolution)).
 
 ## Other Editors
@@ -69,8 +69,8 @@ variables and `.ktisma.toml` discovery (see
 Any editor that supports running external build commands can use ktisma. The integration pattern
 is the same:
 
-1. Configure the editor to run `python3 /path/to/ktisma/bin/ktisma build <source>
-   --workspace-root <root>`.
+1. Configure the editor to run `python3 /path/to/ktisma/bin/ktisma build <source.tex>
+   [--workspace-root <root>]`.
 2. Disable the editor's own cleanup if ktisma manages it.
 3. Optionally use `--json` for machine-readable output that the editor can parse.
 
@@ -129,7 +129,7 @@ If ktisma is installed globally or in a known location, reference it directly:
 
 ```jsonc
 "command": "python3",
-"args": ["/path/to/ktisma/bin/ktisma", "build", "%DOC%", "--workspace-root", "%WORKSPACE_FOLDER%"]
+"args": ["/path/to/ktisma/bin/ktisma", "build", "%DOC_EXT%"]
 ```
 
 ## Diagnostics in Editors

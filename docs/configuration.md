@@ -28,15 +28,17 @@ output_suffix = "-pdfs"
 preserve_relative = true
 collapse_entrypoint_names = false
 entrypoint_names = ["main", "index"]
+default_filename_suffix = ""
+variant_filename_suffix = "_{variant}"
 
 [routes]
 "lectures-tex/**" = "lectures-pdfs/"
 "drafts/*.tex" = "output/"
 "thesis/main.tex" = "~/Documents/thesis-builds/"
 
-[variants]
-blank = ""
-corrected = "\\ForceSolutions"
+[variants.review]
+payload = "\\def\\ShowReviewMarkup{}"
+filename_suffix = "_review"
 ```
 
 ## Schema Reference
@@ -74,6 +76,8 @@ Valid engine values: `pdflatex`, `lualatex`, `xelatex`, `latex`.
 | `preserve_relative` | boolean | `true` | Preserve relative path structure from source to output. |
 | `collapse_entrypoint_names` | boolean | `false` | Collapse entrypoint filenames into parent directory names. |
 | `entrypoint_names` | array of strings | `["main", "index"]` | Filenames eligible for entrypoint collapse. |
+| `default_filename_suffix` | string | `""` | Suffix template appended to non-variant outputs before `.pdf`. Supports `{stem}` and `{variant}` placeholders. |
+| `variant_filename_suffix` | string | `_{variant}` | Default suffix template appended to variant outputs before `.pdf`. Supports `{stem}` and `{variant}` placeholders. |
 
 ### `[routes]`
 
@@ -90,14 +94,25 @@ is preserved. Targets with a file extension are treated as explicit file paths.
 
 ### `[variants]`
 
-Named build variants. Each key is a variant name and each value is a TeX preamble payload
-injected before compilation via `latexmk -usepretex`.
+Named build variants. Variants support two forms:
 
 ```toml
 [variants]
-blank = ""
-corrected = "\\ForceSolutions"
+review = "\\def\\ShowReviewMarkup{}"
+
+[variants.handout]
+payload = "\\def\\HandoutMode{}"
+engine = "lualatex"
+output = "../review-pdfs/"
+filename_suffix = "_handout"
 ```
+
+- **String form**: the value is a TeX preamble payload injected via `latexmk -usepretex`.
+- **Table form**: supports:
+  - `payload`: TeX preamble payload
+  - `engine`: variant-specific engine override
+  - `output`: variant-specific output directory or explicit output file, resolved relative to the source file directory
+  - `filename_suffix`: variant-specific filename suffix template, overriding `[routing].variant_filename_suffix`
 
 Variant names must match the pattern `^[a-zA-Z][a-zA-Z0-9_-]*$` and be safe for use in
 filenames.
@@ -106,7 +121,7 @@ filenames.
 
 Highest priority first:
 
-1. **CLI flags** (`--engine`, `--output-dir`, `--cleanup`)
+1. **CLI flags** (`--engine`, `--output`, `--output-dir`, `--cleanup`)
 2. **Per-file magic comments** (`% !TeX program = ...`, `% !ktisma output = ...`)
 3. **Project-local `.ktisma.toml` overlays** between the source directory and the workspace root
 4. **Workspace `.ktisma.toml`** at the workspace root
@@ -116,8 +131,8 @@ Highest priority first:
 
 | Concern | Precedence (highest first) |
 | --- | --- |
-| Engine | `--engine` > `% !TeX program` > config override > preamble detection > `[engines].default` |
-| Routing | `--output-dir` > `% !ktisma output` > `[routes]` > `[routing]` suffix convention > fallback beside source |
+| Engine | `--engine` > variant `engine` > `% !TeX program` / marker detection > `[engines].default` |
+| Routing | `--output` > `--output-dir` > variant `output` > `% !ktisma output` > custom route resolvers > `[routes]` > `[routing]` suffix convention > fallback beside source |
 | Cleanup | CLI > nearest config > workspace config > built-in default |
 | Variants | CLI explicit variant > config-defined variant map |
 
@@ -177,7 +192,8 @@ Path anchoring is deterministic based on where the path was declared:
 | --- | --- |
 | CLI flags | Current working directory |
 | Magic comments (`% !ktisma output = ...`) | Source file directory |
-| `.ktisma.toml` | Directory of the config file that declared the path |
+| `.ktisma.toml` route targets | Directory of the config file that declared the path |
+| Variant `output` values | Source file directory |
 
 Processing steps:
 
@@ -193,7 +209,7 @@ workspace-relative paths. Resolution order:
 1. `--workspace-root` CLI flag
 2. `KTISMA_WORKSPACE_ROOT` environment variable
 3. Adapter-provided workspace root (e.g., from VS Code)
-4. Nearest ancestor directory containing `.ktisma.toml`
+4. Outermost ancestor directory containing `.ktisma.toml`
 5. Current working directory
 
 The workspace root is never inferred from `.git` or other unrelated files.

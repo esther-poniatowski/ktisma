@@ -52,6 +52,7 @@ def _build_parser() -> argparse.ArgumentParser:
     build_parser.add_argument("source", type=Path, help="Source .tex file")
     build_parser.add_argument("--workspace-root", type=Path, help="Workspace root directory")
     build_parser.add_argument("--engine", help="Override engine selection")
+    build_parser.add_argument("--output", type=Path, help="Override output PDF path")
     build_parser.add_argument("--output-dir", type=Path, help="Override output directory")
     build_parser.add_argument("--watch", action="store_true", help="Enable watch mode")
     build_parser.add_argument("--dry-run", action="store_true", help="Show plan without building")
@@ -75,6 +76,7 @@ def _build_parser() -> argparse.ArgumentParser:
     inspect_route = inspect_sub.add_parser("route", help="Inspect output routing")
     inspect_route.add_argument("source", type=Path, help="Source .tex file")
     inspect_route.add_argument("--workspace-root", type=Path)
+    inspect_route.add_argument("--output", type=Path)
     inspect_route.add_argument("--output-dir", type=Path)
     inspect_route.add_argument("--json", action="store_true")
     inspect_route.set_defaults(func=_cmd_inspect_route)
@@ -105,6 +107,11 @@ def _build_parser() -> argparse.ArgumentParser:
     variants_parser.add_argument("source", type=Path, help="Source .tex file")
     variants_parser.add_argument("--workspace-root", type=Path)
     variants_parser.add_argument("--engine", help="Override engine")
+    variants_parser.add_argument(
+        "--include-default",
+        action="store_true",
+        help="Also build the non-variant output alongside configured variants",
+    )
     variants_parser.add_argument("--json", action="store_true")
     variants_parser.set_defaults(func=_cmd_variants)
 
@@ -116,6 +123,7 @@ def _cmd_build(args: argparse.Namespace) -> int:
         watch=args.watch,
         dry_run=args.dry_run,
         engine_override=args.engine,
+        output_path_override=args.output.expanduser().resolve() if args.output else None,
         output_dir_override=args.output_dir.expanduser().resolve() if args.output_dir else None,
         variant=args.variant,
         variant_payload=args.variant_payload if hasattr(args, "variant_payload") else None,
@@ -133,16 +141,12 @@ def _cmd_build(args: argparse.Namespace) -> int:
 
     if args.json:
         source_file = args.source.expanduser().resolve()
-        _print_json({
-            "exit_code": int(result.exit_code),
-            "engine": result.engine.to_dict() if result.engine else None,
-            "route": result.route.to_dict(source_file) if result.route else None,
-            "build_plan": result.build_plan.to_dict() if result.build_plan else None,
-            "produced_paths": [str(p) for p in result.produced_paths],
-        })
+        _print_json(_build_result_to_dict(result, source_file))
     elif result.exit_code == ExitCode.SUCCESS and result.produced_paths:
         for p in result.produced_paths:
             print(p)
+    elif result.backend_result is not None:
+        _print_backend_streams(result.backend_result)
 
     return result.exit_code
 
@@ -174,6 +178,7 @@ def _cmd_inspect_engine(args: argparse.Namespace) -> int:
 
 def _cmd_inspect_route(args: argparse.Namespace) -> int:
     request = BuildRequest(
+        output_path_override=args.output.expanduser().resolve() if args.output else None,
         output_dir_override=args.output_dir.expanduser().resolve() if args.output_dir else None,
         json_output=args.json,
     )
@@ -257,7 +262,7 @@ def _cmd_batch(args: argparse.Namespace) -> int:
         _print_json({
             "exit_code": int(result.exit_code),
             "results": [
-                {"source": str(p), "exit_code": int(r.exit_code)}
+                {"source": str(p), "build": _build_result_to_dict(r, p)}
                 for p, r in result.results
             ],
             "diagnostics": [d.to_dict() for d in result.diagnostics],
@@ -269,6 +274,7 @@ def _cmd_batch(args: argparse.Namespace) -> int:
 def _cmd_variants(args: argparse.Namespace) -> int:
     request = BuildRequest(
         engine_override=args.engine,
+        include_default=args.include_default,
         json_output=args.json,
     )
 
@@ -284,7 +290,10 @@ def _cmd_variants(args: argparse.Namespace) -> int:
         _print_json({
             "exit_code": int(result.exit_code),
             "variants": [
-                {"name": v.name, "exit_code": int(r.exit_code)}
+                {
+                    "name": v.name,
+                    "build": _build_result_to_dict(r, args.source.expanduser().resolve()),
+                }
                 for v, r in result.results
             ],
             "diagnostics": [d.to_dict() for d in result.diagnostics],
@@ -306,3 +315,35 @@ def _print_json(data: dict) -> None:
     """Print JSON to stdout. Adapters must not mix human formatting into JSON output."""
     json.dump(data, sys.stdout, indent=2, default=str)
     print()
+
+
+def _build_result_to_dict(result, source_file: Path) -> dict:
+    return {
+        "exit_code": int(result.exit_code),
+        "engine": result.engine.to_dict() if result.engine else None,
+        "route": result.route.to_dict(source_file) if result.route else None,
+        "build_plan": result.build_plan.to_dict() if result.build_plan else None,
+        "backend_result": _backend_result_to_dict(result.backend_result),
+        "produced_paths": [str(p) for p in result.produced_paths],
+        "diagnostics": [d.to_dict() for d in result.diagnostics],
+    }
+
+
+def _backend_result_to_dict(result) -> Optional[dict]:
+    if result is None:
+        return None
+    return {
+        "success": result.success,
+        "exit_code": result.exit_code,
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+        "pdf_path": str(result.pdf_path) if result.pdf_path else None,
+        "diagnostics": [d.to_dict() for d in result.diagnostics],
+    }
+
+
+def _print_backend_streams(result) -> None:
+    if result.stderr:
+        print(result.stderr, file=sys.stderr, end="" if result.stderr.endswith("\n") else "\n")
+    if result.stdout:
+        print(result.stdout, file=sys.stderr, end="" if result.stdout.endswith("\n") else "\n")

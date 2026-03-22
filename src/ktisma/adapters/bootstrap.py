@@ -10,9 +10,12 @@ from ..app.doctor import execute_doctor, DoctorResult
 from ..app.inspect import inspect_engine, inspect_route
 from ..app.batch import execute_batch, BatchResult
 from ..app.variants import execute_variants, VariantsResult
+from ..app.protocols import PostProcessor
 from ..domain.context import BuildRequest, SourceContext
 from ..domain.engine import EngineDecision
+from ..domain.engine import EngineRule
 from ..domain.routing import RouteDecision
+from ..domain.routing import RouteResolver
 from ..infra.config_loader import TomlConfigLoader
 from ..infra.latexmk import LatexmkRunner
 from ..infra.locks import FileLockManager
@@ -56,6 +59,9 @@ def build(
     request: BuildRequest,
     workspace_root: Optional[Path] = None,
     adapter_workspace_root: Optional[Path] = None,
+    post_processor: Optional["PostProcessor"] = None,
+    route_resolvers: Optional[list[RouteResolver]] = None,
+    engine_rules: Optional[list[EngineRule]] = None,
 ) -> BuildResult:
     """Composition root entry for the build use-case."""
     services = create_services()
@@ -70,6 +76,9 @@ def build(
         materializer=services.materializer,
         prerequisite_probe=services.probe,
         workspace_ops=services.workspace_ops,
+        post_processor=post_processor,
+        route_resolvers=route_resolvers,
+        engine_rules=engine_rules,
     )
 
 
@@ -78,11 +87,18 @@ def inspect_engine_cmd(
     request: BuildRequest,
     workspace_root: Optional[Path] = None,
     adapter_workspace_root: Optional[Path] = None,
+    engine_rules: Optional[list[EngineRule]] = None,
 ) -> EngineDecision:
     """Composition root entry for inspect engine."""
     services = create_services()
     ctx = _make_context(source_file, workspace_root, adapter_workspace_root)
-    return inspect_engine(ctx, request, services.config_loader, services.source_reader)
+    return inspect_engine(
+        ctx,
+        request,
+        services.config_loader,
+        services.source_reader,
+        engine_rules=engine_rules,
+    )
 
 
 def inspect_route_cmd(
@@ -90,11 +106,18 @@ def inspect_route_cmd(
     request: BuildRequest,
     workspace_root: Optional[Path] = None,
     adapter_workspace_root: Optional[Path] = None,
+    route_resolvers: Optional[list[RouteResolver]] = None,
 ) -> RouteDecision:
     """Composition root entry for inspect route."""
     services = create_services()
     ctx = _make_context(source_file, workspace_root, adapter_workspace_root)
-    return inspect_route(ctx, request, services.config_loader, services.source_reader)
+    return inspect_route(
+        ctx,
+        request,
+        services.config_loader,
+        services.source_reader,
+        route_resolvers=route_resolvers,
+    )
 
 
 def clean(
@@ -118,6 +141,9 @@ def batch(
     source_dir: Path,
     request: BuildRequest,
     workspace_root: Optional[Path] = None,
+    post_processor: Optional["PostProcessor"] = None,
+    route_resolvers: Optional[list[RouteResolver]] = None,
+    engine_rules: Optional[list[EngineRule]] = None,
 ) -> BatchResult:
     """Composition root entry for the batch use-case."""
     services = create_services()
@@ -133,6 +159,9 @@ def batch(
         materializer=services.materializer,
         prerequisite_probe=services.probe,
         workspace_ops=services.workspace_ops,
+        post_processor=post_processor,
+        route_resolvers=route_resolvers,
+        engine_rules=engine_rules,
     )
 
 
@@ -141,6 +170,9 @@ def variants(
     request: BuildRequest,
     workspace_root: Optional[Path] = None,
     adapter_workspace_root: Optional[Path] = None,
+    post_processor: Optional["PostProcessor"] = None,
+    route_resolvers: Optional[list[RouteResolver]] = None,
+    engine_rules: Optional[list[EngineRule]] = None,
 ) -> VariantsResult:
     """Composition root entry for the variants use-case."""
     services = create_services()
@@ -155,6 +187,9 @@ def variants(
         materializer=services.materializer,
         prerequisite_probe=services.probe,
         workspace_ops=services.workspace_ops,
+        post_processor=post_processor,
+        route_resolvers=route_resolvers,
+        engine_rules=engine_rules,
     )
 
 

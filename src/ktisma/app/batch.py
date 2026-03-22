@@ -5,14 +5,18 @@ from pathlib import Path
 from typing import Optional
 
 from ..domain.context import BuildRequest, SourceContext
+from ..domain.engine import EngineRule
 from ..domain.diagnostics import Diagnostic, DiagnosticLevel
+from ..domain.errors import KtismaError
 from ..domain.exit_codes import ExitCode
+from ..domain.routing import RouteResolver
 from .build import BuildResult, execute_build
 from .protocols import (
     BackendRunner,
     ConfigLoader,
     LockManager,
     Materializer,
+    PostProcessor,
     PrerequisiteProbe,
     WorkspaceOps,
     SourceReader,
@@ -37,6 +41,9 @@ def execute_batch(
     materializer: Materializer,
     prerequisite_probe: PrerequisiteProbe,
     workspace_ops: WorkspaceOps,
+    post_processor: Optional[PostProcessor] = None,
+    route_resolvers: Optional[list[RouteResolver]] = None,
+    engine_rules: Optional[list[EngineRule]] = None,
 ) -> BatchResult:
     """Build all .tex files in a directory.
 
@@ -67,14 +74,15 @@ def execute_batch(
         )
         return BatchResult(exit_code=ExitCode.CONFIG_ERROR, diagnostics=diagnostics)
 
-    tex_files = workspace_ops.glob_files(source_dir, "*.tex")
+    tex_candidates = workspace_ops.glob_files(source_dir, "**/*.tex")
+    tex_files = [p for p in tex_candidates if _is_batch_entrypoint(source_dir, p, source_reader)]
     if not tex_files:
         diagnostics.append(
             Diagnostic(
                 level=DiagnosticLevel.WARNING,
                 component="batch",
                 code="no-tex-files",
-                message=f"No .tex files found in {source_dir}.",
+                message=f"No batch-buildable .tex entrypoints found in {source_dir}.",
             )
         )
         return BatchResult(exit_code=ExitCode.SUCCESS, diagnostics=diagnostics)
@@ -99,10 +107,24 @@ def execute_batch(
                 materializer=materializer,
                 prerequisite_probe=prerequisite_probe,
                 workspace_ops=workspace_ops,
+                post_processor=post_processor,
+                route_resolvers=route_resolvers,
+                engine_rules=engine_rules,
             )
             results.append((tex_file, result))
             if result.exit_code != ExitCode.SUCCESS:
                 any_failure = True
+        except KtismaError as exc:
+            diagnostics.extend(exc.diagnostics)
+            diagnostics.append(
+                Diagnostic(
+                    level=DiagnosticLevel.ERROR,
+                    component="batch",
+                    code="build-exception",
+                    message=f"Build failed for {tex_file.name}: {exc}",
+                )
+            )
+            any_failure = True
         except Exception as exc:
             diagnostics.append(
                 Diagnostic(
@@ -116,3 +138,16 @@ def execute_batch(
 
     exit_code = ExitCode.COMPILATION_FAILURE if any_failure else ExitCode.SUCCESS
     return BatchResult(exit_code=exit_code, results=results, diagnostics=diagnostics)
+
+
+def _is_batch_entrypoint(
+    batch_root: Path,
+    tex_file: Path,
+    source_reader: SourceReader,
+) -> bool:
+    if tex_file.parent == batch_root:
+        return True
+    if tex_file.stem in {"main", "index"}:
+        return True
+    preamble = source_reader.read_source(tex_file).preamble
+    return "\\documentclass" in preamble or "\\documentstyle" in preamble

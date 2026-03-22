@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import signal
 import threading
 from dataclasses import dataclass, field
@@ -7,8 +8,8 @@ from pathlib import Path
 from typing import Optional
 
 from ..domain.build_dir import BuildDirPlan, plan_build_dir
-from ..domain.config import VALID_ENGINES, CleanupPolicy, ConfigLayer, ResolvedConfig
-from ..domain.context import BuildRequest, SourceContext, VariantSpec, is_valid_variant_name
+from ..domain.config import VALID_ENGINES, CleanupPolicy, ConfigLayer, ResolvedConfig, VariantConfig
+from ..domain.context import BuildRequest, SourceContext, SourceInputs, VariantSpec, is_valid_variant_name
 from ..domain.diagnostics import Diagnostic, DiagnosticLevel
 from ..domain.engine import EngineDecision, EngineRule, detect_engine
 from ..domain.errors import ConfigError, LockContention
@@ -69,26 +70,16 @@ def execute_build(
     all_diagnostics.extend(config_diags)
 
     source_inputs = source_reader.read_source(ctx.source_file)
+    variant = _resolve_variant(request, config)
 
-    if request.engine_override:
-        if request.engine_override not in VALID_ENGINES:
-            all_diagnostics.append(
-                Diagnostic(
-                    level=DiagnosticLevel.WARNING,
-                    component="engine",
-                    code="unknown-engine-override",
-                    message=(
-                        f"Engine override '{request.engine_override}' is not a recognized engine; "
-                        f"valid engines: {', '.join(sorted(VALID_ENGINES))}."
-                    ),
-                )
-            )
-        engine_decision = EngineDecision(
-            engine=request.engine_override,
-            evidence=["--engine CLI override"],
-        )
-    else:
-        engine_decision = detect_engine(source_inputs, config, custom_rules=engine_rules)
+    engine_decision = _resolve_engine_decision(
+        request=request,
+        source_inputs=source_inputs,
+        config=config,
+        variant=variant,
+        engine_rules=engine_rules,
+        diagnostics=all_diagnostics,
+    )
     all_diagnostics.extend(engine_decision.diagnostics)
 
     if _has_errors(engine_decision.diagnostics):
@@ -98,16 +89,22 @@ def execute_build(
             diagnostics=all_diagnostics,
         )
 
-    route_decision = resolve_route(
+    base_route_decision = resolve_route(
         ctx,
         source_inputs,
         config,
+        request.output_path_override,
         request.output_dir_override,
         extra_resolvers=route_resolvers,
     )
+    route_decision = _finalize_route_decision(
+        ctx=ctx,
+        config=config,
+        request=request,
+        base_route=base_route_decision,
+        variant=variant,
+    )
     all_diagnostics.extend(route_decision.diagnostics)
-
-    variant = _resolve_variant(request, config)
     build_plan = plan_build_dir(ctx, config, variant)
 
     if request.dry_run:
@@ -135,6 +132,7 @@ def execute_build(
         mode = "watch" if request.watch else "build"
         lock_manager.acquire(build_plan.lock_file, ctx.source_file, mode)
         lock_acquired = True
+        _write_build_metadata(build_plan, ctx, variant, workspace_ops)
     except LockContention as exc:
         all_diagnostics.extend(exc.diagnostics)
         all_diagnostics.append(
@@ -189,10 +187,9 @@ def execute_build(
                 diagnostics=all_diagnostics,
             )
 
-        final_dest = _final_destination(ctx, route_decision, variant)
         materialized = _materialize_output(
             source=backend_result.pdf_path or build_plan.expected_pdf,
-            destination=final_dest,
+            destination=route_decision.destination,
             ctx=ctx,
             variant=variant,
             materializer=materializer,
@@ -225,7 +222,7 @@ def execute_build(
             route=route_decision,
             build_plan=build_plan,
             backend_result=backend_result,
-            produced_paths=[final_dest],
+            produced_paths=[route_decision.destination],
             diagnostics=all_diagnostics,
         )
     finally:
@@ -253,7 +250,6 @@ def _execute_watch(
         synctex=config.build.synctex,
         extra_args=_build_extra_args(variant),
     )
-    final_dest = _final_destination(ctx, route_decision, variant)
     produced_paths: list[Path] = []
     last_backend_result: Optional[BackendResult] = None
     signal_exit_code: Optional[int] = None
@@ -291,7 +287,7 @@ def _execute_watch(
             if update.result.success and update.result.pdf_path is not None:
                 materialized = _materialize_output(
                     source=update.result.pdf_path,
-                    destination=final_dest,
+                    destination=route_decision.destination,
                     ctx=ctx,
                     variant=variant,
                     materializer=materializer,
@@ -308,7 +304,7 @@ def _execute_watch(
                         produced_paths=produced_paths,
                         diagnostics=diagnostics,
                     )
-                produced_paths = [final_dest]
+                produced_paths = [route_decision.destination]
 
             if update.finished:
                 session_finished = True
@@ -356,13 +352,13 @@ def _resolve_variant(request: BuildRequest, config: ResolvedConfig) -> Optional[
     if request.variant_payload is not None:
         return VariantSpec(name=request.variant, payload=request.variant_payload)
 
-    payload = config.variants.get(request.variant)
-    if payload is None:
+    variant_config = config.variants.get(request.variant)
+    if variant_config is None:
         available = ", ".join(sorted(config.variants.keys())) if config.variants else "none"
         raise ConfigError(
             f"Unknown variant '{request.variant}'; available: {available}."
         )
-    return VariantSpec(name=request.variant, payload=payload)
+    return _variant_spec_from_config(request.variant, variant_config)
 
 
 def _build_extra_args(variant: Optional[VariantSpec]) -> Optional[list[str]]:
@@ -372,22 +368,77 @@ def _build_extra_args(variant: Optional[VariantSpec]) -> Optional[list[str]]:
     return ["-usepretex", f"-pretex={variant.payload}"]
 
 
-def _final_destination(
+def _finalize_route_decision(
     ctx: SourceContext,
-    route_decision: RouteDecision,
+    config: ResolvedConfig,
+    request: BuildRequest,
+    base_route: RouteDecision,
     variant: Optional[VariantSpec],
-) -> Path:
-    if variant is None:
-        return route_decision.destination
-    return route_decision.destination.parent / _output_pdf_name(ctx, variant)
+) -> RouteDecision:
+    destination = base_route.destination
+    matched_rule = base_route.matched_rule
+    diagnostics = list(base_route.diagnostics)
+
+    if request.output_path_override is not None:
+        return base_route
+
+    if (
+        variant is not None
+        and variant.output_override
+        and request.output_dir_override is None
+    ):
+        destination = _resolve_output_override(
+            ctx=ctx,
+            raw_output=variant.output_override,
+            output_name=_output_pdf_name(ctx, config, variant),
+        )
+        matched_rule = f"variant '{variant.name}' output override"
+    elif _should_replace_output_name(config, variant):
+        destination = base_route.destination.parent / _output_pdf_name(ctx, config, variant)
+
+    if base_route.fallback and destination != base_route.destination:
+        diagnostics = [
+            Diagnostic(
+                level=diag.level,
+                component=diag.component,
+                code=diag.code,
+                message=(
+                    f"No routing rule or convention matched; placing output beside source file: "
+                    f"{destination}"
+                )
+                if diag.code == "fallback-routing"
+                else diag.message,
+                evidence=diag.evidence,
+            )
+            for diag in diagnostics
+        ]
+
+    return RouteDecision(
+        destination=destination,
+        matched_rule=matched_rule,
+        fallback=base_route.fallback,
+        diagnostics=diagnostics,
+    )
 
 
-def _output_pdf_name(ctx: SourceContext, variant: Optional[VariantSpec]) -> str:
+def _output_pdf_name(
+    ctx: SourceContext,
+    config: ResolvedConfig,
+    variant: Optional[VariantSpec],
+) -> str:
     """Determine the output PDF filename, including variant suffix if applicable."""
     stem = ctx.source_file.stem
+    suffix_template = config.routing.default_filename_suffix
+    variant_name = None
     if variant is not None:
-        return f"{stem}_{variant.name}.pdf"
-    return f"{stem}.pdf"
+        suffix_template = (
+            variant.filename_suffix
+            if variant.filename_suffix is not None
+            else config.routing.variant_filename_suffix
+        )
+        variant_name = variant.name
+    suffix = _render_filename_suffix(suffix_template, stem, variant_name)
+    return f"{stem}{suffix}.pdf"
 
 
 def _check_build_prerequisites(
@@ -418,6 +469,99 @@ def _check_build_prerequisites(
         )
 
     return diagnostics
+
+
+def _resolve_engine_decision(
+    request: BuildRequest,
+    source_inputs: SourceInputs,
+    config: ResolvedConfig,
+    variant: Optional[VariantSpec],
+    engine_rules: Optional[list[EngineRule]],
+    diagnostics: list[Diagnostic],
+) -> EngineDecision:
+    if request.engine_override:
+        if request.engine_override not in VALID_ENGINES:
+            diagnostics.append(
+                Diagnostic(
+                    level=DiagnosticLevel.WARNING,
+                    component="engine",
+                    code="unknown-engine-override",
+                    message=(
+                        f"Engine override '{request.engine_override}' is not a recognized engine; "
+                        f"valid engines: {', '.join(sorted(VALID_ENGINES))}."
+                    ),
+                )
+            )
+        return EngineDecision(
+            engine=request.engine_override,
+            evidence=["--engine CLI override"],
+        )
+
+    if variant is not None and variant.engine_override is not None:
+        return EngineDecision(
+            engine=variant.engine_override,
+            evidence=[f"variant '{variant.name}' engine override"],
+        )
+
+    return detect_engine(source_inputs, config, custom_rules=engine_rules)
+
+
+def _variant_spec_from_config(name: str, variant_config: VariantConfig) -> VariantSpec:
+    return VariantSpec(
+        name=name,
+        payload=variant_config.payload,
+        engine_override=variant_config.engine,
+        output_override=variant_config.output,
+        filename_suffix=variant_config.filename_suffix,
+    )
+
+
+def _render_filename_suffix(
+    template: str,
+    stem: str,
+    variant_name: Optional[str],
+) -> str:
+    try:
+        return template.format(stem=stem, variant=variant_name or "")
+    except KeyError as exc:  # pragma: no cover - validated in config and guarded here
+        raise ConfigError(
+            f"Invalid filename suffix template '{template}'; unknown placeholder {exc}."
+        ) from exc
+
+
+def _should_replace_output_name(
+    config: ResolvedConfig,
+    variant: Optional[VariantSpec],
+) -> bool:
+    if variant is not None:
+        return True
+    return config.routing.default_filename_suffix != ""
+
+
+def _resolve_output_override(
+    ctx: SourceContext,
+    raw_output: str,
+    output_name: str,
+) -> Path:
+    override_path = Path(raw_output).expanduser()
+    if not override_path.is_absolute():
+        override_path = ctx.source_dir / override_path
+    if raw_output.endswith("/") or not override_path.suffix:
+        return override_path / output_name
+    return override_path
+
+
+def _write_build_metadata(
+    build_plan: BuildDirPlan,
+    ctx: SourceContext,
+    variant: Optional[VariantSpec],
+    workspace_ops: WorkspaceOps,
+) -> None:
+    payload = {
+        "source": str(ctx.source_file),
+        "variant": variant.name if variant is not None else None,
+    }
+    workspace_ops.write_text(build_plan.metadata_file, json.dumps(payload, indent=2))
 
 
 def _materialize_output(

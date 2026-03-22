@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -63,28 +64,29 @@ def execute_clean(
                 )
                 return CleanResult(exit_code=ExitCode.INTERNAL_ERROR, diagnostics=diagnostics)
 
-        # Also clean variant build dirs
+        # Also clean variant build dirs that explicitly belong to this source.
         parent = build_dir.parent
         if workspace_ops.path_exists(parent):
-            stem = target.stem
             for entry in workspace_ops.list_directory(parent):
-                if (
-                    workspace_ops.is_directory(entry)
-                    and entry.name.startswith(f"{stem}-")
-                    and entry != build_dir
-                ):
-                    try:
-                        workspace_ops.remove_tree(entry)
-                        removed.append(entry)
-                    except Exception as exc:
-                        diagnostics.append(
-                            Diagnostic(
-                                level=DiagnosticLevel.WARNING,
-                                component="clean",
-                                code="clean-variant-failed",
-                                message=f"Failed to remove variant build dir {entry}: {exc}",
-                            )
+                if not workspace_ops.is_directory(entry) or entry == build_dir:
+                    continue
+                metadata = _read_build_metadata(entry / ".ktisma.meta.json", workspace_ops)
+                if metadata.get("source") != str(target):
+                    continue
+                if metadata.get("variant") is None:
+                    continue
+                try:
+                    workspace_ops.remove_tree(entry)
+                    removed.append(entry)
+                except Exception as exc:
+                    diagnostics.append(
+                        Diagnostic(
+                            level=DiagnosticLevel.WARNING,
+                            component="clean",
+                            code="clean-variant-failed",
+                            message=f"Failed to remove variant build dir {entry}: {exc}",
                         )
+                    )
 
         if not removed:
             diagnostics.append(
@@ -135,3 +137,12 @@ def execute_clean(
         return CleanResult(exit_code=ExitCode.CONFIG_ERROR, diagnostics=diagnostics)
 
     return CleanResult(exit_code=ExitCode.SUCCESS, removed_dirs=removed, diagnostics=diagnostics)
+
+
+def _read_build_metadata(metadata_file: Path, workspace_ops: WorkspaceOps) -> dict[str, object]:
+    if not workspace_ops.path_exists(metadata_file):
+        return {}
+    try:
+        return json.loads(workspace_ops.read_text(metadata_file))
+    except Exception:
+        return {}

@@ -71,6 +71,18 @@ class LatexmkRunner:
                     message=f"latexmk exited with code {result.returncode}.",
                 )
             )
+        elif not success:
+            diagnostics.append(
+                Diagnostic(
+                    level=DiagnosticLevel.ERROR,
+                    component="backend",
+                    code="missing-output-artifact",
+                    message=(
+                        f"latexmk exited successfully but did not produce the expected PDF at "
+                        f"{pdf_path}."
+                    ),
+                )
+            )
 
         return BackendResult(
             success=success,
@@ -136,8 +148,8 @@ class LatexmkWatchSession:
             self._process = subprocess.Popen(
                 args,
                 cwd=str(source_file.parent),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=None,
+                stderr=None,
                 text=True,
             )
             self._startup_error: Optional[BackendResult] = None
@@ -215,21 +227,11 @@ class LatexmkWatchSession:
                 self._process.kill()
                 self._process.wait(timeout=10)
 
-        # Drain remaining output to avoid deadlock with PIPE
-        stdout = ""
-        stderr = ""
-        if self._process.stdout:
-            stdout = self._process.stdout.read() or ""
-        if self._process.stderr:
-            stderr = self._process.stderr.read() or ""
-
         return_code = self._process.returncode or 0
         self._returned_final = True
         return BackendResult(
             success=return_code == 0,
             exit_code=return_code,
-            stdout=stdout,
-            stderr=stderr,
             pdf_path=self._pdf_path if self._pdf_path.is_file() else None,
         )
 
@@ -245,6 +247,6 @@ def _engine_to_flag(engine: str) -> str:
         "pdflatex": "-pdf",
         "lualatex": "-lualatex",
         "xelatex": "-xelatex",
-        "latex": "-dvi",
+        "latex": "-pdfdvi",
     }
     return mapping.get(engine, f"-{engine}")

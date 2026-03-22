@@ -98,9 +98,7 @@ Replace the old latexmk tool and recipe in your VS Code workspace or settings fi
     "args": [
       "%WORKSPACE_FOLDER%/vendor/ktisma/bin/ktisma",
       "build",
-      "%DOC%",
-      "--workspace-root",
-      "%WORKSPACE_FOLDER%"
+      "%DOC_EXT%"
     ]
   }
 ],
@@ -112,6 +110,9 @@ Replace the old latexmk tool and recipe in your VS Code workspace or settings fi
 ],
 "latex-workshop.latex.autoClean.run": "never"
 ```
+
+Add `--workspace-root %WORKSPACE_FOLDER%` only if you want the editor recipe to pin the
+workspace root explicitly.
 
 See [Editor Integration](../editor-integration.md) for other editors.
 
@@ -143,13 +144,13 @@ Delete the files that ktisma replaces:
 
 ```bash
 # Check prerequisites
-python3 vendor/ktisma/bin/ktisma doctor --workspace-root .
+python3 vendor/ktisma/bin/ktisma doctor
 
 # Verify routing for a source file
-python3 vendor/ktisma/bin/ktisma inspect route lectures-tex/week1.tex --workspace-root .
+python3 vendor/ktisma/bin/ktisma inspect route lectures-tex/week1.tex
 
 # Build and confirm output
-python3 vendor/ktisma/bin/ktisma build lectures-tex/week1.tex --workspace-root .
+python3 vendor/ktisma/bin/ktisma build lectures-tex/week1.tex
 ```
 
 ## Transitional .latexmkrc Shim
@@ -194,7 +195,7 @@ collapse_entrypoint_names = true
 
 See [Project Layout: Entrypoint Collapse](project-layout.md#entrypoint-collapse).
 
-### Project with Variant Builds (Solutions/Blank)
+### Project with Dual Outputs
 
 If you had a shell script that compiled documents twice — once normally and once with a TeX macro
 injected — replace it with the [variants](../build-lifecycle.md#variants) feature:
@@ -202,30 +203,35 @@ injected — replace it with the [variants](../build-lifecycle.md#variants) feat
 ```toml
 schema_version = 1
 
-[variants]
-solutions = "\\def\\ForceSolutions{}"
+[routing]
+default_filename_suffix = ""
+variant_filename_suffix = "_{variant}"
+
+[variants.review]
+payload = "\\def\\ShowReviewMarkup{}"
+filename_suffix = "_review"
 ```
 
-Build both versions:
+Build both outputs:
 
 ```bash
-# Default build (blank)
-python3 vendor/ktisma/bin/ktisma build exercises-tex/algebra.tex --workspace-root .
+# Default build
+python3 vendor/ktisma/bin/ktisma build exercises-tex/algebra.tex
 # -> exercises-pdfs/algebra.pdf
 
-# Solutions variant
-python3 vendor/ktisma/bin/ktisma build exercises-tex/algebra.tex --variant solutions --workspace-root .
-# -> exercises-pdfs/algebra_solutions.pdf
+# Review variant
+python3 vendor/ktisma/bin/ktisma build exercises-tex/algebra.tex --variant review
+# -> exercises-pdfs/algebra_review.pdf
 
-# All configured variants at once
-python3 vendor/ktisma/bin/ktisma variants exercises-tex/algebra.tex --workspace-root .
+# Default output plus all configured variants
+python3 vendor/ktisma/bin/ktisma variants exercises-tex/algebra.tex --include-default
 ```
 
 ### Batch Compilation
 
-If you had a script that compiled every `.tex` file in a directory, use
+If you had a script that compiled every entrypoint `.tex` file in a directory tree, use
 [`ktisma batch`](../cli-reference.md#batch):
 
 ```bash
-python3 vendor/ktisma/bin/ktisma batch exercises-tex/ --workspace-root .
+python3 vendor/ktisma/bin/ktisma batch exercises-tex/
 ```

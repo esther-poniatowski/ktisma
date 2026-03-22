@@ -231,10 +231,20 @@ class FakeWorkspaceOps:
     def list_directory(self, path: Path) -> list[Path]:
         return list(path.iterdir())
 
+    def read_text(self, path: Path) -> str:
+        return path.read_text(encoding="utf-8")
+
+    def write_text(self, path: Path, content: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
     def remove_tree(self, path: Path) -> None:
         import shutil
 
         shutil.rmtree(path)
+
+    def glob_files(self, path: Path, pattern: str) -> list[Path]:
+        return sorted(path.glob(pattern))
 
 
 # ===========================================================================
@@ -840,6 +850,42 @@ class TestVariantBuilds:
         if mat.calls:
             dest = mat.calls[0][1]
             assert "final" in dest.name
+
+    def test_variant_route_reflects_final_output_name(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        result = _execute_build(
+            ctx=ctx,
+            request=_default_request(
+                variant="final",
+                variant_payload="\\def\\isfinal{1}",
+            ),
+            config_loader=FakeConfigLoader(),
+            source_reader=FakeSourceReader(),
+            lock_manager=FakeLockManager(),
+            backend_runner=FakeBackendRunner(),
+            materializer=FakeMaterializer(),
+        )
+        assert result.route is not None
+        assert result.route.destination.name == "paper_final.pdf"
+
+    def test_default_filename_suffix_applies_to_default_build(self, tmp_path: Path) -> None:
+        config_layer = ConfigLayer(
+            data={"routing": {"default_filename_suffix": "_student"}},
+            source=tmp_path / ".ktisma.toml",
+            label="test config",
+        )
+        ctx = _make_ctx(tmp_path)
+        result = _execute_build(
+            ctx=ctx,
+            request=_default_request(),
+            config_loader=FakeConfigLoader(layers=[config_layer]),
+            source_reader=FakeSourceReader(),
+            lock_manager=FakeLockManager(),
+            backend_runner=FakeBackendRunner(),
+            materializer=FakeMaterializer(),
+        )
+        assert result.route is not None
+        assert result.route.destination.name == "paper_student.pdf"
 
     def test_variant_extra_args_passed_to_backend(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)

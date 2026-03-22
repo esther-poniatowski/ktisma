@@ -42,32 +42,37 @@ See [Routing: Entrypoint Collapse](../routing.md#entrypoint-collapse).
 
 ## Dual Compilation with Variants
 
-**Use case**: compile a document both as a blank exercise sheet and with solutions filled in,
-controlled by a TeX conditional (e.g., `\ifdefined\ForceSolutions`).
+**Use case**: compile a document twice from the same source, once normally and once with extra
+annotations or review markup enabled.
 
 ```toml
 schema_version = 1
 
-[variants]
-solutions = "\\def\\ForceSolutions{}"
+[routing]
+default_filename_suffix = ""
+variant_filename_suffix = "_{variant}"
+
+[variants.review]
+payload = "\\def\\ShowReviewMarkup{}"
+filename_suffix = "_review"
 ```
 
-Build all variants:
+Build the default output and the configured variant:
 
 ```bash
-# Blank version (default build, no variant)
-python3 vendor/ktisma/bin/ktisma build exercises-tex/algebra.tex --workspace-root .
+# Default output
+python3 vendor/ktisma/bin/ktisma build exercises-tex/algebra.tex
 # -> exercises-pdfs/algebra.pdf
 
-# Solutions variant
-python3 vendor/ktisma/bin/ktisma build exercises-tex/algebra.tex --variant solutions --workspace-root .
-# -> exercises-pdfs/algebra_solutions.pdf
+# Review variant
+python3 vendor/ktisma/bin/ktisma build exercises-tex/algebra.tex --variant review
+# -> exercises-pdfs/algebra_review.pdf
 
-# All configured variants at once
-python3 vendor/ktisma/bin/ktisma variants exercises-tex/algebra.tex --workspace-root .
+# Default output plus all configured variants
+python3 vendor/ktisma/bin/ktisma variants exercises-tex/algebra.tex --include-default
 ```
 
-Each variant builds in its own isolated directory (`.ktisma_build/solutions/`) to avoid
+Each variant builds in its own isolated directory (`.ktisma_build/review/`) to avoid
 interference. See [Build Lifecycle: Variants](../build-lifecycle.md#variants).
 
 ## LuaLaTeX by Default
@@ -163,7 +168,7 @@ The build directory (`.ktisma_build/`) and its contents are preserved after ever
 up manually:
 
 ```bash
-python3 vendor/ktisma/bin/ktisma clean lectures-tex/week1.tex --workspace-root .
+python3 vendor/ktisma/bin/ktisma clean lectures-tex/week1.tex
 ```
 
 See [Build Lifecycle: Cleanup Policies](../build-lifecycle.md#cleanup-policies) for all available

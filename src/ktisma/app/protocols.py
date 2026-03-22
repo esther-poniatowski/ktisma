@@ -121,6 +121,14 @@ class WorkspaceOps(Protocol):
         """List a directory's entries."""
         ...
 
+    def read_text(self, path: Path) -> str:
+        """Read UTF-8 text from a file."""
+        ...
+
+    def write_text(self, path: Path, content: str) -> None:
+        """Write UTF-8 text to a file, creating parents as needed."""
+        ...
+
     def remove_tree(self, path: Path) -> None:
         """Recursively remove a directory tree."""
         ...

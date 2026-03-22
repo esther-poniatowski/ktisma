@@ -24,9 +24,11 @@ class BuildRequest:
     watch: bool = False
     dry_run: bool = False
     engine_override: Optional[str] = None
+    output_path_override: Optional[Path] = None
     output_dir_override: Optional[Path] = None
     variant: Optional[str] = None
     variant_payload: Optional[str] = None
+    include_default: bool = False
     json_output: bool = False
     cleanup_override: Optional[str] = None
 
@@ -41,6 +43,9 @@ class SourceInputs:
 class VariantSpec:
     name: str
     payload: str
+    engine_override: Optional[str] = None
+    output_override: Optional[str] = None
+    filename_suffix: Optional[str] = None
 
     VALID_NAME_PATTERN: ClassVar[str] = r"^[a-zA-Z][a-zA-Z0-9_-]*$"
 

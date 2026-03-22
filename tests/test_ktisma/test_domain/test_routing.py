@@ -74,6 +74,13 @@ def _cfg(
 
 
 class TestCLIOverride:
+    def test_cli_output_file_override_wins(self) -> None:
+        ctx = _ctx()
+        decision = resolve_route(ctx, _inputs(), default_config(), output_path_override=Path("/out/custom.pdf"))
+        assert decision.destination == Path("/out/custom.pdf")
+        assert decision.matched_rule == "--output"
+        assert decision.fallback is False
+
     def test_cli_override_wins(self) -> None:
         ctx = _ctx()
         decision = resolve_route(ctx, _inputs(), default_config(), output_dir_override=Path("/out"))
@@ -92,6 +99,18 @@ class TestCLIOverride:
         decision = resolve_route(ctx, _inputs(), cfg, output_dir_override=Path("/cli"))
         assert decision.destination == Path("/cli/main.pdf")
         assert decision.matched_rule == "--output-dir"
+
+    def test_cli_output_file_override_beats_output_dir(self) -> None:
+        ctx = _ctx()
+        decision = resolve_route(
+            ctx,
+            _inputs(),
+            default_config(),
+            output_path_override=Path("/out/custom.pdf"),
+            output_dir_override=Path("/ignored"),
+        )
+        assert decision.destination == Path("/out/custom.pdf")
+        assert decision.matched_rule == "--output"
 
 
 # ---------------------------------------------------------------------------
@@ -315,6 +334,13 @@ class TestSuffixConvention:
         decision = resolve_route(ctx, _inputs(), cfg)
         assert decision.destination == WS / "content/math/lectures-pdfs/topic.pdf"
 
+    def test_nested_suffix_dirs_warn_and_use_nearest_match(self) -> None:
+        ctx = _ctx(source="outer-tex/inner-tex/main.tex")
+        cfg = _cfg()
+        decision = resolve_route(ctx, _inputs(), cfg)
+        assert decision.destination == WS / "outer-tex/inner-pdfs/main.pdf"
+        assert any(d.code == "multiple-source-suffix-matches" for d in decision.diagnostics)
+
 
 # ---------------------------------------------------------------------------
 # 4a. collapse_entrypoint_names
@@ -409,6 +435,19 @@ class TestFallbackRouting:
         decision = resolve_route(ctx, _inputs(), cfg)
         assert decision.matched_rule is None
 
+    def test_source_outside_workspace_warns(self) -> None:
+        outside_workspace = Path("/other/workspace")
+        ctx = _ctx(source="paper.tex", workspace=outside_workspace)
+        ctx = SourceContext(
+            source_file=Path("/tmp/external/paper.tex"),
+            source_dir=Path("/tmp/external"),
+            workspace_root=outside_workspace,
+        )
+        cfg = _cfg()
+        decision = resolve_route(ctx, _inputs(), cfg)
+        assert decision.fallback is True
+        assert any(d.code == "source-outside-workspace" for d in decision.diagnostics)
+
 
 # ---------------------------------------------------------------------------
 # Full precedence chain
@@ -416,6 +455,18 @@ class TestFallbackRouting:
 
 
 class TestPrecedenceChain:
+    def test_output_file_beats_output_dir(self) -> None:
+        ctx = _ctx(source="project-tex/main.tex")
+        decision = resolve_route(
+            ctx,
+            _inputs(magic={"output": "/magic/"}),
+            default_config(),
+            output_path_override=Path("/cli/custom.pdf"),
+            output_dir_override=Path("/cli-dir"),
+        )
+        assert decision.matched_rule == "--output"
+        assert decision.destination == Path("/cli/custom.pdf")
+
     def test_cli_beats_magic(self) -> None:
         ctx = _ctx(source="project-tex/main.tex")
         inputs = _inputs(magic={"output": "/magic/"})
@@ -452,11 +503,11 @@ class TestPrecedenceChain:
 
 class TestRouteDecisionToDict:
     def test_to_dict_basic(self) -> None:
-        rd = RouteDecision(destination=Path("/out/main.pdf"), matched_rule="--output-dir")
+        rd = RouteDecision(destination=Path("/out/main.pdf"), matched_rule="--output")
         d = rd.to_dict(source=Path("/src/main.tex"))
         assert d["source"] == "/src/main.tex"
         assert d["destination"] == "/out/main.pdf"
-        assert d["matched_rule"] == "--output-dir"
+        assert d["matched_rule"] == "--output"
         assert d["fallback"] is False
         assert d["diagnostics"] == []
 

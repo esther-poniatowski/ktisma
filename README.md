@@ -28,8 +28,8 @@ ktisma inspect engine <source.tex> Show which engine would be selected
 ktisma inspect route <source.tex>  Show where the PDF would be routed
 ktisma clean <source.tex|dir>      Remove build artifacts
 ktisma doctor                      Verify prerequisites
-ktisma batch <source-dir>          Build all .tex files in a directory
-ktisma variants <source.tex>       Build all configured variants
+ktisma batch <source-dir>          Build batch-entrypoint .tex files in a directory tree
+ktisma variants <source.tex>       Build configured variants, optionally with the default output
 ```
 
 All commands accept `--workspace-root` to set the workspace explicitly. `build` and `inspect`
@@ -54,31 +54,31 @@ ln -s /path/to/ktisma vendor/ktisma
 Build a document from a vendored checkout:
 
 ```bash
-python3 vendor/ktisma/bin/ktisma build project-tex/main.tex --workspace-root .
+python3 vendor/ktisma/bin/ktisma build project-tex/main.tex
 ```
 
 Installed or development use:
 
 ```bash
-python3 -m ktisma build project-tex/main.tex --workspace-root .
+python3 -m ktisma build project-tex/main.tex
 ```
 
 Inspect engine selection without compiling:
 
 ```bash
-python3 vendor/ktisma/bin/ktisma inspect engine project-tex/main.tex --workspace-root .
+python3 vendor/ktisma/bin/ktisma inspect engine project-tex/main.tex
 ```
 
 Inspect routing without compiling:
 
 ```bash
-python3 vendor/ktisma/bin/ktisma inspect route project-tex/main.tex --workspace-root .
+python3 vendor/ktisma/bin/ktisma inspect route project-tex/main.tex
 ```
 
 Verify prerequisites:
 
 ```bash
-python3 vendor/ktisma/bin/ktisma doctor --workspace-root .
+python3 vendor/ktisma/bin/ktisma doctor
 ```
 
 ## Configuration
@@ -102,6 +102,8 @@ Deterministic merge semantics:
 - Relative paths from config resolve against the directory of the config file that declared them.
 - Relative paths from magic comments resolve against the source file directory.
 - Relative paths from CLI flags resolve against the current working directory.
+- When ktisma infers the workspace root from `.ktisma.toml`, it uses the outermost matching
+  ancestor so workspace config and subdirectory overlays can both participate.
 
 Example:
 
@@ -124,14 +126,16 @@ output_suffix = "-pdfs"
 preserve_relative = true
 collapse_entrypoint_names = false
 entrypoint_names = ["main", "index"]
+default_filename_suffix = ""
+variant_filename_suffix = "_{variant}"
 
 [routes]
 "lectures-tex/**" = "lectures-pdfs/"
 "drafts/*.tex" = "output/"
 
-[variants]
-blank = ""
-corrected = "\\ForceSolutions"
+[variants.review]
+payload = "\\def\\ShowReviewMarkup{}"
+filename_suffix = "_review"
 ```
 
 ## Architecture
@@ -164,9 +168,7 @@ The preferred integration path is to call the ktisma CLI directly from LaTeX Wor
     "args": [
       "%WORKSPACE_FOLDER%/vendor/ktisma/bin/ktisma",
       "build",
-      "%DOC%",
-      "--workspace-root",
-      "%WORKSPACE_FOLDER%"
+      "%DOC_EXT%"
     ]
   }
 ],
@@ -179,8 +181,13 @@ The preferred integration path is to call the ktisma CLI directly from LaTeX Wor
 "latex-workshop.latex.autoClean.run": "never"
 ```
 
-The exact root-document placeholder may vary by LaTeX Workshop version. The important part is that
-the recipe calls ktisma directly rather than wrapping `latexmk` in `bash -c`.
+Use the placeholder that expands to the resolved root file including its `.tex` extension. In
+LaTeX Workshop that is typically `%DOC_EXT%`. Add `--workspace-root %WORKSPACE_FOLDER%` only when
+you want to pin the workspace explicitly instead of relying on ktisma's config discovery.
+
+Use the placeholder that expands to the resolved root file including its `.tex` extension. In
+LaTeX Workshop that is typically `%DOC_EXT%`. The important part is that the recipe calls ktisma
+directly rather than wrapping `latexmk` in `bash -c`.
 
 ## Directory Conventions
 

@@ -160,10 +160,10 @@ class TestConfigAncestor:
         result = resolve_workspace_root(source_dir=source_dir)
         assert result == root_dir.resolve()
 
-    def test_nearest_ancestor_wins(
+    def test_outermost_ancestor_wins(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """When multiple ancestors have .ktisma.toml, the nearest one wins."""
+        """When multiple ancestors have .ktisma.toml, the outermost one wins."""
         monkeypatch.delenv("KTISMA_WORKSPACE_ROOT", raising=False)
         outer = tmp_path / "outer"
         inner = outer / "inner"
@@ -172,7 +172,7 @@ class TestConfigAncestor:
         (outer / ".ktisma.toml").write_text("[build]\n")
         (inner / ".ktisma.toml").write_text("[build]\n")
         result = resolve_workspace_root(source_dir=deep)
-        assert result == inner.resolve()
+        assert result == outer.resolve()
 
     def test_no_config_ancestor_falls_through(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

@@ -230,6 +230,19 @@ class TestReadSourceWithMagic:
         assert result.magic_comments["output"] == "../out/"
         assert "\\documentclass{article}" in result.preamble
 
+    def test_ignores_magic_comments_after_begin_document(
+        self, tmp_path: Path, reader: FileSourceReader
+    ) -> None:
+        tex = tmp_path / "paper.tex"
+        tex.write_text(
+            "\\documentclass{article}\n"
+            "\\begin{document}\n"
+            "% !TeX program = lualatex\n"
+            "\\end{document}\n"
+        )
+        result = reader.read_source(tex)
+        assert result.magic_comments == {}
+
     def test_read_source_no_magic(
         self, tmp_path: Path, reader: FileSourceReader
     ) -> None:

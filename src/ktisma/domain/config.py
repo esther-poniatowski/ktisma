@@ -44,6 +44,16 @@ class RoutingConfig:
     preserve_relative: bool = True
     collapse_entrypoint_names: bool = False
     entrypoint_names: list[str] = field(default_factory=lambda: ["main", "index"])
+    default_filename_suffix: str = ""
+    variant_filename_suffix: str = "_{variant}"
+
+
+@dataclass(frozen=True)
+class VariantConfig:
+    payload: str = ""
+    engine: Optional[str] = None
+    output: Optional[str] = None
+    filename_suffix: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -53,7 +63,7 @@ class ResolvedConfig:
     engines: EngineConfig = field(default_factory=EngineConfig)
     routing: RoutingConfig = field(default_factory=RoutingConfig)
     routes: dict[str, str] = field(default_factory=dict)
-    variants: dict[str, str] = field(default_factory=dict)
+    variants: dict[str, VariantConfig] = field(default_factory=dict)
     provenance: list[str] = field(default_factory=list)
 
 
@@ -69,6 +79,8 @@ SCHEMA_V1_KEYS: dict[str, set[str]] = {
         "preserve_relative",
         "collapse_entrypoint_names",
         "entrypoint_names",
+        "default_filename_suffix",
+        "variant_filename_suffix",
     },
 }
 
@@ -185,7 +197,12 @@ def validate_config(data: dict[str, Any], schema_version: int = 1) -> list[Diagn
     routing = data.get("routing", {})
     if isinstance(routing, dict):
         _validate_keys(routing, "routing", diagnostics)
-        for key in ("source_suffix", "output_suffix"):
+        for key in (
+            "source_suffix",
+            "output_suffix",
+            "default_filename_suffix",
+            "variant_filename_suffix",
+        ):
             val = routing.get(key)
             if val is not None and not isinstance(val, str):
                 diagnostics.append(
@@ -195,6 +212,12 @@ def validate_config(data: dict[str, Any], schema_version: int = 1) -> list[Diagn
                         code="type-mismatch",
                         message=f"'routing.{key}' must be a string, got {type(val).__name__}.",
                     )
+                )
+            elif val is not None and key in {"default_filename_suffix", "variant_filename_suffix"}:
+                _validate_filename_suffix_template(
+                    section=f"routing.{key}",
+                    template=val,
+                    diagnostics=diagnostics,
                 )
         for key in ("preserve_relative", "collapse_entrypoint_names"):
             val = routing.get(key)
@@ -208,15 +231,30 @@ def validate_config(data: dict[str, Any], schema_version: int = 1) -> list[Diagn
                     )
                 )
         entrypoint_names = routing.get("entrypoint_names")
-        if entrypoint_names is not None and not isinstance(entrypoint_names, list):
-            diagnostics.append(
-                Diagnostic(
-                    level=DiagnosticLevel.ERROR,
-                    component="config",
-                    code="type-mismatch",
-                    message=f"'routing.entrypoint_names' must be an array, got {type(entrypoint_names).__name__}.",
+        if entrypoint_names is not None:
+            if not isinstance(entrypoint_names, list):
+                diagnostics.append(
+                    Diagnostic(
+                        level=DiagnosticLevel.ERROR,
+                        component="config",
+                        code="type-mismatch",
+                        message=f"'routing.entrypoint_names' must be an array, got {type(entrypoint_names).__name__}.",
+                    )
                 )
-            )
+            else:
+                for i, name in enumerate(entrypoint_names):
+                    if not isinstance(name, str):
+                        diagnostics.append(
+                            Diagnostic(
+                                level=DiagnosticLevel.ERROR,
+                                component="config",
+                                code="type-mismatch",
+                                message=(
+                                    f"'routing.entrypoint_names[{i}]' must be a string, "
+                                    f"got {type(name).__name__}."
+                                ),
+                            )
+                        )
     elif "routing" in data:
         diagnostics.append(
             Diagnostic(
@@ -237,6 +275,30 @@ def validate_config(data: dict[str, Any], schema_version: int = 1) -> list[Diagn
                 message="'routes' must be a table.",
             )
         )
+    else:
+        for pattern, target in routes.items():
+            if not isinstance(pattern, str):
+                diagnostics.append(
+                    Diagnostic(
+                        level=DiagnosticLevel.ERROR,
+                        component="config",
+                        code="type-mismatch",
+                        message=(
+                            f"'routes' keys must be strings, got {type(pattern).__name__}."
+                        ),
+                    )
+                )
+            if not isinstance(target, str):
+                diagnostics.append(
+                    Diagnostic(
+                        level=DiagnosticLevel.ERROR,
+                        component="config",
+                        code="type-mismatch",
+                        message=(
+                            f"'routes.{pattern}' must be a string, got {type(target).__name__}."
+                        ),
+                    )
+                )
 
     variants = data.get("variants", {})
     if not isinstance(variants, dict):
@@ -248,6 +310,49 @@ def validate_config(data: dict[str, Any], schema_version: int = 1) -> list[Diagn
                 message="'variants' must be a table.",
             )
         )
+    else:
+        for name, definition in variants.items():
+            if not isinstance(name, str):
+                diagnostics.append(
+                    Diagnostic(
+                        level=DiagnosticLevel.ERROR,
+                        component="config",
+                        code="type-mismatch",
+                        message=(
+                            f"'variants' keys must be strings, got {type(name).__name__}."
+                        ),
+                    )
+                )
+                continue
+            if not _is_valid_variant_name(name):
+                diagnostics.append(
+                    Diagnostic(
+                        level=DiagnosticLevel.ERROR,
+                        component="config",
+                        code="invalid-variant-name",
+                        message=(
+                            f"'variants.{name}' is not a valid variant name; "
+                            "names must start with a letter and contain only letters, "
+                            "numbers, underscores, and dashes."
+                        ),
+                    )
+                )
+            if isinstance(definition, str):
+                continue
+            if not isinstance(definition, dict):
+                diagnostics.append(
+                    Diagnostic(
+                        level=DiagnosticLevel.ERROR,
+                        component="config",
+                        code="type-mismatch",
+                        message=(
+                            f"'variants.{name}' must be a string or table, "
+                            f"got {type(definition).__name__}."
+                        ),
+                    )
+                )
+                continue
+            _validate_variant_definition(name, definition, diagnostics)
 
     return diagnostics
 
@@ -267,6 +372,133 @@ def _validate_keys(data: dict[str, Any], section: str, diagnostics: list[Diagnos
                     message=f"{prefix} is not a recognized key in schema version 1.",
                 )
             )
+
+
+def _validate_variant_definition(
+    name: str,
+    definition: dict[str, Any],
+    diagnostics: list[Diagnostic],
+) -> None:
+    allowed = {"payload", "engine", "output", "filename_suffix"}
+    for key in definition:
+        if key not in allowed:
+            diagnostics.append(
+                Diagnostic(
+                    level=DiagnosticLevel.ERROR,
+                    component="config",
+                    code="unknown-key",
+                    message=f"'variants.{name}.{key}' is not a recognized key in schema version 1.",
+                )
+            )
+
+    payload = definition.get("payload")
+    if payload is not None and not isinstance(payload, str):
+        diagnostics.append(
+            Diagnostic(
+                level=DiagnosticLevel.ERROR,
+                component="config",
+                code="type-mismatch",
+                message=(
+                    f"'variants.{name}.payload' must be a string, got {type(payload).__name__}."
+                ),
+            )
+        )
+
+    engine = definition.get("engine")
+    if engine is not None:
+        if not isinstance(engine, str):
+            diagnostics.append(
+                Diagnostic(
+                    level=DiagnosticLevel.ERROR,
+                    component="config",
+                    code="type-mismatch",
+                    message=(
+                        f"'variants.{name}.engine' must be a string, got {type(engine).__name__}."
+                    ),
+                )
+            )
+        elif engine not in VALID_ENGINES:
+            diagnostics.append(
+                Diagnostic(
+                    level=DiagnosticLevel.ERROR,
+                    component="config",
+                    code="invalid-engine",
+                    message=(
+                        f"'variants.{name}.engine' is '{engine}'; valid engines: "
+                        f"{', '.join(sorted(VALID_ENGINES))}."
+                    ),
+                )
+            )
+
+    output = definition.get("output")
+    if output is not None and not isinstance(output, str):
+        diagnostics.append(
+            Diagnostic(
+                level=DiagnosticLevel.ERROR,
+                component="config",
+                code="type-mismatch",
+                message=(
+                    f"'variants.{name}.output' must be a string, got {type(output).__name__}."
+                ),
+            )
+        )
+
+    filename_suffix = definition.get("filename_suffix")
+    if filename_suffix is not None:
+        if not isinstance(filename_suffix, str):
+            diagnostics.append(
+                Diagnostic(
+                    level=DiagnosticLevel.ERROR,
+                    component="config",
+                    code="type-mismatch",
+                    message=(
+                        f"'variants.{name}.filename_suffix' must be a string, "
+                        f"got {type(filename_suffix).__name__}."
+                    ),
+                )
+            )
+        else:
+            _validate_filename_suffix_template(
+                section=f"variants.{name}.filename_suffix",
+                template=filename_suffix,
+                diagnostics=diagnostics,
+            )
+
+
+def _is_valid_variant_name(name: str) -> bool:
+    import re
+
+    return bool(re.fullmatch(r"^[a-zA-Z][a-zA-Z0-9_-]*$", name))
+
+
+def _validate_filename_suffix_template(
+    section: str,
+    template: str,
+    diagnostics: list[Diagnostic],
+) -> None:
+    try:
+        template.format(stem="example", variant="alt")
+    except KeyError as exc:
+        diagnostics.append(
+            Diagnostic(
+                level=DiagnosticLevel.ERROR,
+                component="config",
+                code="invalid-template",
+                message=(
+                    f"'{section}' contains unknown placeholder {exc}; "
+                    "allowed placeholders are {stem} and {variant}."
+                ),
+            )
+        )
+    except ValueError as exc:
+        diagnostics.append(
+            Diagnostic(
+                level=DiagnosticLevel.ERROR,
+                component="config",
+                code="invalid-template",
+                message=f"'{section}' is not a valid format string: {exc}.",
+            )
+        )
 
 
 # --- Merge logic ---
@@ -371,6 +603,8 @@ BUILTIN_DEFAULTS: dict[str, Any] = {
         "preserve_relative": True,
         "collapse_entrypoint_names": False,
         "entrypoint_names": ["main", "index"],
+        "default_filename_suffix": "",
+        "variant_filename_suffix": "_{variant}",
     },
     "routes": {},
     "variants": {},
@@ -401,9 +635,14 @@ def resolve_config(merged: dict[str, Any], provenance: list[str]) -> ResolvedCon
             preserve_relative=routing_data.get("preserve_relative", True),
             collapse_entrypoint_names=routing_data.get("collapse_entrypoint_names", False),
             entrypoint_names=routing_data.get("entrypoint_names", ["main", "index"]),
+            default_filename_suffix=routing_data.get("default_filename_suffix", ""),
+            variant_filename_suffix=routing_data.get("variant_filename_suffix", "_{variant}"),
         ),
         routes=dict(merged.get("routes", {})),
-        variants=dict(merged.get("variants", {})),
+        variants={
+            name: _resolve_variant_config(name, definition)
+            for name, definition in merged.get("variants", {}).items()
+        },
         provenance=list(provenance),
     )
 
@@ -411,3 +650,16 @@ def resolve_config(merged: dict[str, Any], provenance: list[str]) -> ResolvedCon
 def default_config() -> ResolvedConfig:
     """Return a ResolvedConfig with all built-in defaults."""
     return resolve_config(BUILTIN_DEFAULTS, ["built-in defaults"])
+
+
+def _resolve_variant_config(name: str, definition: Any) -> VariantConfig:
+    if isinstance(definition, str):
+        return VariantConfig(payload=definition)
+    if isinstance(definition, dict):
+        return VariantConfig(
+            payload=definition.get("payload", ""),
+            engine=definition.get("engine"),
+            output=definition.get("output"),
+            filename_suffix=definition.get("filename_suffix"),
+        )
+    raise TypeError(f"Variant '{name}' must resolve to a string or table definition.")

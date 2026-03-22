@@ -53,16 +53,15 @@ class TestGenerateLatexWorkshopConfig:
         tool = config["latex-workshop.latex.tools"][0]
         assert "build" in tool["args"]
 
-    def test_tool_args_contain_workspace_folder_placeholder(self):
+    def test_tool_args_do_not_force_workspace_root(self):
         config = generate_latex_workshop_config()
         tool = config["latex-workshop.latex.tools"][0]
-        assert "--workspace-root" in tool["args"]
-        assert "%WORKSPACE_FOLDER%" in tool["args"]
+        assert "--workspace-root" not in tool["args"]
 
     def test_tool_args_contain_doc_placeholder(self):
         config = generate_latex_workshop_config()
         tool = config["latex-workshop.latex.tools"][0]
-        assert "%DOC%" in tool["args"]
+        assert "%DOC_EXT%" in tool["args"]
 
     def test_recipe_references_ktisma_tool(self):
         config = generate_latex_workshop_config()

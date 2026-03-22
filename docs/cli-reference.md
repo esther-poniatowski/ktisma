@@ -28,6 +28,7 @@ ktisma build <source.tex> [options]
 | `source` | Path to the `.tex` source file (required) |
 | `--workspace-root PATH` | Set workspace root directory |
 | `--engine ENGINE` | Override engine selection (`pdflatex`, `lualatex`, `xelatex`, `latex`) |
+| `--output PATH` | Override the exact output PDF path |
 | `--output-dir PATH` | Override output directory for the compiled PDF |
 | `--watch` | Enable continuous watch mode (wraps `latexmk -pvc`) |
 | `--dry-run` | Show the build plan without compiling |
@@ -40,19 +41,22 @@ Examples:
 
 ```bash
 # Basic build
-ktisma build slides-tex/main.tex --workspace-root .
+ktisma build slides-tex/main.tex
 
 # Build with engine override
 ktisma build paper.tex --engine lualatex
 
 # Watch mode
-ktisma build slides-tex/main.tex --watch --workspace-root .
+ktisma build slides-tex/main.tex --watch
 
 # Dry run to inspect the plan
 ktisma build slides-tex/main.tex --dry-run --json
 
 # Build a specific variant
 ktisma build exercises.tex --variant corrected
+
+# Build to an exact PDF path
+ktisma build exercises.tex --output review-pdfs/exercises_review.pdf
 ```
 
 ### `inspect engine`
@@ -94,6 +98,7 @@ ktisma inspect route <source.tex> [options]
 | --- | --- |
 | `source` | Path to the `.tex` source file (required) |
 | `--workspace-root PATH` | Set workspace root directory |
+| `--output PATH` | Override the exact output PDF path |
 | `--output-dir PATH` | Override output directory |
 | `--json` | Emit JSON output |
 
@@ -128,7 +133,7 @@ for `.ktisma.lock` or a `.ktisma*` parent) before removing it.
 
 ```bash
 # Clean build artifacts for a source file
-ktisma clean slides-tex/main.tex --workspace-root .
+ktisma clean slides-tex/main.tex
 
 # Clean a specific build directory
 ktisma clean slides-tex/.ktisma_build/main/
@@ -160,7 +165,7 @@ Human-readable output displays a status table with `[ok]` or `[MISSING]` for eac
 
 ### `batch`
 
-Build all `.tex` files in a directory.
+Build batch-entrypoint `.tex` files in a directory tree.
 
 ```bash
 ktisma batch <source-dir> [options]
@@ -168,14 +173,16 @@ ktisma batch <source-dir> [options]
 
 | Option | Description |
 | --- | --- |
-| `source_dir` | Directory containing `.tex` files (required) |
+| `source_dir` | Directory containing `.tex` entrypoints or nested entrypoint directories (required) |
 | `--workspace-root PATH` | Set workspace root directory |
 | `--engine ENGINE` | Override engine for all builds |
 | `--watch` | **Rejected** in v1 (batch watch mode is not supported) |
 | `--json` | Emit JSON output |
 
-Each `.tex` file is built sequentially using the same `build` pipeline. If any file fails, the
-batch continues and returns `COMPILATION_FAILURE` as the aggregate exit code.
+Ktisma searches recursively. It always includes `.tex` files directly inside `source_dir`, and it
+also includes nested entrypoints such as `main.tex`, `index.tex`, or nested files that contain a
+document preamble. Included fragments without their own preamble are skipped. If any build fails,
+the batch continues and returns `COMPILATION_FAILURE` as the aggregate exit code.
 
 ### `variants`
 
@@ -190,11 +197,14 @@ ktisma variants <source.tex> [options]
 | `source` | Path to the `.tex` source file (required) |
 | `--workspace-root PATH` | Set workspace root directory |
 | `--engine ENGINE` | Override engine for all variants |
+| `--include-default` | Build the non-variant output in addition to configured variants |
 | `--json` | Emit JSON output |
 
 Reads variant definitions from the `[variants]` section of the resolved configuration and builds
-each one. Each variant uses its own build directory and produces output named
-`<basename>_<variant>.pdf`.
+each one. Each variant uses its own build directory. Output naming defaults to
+`[routing].variant_filename_suffix` (default: `_{variant}`) and can be overridden per variant.
+`--include-default` adds the non-variant build to the same run, which is useful for dual-output
+workflows such as `draft` + `review` or `student` + `annotated`.
 
 ## Exit Codes
 

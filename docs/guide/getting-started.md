@@ -56,7 +56,7 @@ See the [configuration reference](../configuration.md) for the full schema.
 Build a `.tex` file from your project root:
 
 ```bash
-python3 vendor/ktisma/bin/ktisma build slides-tex/week1.tex --workspace-root .
+python3 vendor/ktisma/bin/ktisma build slides-tex/week1.tex
 ```
 
 On success, ktisma prints the path to the produced PDF:
@@ -65,7 +65,8 @@ On success, ktisma prints the path to the produced PDF:
 slides-pdfs/week1.pdf
 ```
 
-The `--workspace-root .` flag tells ktisma where to find `.ktisma.toml` and anchor relative paths.
+When your source lives under a workspace with `.ktisma.toml` files, ktisma can infer the
+workspace root automatically. Use `--workspace-root` when you want to pin it explicitly.
 
 ## Inspecting Decisions Before Building
 
@@ -73,10 +74,10 @@ You can preview what ktisma would do without compiling:
 
 ```bash
 # Which engine would be selected?
-python3 vendor/ktisma/bin/ktisma inspect engine slides-tex/week1.tex --workspace-root .
+python3 vendor/ktisma/bin/ktisma inspect engine slides-tex/week1.tex
 
 # Where would the PDF be placed?
-python3 vendor/ktisma/bin/ktisma inspect route slides-tex/week1.tex --workspace-root .
+python3 vendor/ktisma/bin/ktisma inspect route slides-tex/week1.tex
 ```
 
 These commands are useful for verifying your configuration before committing to a build. See the
@@ -96,9 +97,7 @@ Add the following to your `.vscode/settings.json` or `.code-workspace` file:
     "args": [
       "%WORKSPACE_FOLDER%/vendor/ktisma/bin/ktisma",
       "build",
-      "%DOC%",
-      "--workspace-root",
-      "%WORKSPACE_FOLDER%"
+      "%DOC_EXT%"
     ]
   }
 ],
@@ -112,7 +111,8 @@ Add the following to your `.vscode/settings.json` or `.code-workspace` file:
 ```
 
 Set `autoClean` to `"never"` because ktisma manages cleanup through its own
-[policies](../build-lifecycle.md#cleanup-policies).
+[policies](../build-lifecycle.md#cleanup-policies). Add `--workspace-root
+%WORKSPACE_FOLDER%` only if you want the editor recipe to pin the workspace root explicitly.
 
 See [Editor Integration](../editor-integration.md) for other editors (Vim, Emacs) and advanced
 configuration.
@@ -137,7 +137,7 @@ that ktisma creates — these are regeneratable from source and typically should
 Run the prerequisite checker to confirm everything is in place:
 
 ```bash
-python3 vendor/ktisma/bin/ktisma doctor --workspace-root .
+python3 vendor/ktisma/bin/ktisma doctor
 ```
 
 Expected output:

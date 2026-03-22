@@ -19,9 +19,7 @@ def generate_latex_workshop_config(
                 "args": [
                     ktisma_path,
                     "build",
-                    "%DOC%",
-                    "--workspace-root",
-                    "%WORKSPACE_FOLDER%",
+                    "%DOC_EXT%",
                 ],
             }
         ],

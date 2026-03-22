@@ -23,8 +23,8 @@ class FileSourceReader:
         so domain code receives only the preamble text.
         """
         text = source_file.read_text(encoding="utf-8", errors="replace")
-        magic_comments = _extract_magic_comments(text)
         preamble = _extract_preamble(text)
+        magic_comments = _extract_magic_comments(preamble)
         return SourceInputs(preamble=preamble, magic_comments=magic_comments)
 
 

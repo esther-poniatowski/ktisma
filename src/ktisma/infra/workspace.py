@@ -33,7 +33,7 @@ def resolve_workspace_root(
     if adapter_workspace_root is not None:
         return adapter_workspace_root.expanduser().resolve()
 
-    # Step 4: Nearest ancestor with .ktisma.toml
+    # Step 4: Outermost ancestor with .ktisma.toml
     if source_dir is not None:
         found = _find_config_ancestor(source_dir.resolve())
         if found is not None:
@@ -44,19 +44,20 @@ def resolve_workspace_root(
 
 
 def _find_config_ancestor(start: Path) -> Optional[Path]:
-    """Walk up from start looking for a directory containing .ktisma.toml."""
+    """Walk up from start and return the outermost directory containing .ktisma.toml."""
     current = start
     root = Path(current.anchor)
+    found: Optional[Path] = None
     while True:
         if (current / ".ktisma.toml").is_file():
-            return current
+            found = current
         if current == root:
             break
         parent = current.parent
         if parent == current:
             break
         current = parent
-    return None
+    return found
 
 
 class FileWorkspaceOps:
@@ -73,6 +74,13 @@ class FileWorkspaceOps:
 
     def list_directory(self, path: Path) -> list[Path]:
         return list(path.iterdir())
+
+    def read_text(self, path: Path) -> str:
+        return path.read_text(encoding="utf-8")
+
+    def write_text(self, path: Path, content: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
 
     def remove_tree(self, path: Path) -> None:
         shutil.rmtree(path)

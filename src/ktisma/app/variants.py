@@ -4,8 +4,11 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from ..domain.context import BuildRequest, SourceContext, VariantSpec, is_valid_variant_name
+from ..domain.engine import EngineRule
 from ..domain.diagnostics import Diagnostic, DiagnosticLevel
+from ..domain.errors import KtismaError
 from ..domain.exit_codes import ExitCode
+from ..domain.routing import RouteResolver
 from .build import BuildResult, execute_build
 from .configuration import load_resolved_config
 from .protocols import (
@@ -13,6 +16,7 @@ from .protocols import (
     ConfigLoader,
     LockManager,
     Materializer,
+    PostProcessor,
     PrerequisiteProbe,
     WorkspaceOps,
     SourceReader,
@@ -41,6 +45,9 @@ def execute_variants(
     materializer: Materializer,
     prerequisite_probe: PrerequisiteProbe,
     workspace_ops: WorkspaceOps,
+    post_processor: Optional[PostProcessor] = None,
+    route_resolvers: Optional[list[RouteResolver]] = None,
+    engine_rules: Optional[list[EngineRule]] = None,
 ) -> VariantsResult:
     """Build all configured variants for a source file.
 
@@ -51,7 +58,7 @@ def execute_variants(
     # Load config to get variant definitions
     config, _ = load_resolved_config(ctx.workspace_root, ctx.source_dir, config_loader)
 
-    if not config.variants:
+    if not config.variants and not request.include_default:
         diagnostics.append(
             Diagnostic(
                 level=DiagnosticLevel.WARNING,
@@ -65,7 +72,35 @@ def execute_variants(
     results: list[tuple[VariantSpec, BuildResult]] = []
     any_failure = False
 
-    for name, payload in config.variants.items():
+    if request.include_default:
+        default_request = BuildRequest(
+            watch=request.watch,
+            dry_run=request.dry_run,
+            engine_override=request.engine_override,
+            output_path_override=request.output_path_override,
+            output_dir_override=request.output_dir_override,
+            json_output=request.json_output,
+            cleanup_override=request.cleanup_override,
+        )
+        result = execute_build(
+            ctx=ctx,
+            request=default_request,
+            config_loader=config_loader,
+            source_reader=source_reader,
+            lock_manager=lock_manager,
+            backend_runner=backend_runner,
+            materializer=materializer,
+            prerequisite_probe=prerequisite_probe,
+            workspace_ops=workspace_ops,
+            post_processor=post_processor,
+            route_resolvers=route_resolvers,
+            engine_rules=engine_rules,
+        )
+        results.append((VariantSpec(name="default", payload=""), result))
+        if result.exit_code != ExitCode.SUCCESS:
+            any_failure = True
+
+    for name, variant_config in config.variants.items():
         if not validate_variant_name(name):
             diagnostics.append(
                 Diagnostic(
@@ -78,14 +113,21 @@ def execute_variants(
             any_failure = True
             continue
 
-        variant_spec = VariantSpec(name=name, payload=payload)
+        variant_spec = VariantSpec(
+            name=name,
+            payload=variant_config.payload,
+            engine_override=variant_config.engine,
+            output_override=variant_config.output,
+            filename_suffix=variant_config.filename_suffix,
+        )
         variant_request = BuildRequest(
             watch=request.watch,
             dry_run=request.dry_run,
             engine_override=request.engine_override,
+            output_path_override=request.output_path_override,
             output_dir_override=request.output_dir_override,
             variant=name,
-            variant_payload=payload,
+            variant_payload=variant_config.payload,
             json_output=request.json_output,
             cleanup_override=request.cleanup_override,
         )
@@ -101,10 +143,24 @@ def execute_variants(
                 materializer=materializer,
                 prerequisite_probe=prerequisite_probe,
                 workspace_ops=workspace_ops,
+                post_processor=post_processor,
+                route_resolvers=route_resolvers,
+                engine_rules=engine_rules,
             )
             results.append((variant_spec, result))
             if result.exit_code != ExitCode.SUCCESS:
                 any_failure = True
+        except KtismaError as exc:
+            diagnostics.extend(exc.diagnostics)
+            diagnostics.append(
+                Diagnostic(
+                    level=DiagnosticLevel.ERROR,
+                    component="variants",
+                    code="variant-build-failed",
+                    message=f"Variant '{name}' build failed: {exc}",
+                )
+            )
+            any_failure = True
         except Exception as exc:
             diagnostics.append(
                 Diagnostic(

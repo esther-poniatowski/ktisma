@@ -113,7 +113,7 @@ Application defines seven protocol interfaces that infrastructure must satisfy:
 | `LockManager` | `acquire()`, `release()` | Exclusive build lock management |
 | `BackendRunner` | `compile()`, `start_watch()` | Invoke compilation backend |
 | `Materializer` | `materialize()` | Copy build artifacts to final destinations |
-| `WorkspaceOps` | `ensure_directory()`, `path_exists()`, `is_directory()`, `list_directory()`, `remove_tree()`, `glob_files()` | Filesystem operations |
+| `WorkspaceOps` | `ensure_directory()`, `path_exists()`, `is_directory()`, `list_directory()`, `read_text()`, `write_text()`, `remove_tree()`, `glob_files()` | Filesystem operations |
 | `PrerequisiteProbe` | `check_latexmk()`, `check_engine()`, `check_python_version()`, `check_toml_support()` | System prerequisite checks |
 
 Two additional protocols support extension points:
@@ -126,7 +126,8 @@ Two additional protocols support extension points:
 ## Composition Root
 
 `adapters/bootstrap.py` is the single module that wires concrete infrastructure into application
-use-cases. It:
+use-cases. It also exposes the supported extension hooks (`engine_rules`, `route_resolvers`,
+`post_processor`) on the public adapter entry points. It:
 
 1. Instantiates all infrastructure implementations (`TomlConfigLoader`, `FileSourceReader`,
    `FileLockManager`, `LatexmkRunner`, `FileMaterializer`, `SystemPrerequisiteProbe`,

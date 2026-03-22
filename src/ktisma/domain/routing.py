@@ -37,26 +37,33 @@ def resolve_route(
     ctx: SourceContext,
     source_inputs: SourceInputs,
     config: ResolvedConfig,
+    output_path_override: Optional[Path] = None,
     output_dir_override: Optional[Path] = None,
     extra_resolvers: Optional[list[RouteResolver]] = None,
 ) -> RouteDecision:
     """Resolve the output destination for a compiled PDF.
 
     Precedence per roadmap:
-    1. CLI output override
-    2. Magic-comment output override
-    3. Explicit config route rules
-    4. Suffix convention
-    5. Safe fallback beside the source file
+    1. CLI output-file override
+    2. CLI output-directory override
+    3. Magic-comment output override
+    4. Custom route resolvers
+    5. Explicit config route rules
+    6. Suffix convention
+    7. Safe fallback beside the source file
     """
     pdf_name = ctx.source_file.stem + ".pdf"
 
-    # Step 1: CLI override
+    # Step 1: CLI output-file override
+    if output_path_override is not None:
+        return RouteDecision(destination=output_path_override, matched_rule="--output")
+
+    # Step 2: CLI output-directory override
     if output_dir_override is not None:
         dest = output_dir_override / pdf_name
         return RouteDecision(destination=dest, matched_rule="--output-dir")
 
-    # Step 2: Magic comment override
+    # Step 3: Magic comment override
     magic_output = source_inputs.magic_comments.get("output")
     if magic_output:
         magic_path = Path(magic_output)
@@ -68,37 +75,52 @@ def resolve_route(
             dest = magic_path
         return RouteDecision(destination=dest, matched_rule="% !ktisma output")
 
-    # Step 3: Explicit config route rules
-    route_result = _match_route_rules(ctx, config, pdf_name)
-    if route_result is not None:
-        return route_result
-
+    # Step 4: Custom route resolvers
     for resolver in extra_resolvers or []:
         resolved = resolver(ctx, source_inputs, config, pdf_name)
         if resolved is not None:
             return resolved
 
-    # Step 4: Suffix convention
+    # Step 5: Explicit config route rules
+    route_result = _match_route_rules(ctx, config, pdf_name)
+    if route_result is not None:
+        return route_result
+
+    # Step 6: Suffix convention
     suffix_result = _apply_suffix_convention(ctx, config, pdf_name)
     if suffix_result is not None:
         return suffix_result
 
-    # Step 5: Safe fallback
+    # Step 7: Safe fallback
     dest = ctx.source_dir / pdf_name
+    diagnostics: list[Diagnostic] = []
+    if not _is_within_workspace(ctx):
+        diagnostics.append(
+            Diagnostic(
+                level=DiagnosticLevel.WARNING,
+                component="routing",
+                code="source-outside-workspace",
+                message=(
+                    f"Source '{ctx.source_file}' is outside workspace root '{ctx.workspace_root}'; "
+                    "workspace-relative routes and suffix conventions were skipped."
+                ),
+            )
+        )
+    diagnostics.append(
+        Diagnostic(
+            level=DiagnosticLevel.INFO,
+            component="routing",
+            code="fallback-routing",
+            message=(
+                f"No routing rule or convention matched; "
+                f"placing output beside source file: {dest}"
+            ),
+        )
+    )
     return RouteDecision(
         destination=dest,
         fallback=True,
-        diagnostics=[
-            Diagnostic(
-                level=DiagnosticLevel.INFO,
-                component="routing",
-                code="fallback-routing",
-                message=(
-                    f"No routing rule or convention matched; "
-                    f"placing output beside source file: {dest}"
-                ),
-            )
-        ],
+        diagnostics=diagnostics,
     )
 
 
@@ -244,14 +266,28 @@ def _apply_suffix_convention(
     # Find the deepest directory component ending with the source suffix.
     # Scan right-to-left (skipping the filename) to match the nearest ancestor,
     # consistent with the behavior of walking up from the source file.
-    matched_index = None
-    for i in range(len(parts) - 2, -1, -1):
-        if parts[i].endswith(source_suffix):
-            matched_index = i
-            break
+    matching_indices = [
+        i for i in range(len(parts) - 2, -1, -1) if parts[i].endswith(source_suffix)
+    ]
 
-    if matched_index is None:
+    if not matching_indices:
         return None
+    matched_index = matching_indices[0]
+    diagnostics: list[Diagnostic] = []
+    if len(matching_indices) > 1:
+        selected = parts[matched_index]
+        ignored = [parts[i] for i in matching_indices[1:]]
+        diagnostics.append(
+            Diagnostic(
+                level=DiagnosticLevel.WARNING,
+                component="routing",
+                code="multiple-source-suffix-matches",
+                message=(
+                    f"Multiple '*{source_suffix}' ancestors match '{rel_source}'; "
+                    f"using nearest ancestor '{selected}' and ignoring {ignored}."
+                ),
+            )
+        )
 
     prefix_parts = parts[:matched_index]
     matched_dir = parts[matched_index]
@@ -274,6 +310,7 @@ def _apply_suffix_convention(
             return RouteDecision(
                 destination=dest,
                 matched_rule=f"suffix convention ({source_suffix} -> {output_suffix}) + entrypoint collapse",
+                diagnostics=diagnostics,
             )
 
     if config.routing.preserve_relative and inner_dirs:
@@ -285,4 +322,13 @@ def _apply_suffix_convention(
     return RouteDecision(
         destination=dest,
         matched_rule=f"suffix convention ({source_suffix} -> {output_suffix})",
+        diagnostics=diagnostics,
     )
+
+
+def _is_within_workspace(ctx: SourceContext) -> bool:
+    try:
+        ctx.source_file.relative_to(ctx.workspace_root)
+        return True
+    except ValueError:
+        return False

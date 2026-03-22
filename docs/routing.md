@@ -8,23 +8,33 @@ always succeeds.
 
 Routing precedence, highest first:
 
-1. **CLI output override** (`--output-dir`)
-2. **Magic-comment output override** (`% !ktisma output = ...`)
-3. **Explicit config route rules** (`[routes]`)
-4. **Suffix convention** (`-tex/` to `-pdfs/`)
-5. **Safe fallback** (beside the source file)
+1. **CLI exact output override** (`--output`)
+2. **CLI output directory override** (`--output-dir`)
+3. **Magic-comment output override** (`% !ktisma output = ...`)
+4. **Custom route resolvers**
+5. **Explicit config route rules** (`[routes]`)
+6. **Suffix convention** (`-tex/` to `-pdfs/`)
+7. **Safe fallback** (beside the source file)
 
-The first step that produces a match is used. Step 5 always resolves, ensuring routing mismatch
+The first step that produces a match is used. Step 7 always resolves, ensuring routing mismatch
 never strands a PDF.
 
-## CLI Override
+## CLI Overrides
+
+Use `--output` when you need to choose the exact PDF path:
+
+```bash
+ktisma build paper.tex --output ~/Desktop/review-copy.pdf
+```
+
+Use `--output-dir` when you want to preserve ktisma's filename logic but override the directory:
 
 ```bash
 ktisma build paper.tex --output-dir ~/Desktop/
 ```
 
-The `--output-dir` flag takes absolute precedence. The path resolves relative to the current
-working directory.
+`--output` takes absolute precedence. `--output-dir` is consulted only when `--output` is not
+set. Both paths resolve relative to the current working directory.
 
 ## Magic Comment Override
 
@@ -85,7 +95,10 @@ This convention applies when:
 - No explicit route rule or override matched
 
 The suffix convention preserves relative paths beneath the source root and preserves the source
-basename.
+basename. Missing `*-pdfs/` siblings are created automatically when the output is materialized.
+
+If multiple nested directories match the configured `source_suffix`, ktisma uses the nearest
+match and emits a warning diagnostic describing the ignored outer matches.
 
 ### Configuring the Convention
 
@@ -94,6 +107,8 @@ basename.
 source_suffix = "-tex"        # Suffix identifying source directories
 output_suffix = "-pdfs"       # Suffix for output directories
 preserve_relative = true       # Preserve relative path structure
+default_filename_suffix = ""   # Applied to non-variant outputs
+variant_filename_suffix = "_{variant}"
 ```
 
 ### Entrypoint Collapse
@@ -123,27 +138,46 @@ If no explicit rule or convention applies:
 
 - The PDF is materialized **next to the source file** (same directory, `.pdf` extension).
 - A diagnostic is emitted explaining that fallback routing was used.
+- If the source lies outside the workspace root, ktisma emits an additional warning explaining
+  that workspace-relative routes and suffix conventions were skipped.
 - The build remains successful — fallback does not change the exit code.
 
 This ensures the only successful PDF is never lost due to a routing configuration gap.
 
 ## Variant Output Naming
 
-When building variants, the output filename is modified to include the variant name:
+Variant builds can customize both the filename and the destination. By default, ktisma appends the
+configured `variant_filename_suffix` template:
 
 | Base | Variant | Output |
 | --- | --- | --- |
-| `exercises.tex` | `corrected` | `exercises_corrected.pdf` |
-| `exercises.tex` | `blank` | `exercises_blank.pdf` |
+| `exercises.tex` | `review` | `exercises_review.pdf` |
+| `exercises.tex` | `handout` | `exercises_handout.pdf` |
 
-Route resolution determines the output directory; only the filename changes for variants.
+You can override that per variant:
+
+```toml
+[routing]
+default_filename_suffix = "_draft"
+variant_filename_suffix = "_{variant}"
+
+[variants.review]
+payload = "\\def\\ShowReviewMarkup{}"
+filename_suffix = ""
+output = "../review-pdfs/"
+```
+
+- `default_filename_suffix` changes the non-variant filename.
+- `variant_filename_suffix` changes the default variant filename pattern.
+- `variants.<name>.filename_suffix` overrides the pattern for one variant.
+- `variants.<name>.output` overrides the routed output directory or file for one variant.
 
 ## Inspecting Routes
 
 Use `inspect route` to see where a file would be routed without building:
 
 ```bash
-ktisma inspect route slides-tex/week1.tex --workspace-root .
+ktisma inspect route slides-tex/week1.tex
 ```
 
 Add `--json` for machine-readable output:

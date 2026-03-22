@@ -105,7 +105,7 @@ The cleanup policy determines whether the build directory is removed after compi
 | `never` | Never remove the build directory. |
 | `on_success` | Remove after successful compilation. |
 | `on_output_success` | Remove after successful compilation **and** successful materialization. |
-| `always` | Remove regardless of outcome. |
+| `always` | Remove after any successful compile, even if output materialization later fails. Compile failures are still preserved. |
 
 ### Defaults
 
@@ -133,6 +133,8 @@ Watch mode wraps `latexmk -pvc` in an application-level session.
 3. **Launch**: Start `latexmk -pvc` as a subprocess against the planned build directory.
 4. **Poll loop**: Monitor the subprocess for rebuild completions by tracking PDF modification
    times. After each successful rebuild, materialize the updated PDF to the fixed destination.
+   Watch mode leaves `latexmk` attached to the session's stdout/stderr so backend failures remain
+   visible and no unread subprocess pipes can deadlock the watcher.
 5. **Teardown**: On SIGINT or SIGTERM, terminate the subprocess, release the lock, and exit
    cleanly.
 
@@ -154,19 +156,23 @@ Watch mode wraps `latexmk -pvc` in an application-level session.
 
 ## Variants
 
-Variants are named build profiles that inject TeX preamble content before compilation.
+Variants are named build profiles that inject TeX preamble content before compilation and may also
+override engine selection, output naming, and routed destination.
 
 ### Definition
 
 Variants are defined in `.ktisma.toml`:
 
 ```toml
-[variants]
-blank = ""
-corrected = "\\ForceSolutions"
+[variants.review]
+payload = "\\def\\ShowReviewMarkup{}"
+filename_suffix = "_review"
 ```
 
-Each key is a variant name; each value is a TeX preamble payload.
+Ktisma accepts two variant forms:
+
+- String form: the value is a TeX preamble payload.
+- Table form: `payload`, `engine`, `output`, and `filename_suffix` keys customize the build.
 
 ### Name Validation
 
@@ -183,8 +189,9 @@ The payload is passed as subprocess arguments, never through shell interpolation
 Each variant:
 
 - Uses its own build directory: `<source-dir>/.ktisma_build/<stem>-<variant>/`
-- Produces its own output: `<basename>_<variant>.pdf`
-- Shares the same route resolution as the base document (only the filename differs)
+- Produces its own output filename using `[routing].variant_filename_suffix` unless overridden
+- May override the routed destination with `variants.<name>.output`
+- Shares the same base build pipeline as the non-variant document
 
 ### Building Variants
 
@@ -197,13 +204,19 @@ ktisma build exercises.tex --variant corrected
 Build all configured variants:
 
 ```bash
-ktisma variants exercises.tex --workspace-root .
+ktisma variants exercises.tex
+```
+
+Build the default output and all configured variants together:
+
+```bash
+ktisma variants exercises.tex --include-default
 ```
 
 An explicit payload can be provided without a config entry:
 
 ```bash
-ktisma build exercises.tex --variant custom --variant-payload "\\ForceSolutions"
+ktisma build exercises.tex --variant custom --variant-payload "\\def\\ShowReviewMarkup{}"
 ```
 
 ## Materialization
