@@ -115,6 +115,13 @@ def _build_parser() -> argparse.ArgumentParser:
     variants_parser.add_argument("--json", action="store_true")
     variants_parser.set_defaults(func=_cmd_variants)
 
+    # --- init ---
+    init_parser = subparsers.add_parser(
+        "init", help="Generate wrapper script and editor configuration"
+    )
+    init_parser.add_argument("--workspace-root", type=Path, help="Workspace root directory")
+    init_parser.set_defaults(func=_cmd_init)
+
     return parser
 
 
@@ -269,6 +276,18 @@ def _cmd_batch(args: argparse.Namespace) -> int:
         })
 
     return result.exit_code
+
+
+def _cmd_init(args: argparse.Namespace) -> int:
+    from .init import execute_init
+    from ..infra.workspace import resolve_workspace_root
+
+    workspace_root = resolve_workspace_root(
+        cli_workspace_root=args.workspace_root,
+        adapter_workspace_root=None,
+        source_dir=Path.cwd(),
+    )
+    return execute_init(workspace_root)
 
 
 def _cmd_variants(args: argparse.Namespace) -> int:
