@@ -180,14 +180,6 @@ def _normalize_engine(engine: str) -> str:
     return mapping.get(engine.lower().strip(), engine.lower().strip())
 
 
-def _extract_preamble(source: str) -> str:
-    """Extract text before \\begin{document}."""
-    match = re.search(r"\\begin\{document\}", source)
-    if match:
-        return source[: match.start()]
-    return source
-
-
 def _scan_markers(preamble: str, markers: list[tuple[str, str]]) -> list[str]:
     """Scan preamble for marker patterns, returning evidence descriptions."""
     found: list[str] = []

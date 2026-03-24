@@ -173,3 +173,22 @@ class PostProcessor(Protocol):
     ) -> list[Diagnostic]:
         """Run post-materialization steps before cleanup."""
         ...
+
+
+@dataclass(frozen=True)
+class BuildServices:
+    """Bundle of protocol dependencies for build use-cases.
+
+    Constructed once at the composition root and threaded through
+    ``execute_build``, ``execute_batch``, and ``execute_variants``
+    instead of passing each dependency as a separate argument.
+    """
+
+    config_loader: ConfigLoader
+    source_reader: SourceReader
+    lock_manager: LockManager
+    backend_runner: BackendRunner
+    materializer: Materializer
+    prerequisite_probe: PrerequisiteProbe
+    workspace_ops: WorkspaceOps
+    post_processor: Optional[PostProcessor] = None

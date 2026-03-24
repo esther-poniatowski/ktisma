@@ -11,16 +11,7 @@ from ..domain.errors import KtismaError
 from ..domain.exit_codes import ExitCode
 from ..domain.routing import RouteResolver
 from .build import BuildResult, execute_build
-from .protocols import (
-    BackendRunner,
-    ConfigLoader,
-    LockManager,
-    Materializer,
-    PostProcessor,
-    PrerequisiteProbe,
-    WorkspaceOps,
-    SourceReader,
-)
+from .protocols import BuildServices, SourceReader
 
 
 @dataclass(frozen=True)
@@ -34,14 +25,7 @@ def execute_batch(
     source_dir: Path,
     workspace_root: Path,
     request: BuildRequest,
-    config_loader: ConfigLoader,
-    source_reader: SourceReader,
-    lock_manager: LockManager,
-    backend_runner: BackendRunner,
-    materializer: Materializer,
-    prerequisite_probe: PrerequisiteProbe,
-    workspace_ops: WorkspaceOps,
-    post_processor: Optional[PostProcessor] = None,
+    services: BuildServices,
     route_resolvers: Optional[list[RouteResolver]] = None,
     engine_rules: Optional[list[EngineRule]] = None,
 ) -> BatchResult:
@@ -63,7 +47,7 @@ def execute_batch(
         )
         return BatchResult(exit_code=ExitCode.CONFIG_ERROR, diagnostics=diagnostics)
 
-    if not workspace_ops.is_directory(source_dir):
+    if not services.workspace_ops.is_directory(source_dir):
         diagnostics.append(
             Diagnostic(
                 level=DiagnosticLevel.ERROR,
@@ -74,8 +58,11 @@ def execute_batch(
         )
         return BatchResult(exit_code=ExitCode.CONFIG_ERROR, diagnostics=diagnostics)
 
-    tex_candidates = workspace_ops.glob_files(source_dir, "**/*.tex")
-    tex_files = [p for p in tex_candidates if _is_batch_entrypoint(source_dir, p, source_reader)]
+    tex_candidates = services.workspace_ops.glob_files(source_dir, "**/*.tex")
+    tex_files = [
+        p for p in tex_candidates
+        if _is_batch_entrypoint(source_dir, p, services.source_reader)
+    ]
     if not tex_files:
         diagnostics.append(
             Diagnostic(
@@ -100,14 +87,7 @@ def execute_batch(
             result = execute_build(
                 ctx=ctx,
                 request=request,
-                config_loader=config_loader,
-                source_reader=source_reader,
-                lock_manager=lock_manager,
-                backend_runner=backend_runner,
-                materializer=materializer,
-                prerequisite_probe=prerequisite_probe,
-                workspace_ops=workspace_ops,
-                post_processor=post_processor,
+                services=services,
                 route_resolvers=route_resolvers,
                 engine_rules=engine_rules,
             )

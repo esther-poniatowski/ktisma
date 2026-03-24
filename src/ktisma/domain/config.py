@@ -5,6 +5,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
 
+from .context import is_valid_variant_name
 from .diagnostics import Diagnostic, DiagnosticLevel
 
 
@@ -25,27 +26,27 @@ class ConfigLayer:
 
 @dataclass(frozen=True)
 class BuildConfig:
-    out_dir_name: str = ".ktisma_build"
-    cleanup: CleanupPolicy = CleanupPolicy.ON_OUTPUT_SUCCESS
-    synctex: bool = True
+    out_dir_name: str
+    cleanup: CleanupPolicy
+    synctex: bool
 
 
 @dataclass(frozen=True)
 class EngineConfig:
-    default: str = "pdflatex"
-    modern_default: str = "lualatex"
-    strict_detection: bool = False
+    default: str
+    modern_default: str
+    strict_detection: bool
 
 
 @dataclass(frozen=True)
 class RoutingConfig:
-    source_suffix: str = "-tex"
-    output_suffix: str = "-pdfs"
-    preserve_relative: bool = True
-    collapse_entrypoint_names: bool = False
-    entrypoint_names: list[str] = field(default_factory=lambda: ["main", "index"])
-    default_filename_suffix: str = ""
-    variant_filename_suffix: str = "_{variant}"
+    source_suffix: str
+    output_suffix: str
+    preserve_relative: bool
+    collapse_entrypoint_names: bool
+    entrypoint_names: list[str]
+    default_filename_suffix: str
+    variant_filename_suffix: str
 
 
 @dataclass(frozen=True)
@@ -58,10 +59,10 @@ class VariantConfig:
 
 @dataclass(frozen=True)
 class ResolvedConfig:
-    schema_version: int = 1
-    build: BuildConfig = field(default_factory=BuildConfig)
-    engines: EngineConfig = field(default_factory=EngineConfig)
-    routing: RoutingConfig = field(default_factory=RoutingConfig)
+    schema_version: int
+    build: BuildConfig
+    engines: EngineConfig
+    routing: RoutingConfig
     routes: dict[str, str] = field(default_factory=dict)
     variants: dict[str, VariantConfig] = field(default_factory=dict)
     provenance: list[str] = field(default_factory=list)
@@ -324,7 +325,7 @@ def validate_config(data: dict[str, Any], schema_version: int = 1) -> list[Diagn
                     )
                 )
                 continue
-            if not _is_valid_variant_name(name):
+            if not is_valid_variant_name(name):
                 diagnostics.append(
                     Diagnostic(
                         level=DiagnosticLevel.ERROR,
@@ -463,12 +464,6 @@ def _validate_variant_definition(
                 template=filename_suffix,
                 diagnostics=diagnostics,
             )
-
-
-def _is_valid_variant_name(name: str) -> bool:
-    import re
-
-    return bool(re.fullmatch(r"^[a-zA-Z][a-zA-Z0-9_-]*$", name))
 
 
 def _validate_filename_suffix_template(
@@ -612,36 +607,40 @@ BUILTIN_DEFAULTS: dict[str, Any] = {
 
 
 def resolve_config(merged: dict[str, Any], provenance: list[str]) -> ResolvedConfig:
-    """Construct a ResolvedConfig from a merged config dict."""
-    build_data = merged.get("build", {})
-    engines_data = merged.get("engines", {})
-    routing_data = merged.get("routing", {})
+    """Construct a ResolvedConfig from a merged config dict.
+
+    Expects *merged* to have been produced by a pipeline that starts with
+    ``BUILTIN_DEFAULTS``, so every key is guaranteed present.
+    """
+    build_data = merged["build"]
+    engines_data = merged["engines"]
+    routing_data = merged["routing"]
 
     return ResolvedConfig(
-        schema_version=merged.get("schema_version", 1),
+        schema_version=merged["schema_version"],
         build=BuildConfig(
-            out_dir_name=build_data.get("out_dir_name", ".ktisma_build"),
-            cleanup=CleanupPolicy(build_data.get("cleanup", "on_output_success")),
-            synctex=build_data.get("synctex", True),
+            out_dir_name=build_data["out_dir_name"],
+            cleanup=CleanupPolicy(build_data["cleanup"]),
+            synctex=build_data["synctex"],
         ),
         engines=EngineConfig(
-            default=engines_data.get("default", "pdflatex"),
-            modern_default=engines_data.get("modern_default", "lualatex"),
-            strict_detection=engines_data.get("strict_detection", False),
+            default=engines_data["default"],
+            modern_default=engines_data["modern_default"],
+            strict_detection=engines_data["strict_detection"],
         ),
         routing=RoutingConfig(
-            source_suffix=routing_data.get("source_suffix", "-tex"),
-            output_suffix=routing_data.get("output_suffix", "-pdfs"),
-            preserve_relative=routing_data.get("preserve_relative", True),
-            collapse_entrypoint_names=routing_data.get("collapse_entrypoint_names", False),
-            entrypoint_names=routing_data.get("entrypoint_names", ["main", "index"]),
-            default_filename_suffix=routing_data.get("default_filename_suffix", ""),
-            variant_filename_suffix=routing_data.get("variant_filename_suffix", "_{variant}"),
+            source_suffix=routing_data["source_suffix"],
+            output_suffix=routing_data["output_suffix"],
+            preserve_relative=routing_data["preserve_relative"],
+            collapse_entrypoint_names=routing_data["collapse_entrypoint_names"],
+            entrypoint_names=routing_data["entrypoint_names"],
+            default_filename_suffix=routing_data["default_filename_suffix"],
+            variant_filename_suffix=routing_data["variant_filename_suffix"],
         ),
-        routes=dict(merged.get("routes", {})),
+        routes=dict(merged["routes"]),
         variants={
             name: _resolve_variant_config(name, definition)
-            for name, definition in merged.get("variants", {}).items()
+            for name, definition in merged["variants"].items()
         },
         provenance=list(provenance),
     )

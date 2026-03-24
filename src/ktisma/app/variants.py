@@ -11,16 +11,7 @@ from ..domain.exit_codes import ExitCode
 from ..domain.routing import RouteResolver
 from .build import BuildResult, execute_build
 from .configuration import load_resolved_config
-from .protocols import (
-    BackendRunner,
-    ConfigLoader,
-    LockManager,
-    Materializer,
-    PostProcessor,
-    PrerequisiteProbe,
-    WorkspaceOps,
-    SourceReader,
-)
+from .protocols import BuildServices
 
 
 @dataclass(frozen=True)
@@ -38,14 +29,7 @@ def validate_variant_name(name: str) -> bool:
 def execute_variants(
     ctx: SourceContext,
     request: BuildRequest,
-    config_loader: ConfigLoader,
-    source_reader: SourceReader,
-    lock_manager: LockManager,
-    backend_runner: BackendRunner,
-    materializer: Materializer,
-    prerequisite_probe: PrerequisiteProbe,
-    workspace_ops: WorkspaceOps,
-    post_processor: Optional[PostProcessor] = None,
+    services: BuildServices,
     route_resolvers: Optional[list[RouteResolver]] = None,
     engine_rules: Optional[list[EngineRule]] = None,
 ) -> VariantsResult:
@@ -56,7 +40,9 @@ def execute_variants(
     diagnostics: list[Diagnostic] = []
 
     # Load config to get variant definitions
-    config, _ = load_resolved_config(ctx.workspace_root, ctx.source_dir, config_loader)
+    config, _ = load_resolved_config(
+        ctx.workspace_root, ctx.source_dir, services.config_loader
+    )
 
     if not config.variants and not request.include_default:
         diagnostics.append(
@@ -85,14 +71,7 @@ def execute_variants(
         result = execute_build(
             ctx=ctx,
             request=default_request,
-            config_loader=config_loader,
-            source_reader=source_reader,
-            lock_manager=lock_manager,
-            backend_runner=backend_runner,
-            materializer=materializer,
-            prerequisite_probe=prerequisite_probe,
-            workspace_ops=workspace_ops,
-            post_processor=post_processor,
+            services=services,
             route_resolvers=route_resolvers,
             engine_rules=engine_rules,
         )
@@ -136,14 +115,7 @@ def execute_variants(
             result = execute_build(
                 ctx=ctx,
                 request=variant_request,
-                config_loader=config_loader,
-                source_reader=source_reader,
-                lock_manager=lock_manager,
-                backend_runner=backend_runner,
-                materializer=materializer,
-                prerequisite_probe=prerequisite_probe,
-                workspace_ops=workspace_ops,
-                post_processor=post_processor,
+                services=services,
                 route_resolvers=route_resolvers,
                 engine_rules=engine_rules,
             )

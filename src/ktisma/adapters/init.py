@@ -8,6 +8,7 @@ from pathlib import Path
 from ..domain.diagnostics import Diagnostic, DiagnosticLevel
 from ..domain.exit_codes import ExitCode
 from .log import format_diagnostics
+from .vscode import generate_latex_workshop_config
 
 _WRAPPER_SCRIPT = """\
 #!/usr/bin/env bash
@@ -34,26 +35,10 @@ exec python3 "$ktisma" "$@"
 """
 
 
-def generate_vscode_config() -> dict:
-    """Generate VS Code LaTeX Workshop settings using the wrapper script pattern."""
-    return {
-        "latex-workshop.view.pdf.viewer": "tab",
-        "latex-workshop.latex.autoBuild.run": "onSave",
-        "latex-workshop.latex.tools": [
-            {
-                "name": "ktisma",
-                "command": "%WORKSPACE_FOLDER%/scripts/ktisma",
-                "args": ["build", "%DOC_EXT%"],
-            }
-        ],
-        "latex-workshop.latex.recipes": [
-            {
-                "name": "ktisma",
-                "tools": ["ktisma"],
-            }
-        ],
-        "latex-workshop.latex.autoClean.run": "never",
-    }
+_INIT_VSCODE_EXTRA_SETTINGS: dict[str, object] = {
+    "latex-workshop.view.pdf.viewer": "tab",
+    "latex-workshop.latex.autoBuild.run": "onSave",
+}
 
 
 def execute_init(workspace_root: Path) -> int:
@@ -94,7 +79,11 @@ def execute_init(workspace_root: Path) -> int:
         print(output, file=sys.stderr)
 
     # --- VS Code config snippet ---
-    config = generate_vscode_config()
+    config = generate_latex_workshop_config(
+        ktisma_path="%WORKSPACE_FOLDER%/scripts/ktisma",
+        use_wrapper_script=True,
+        extra_settings=_INIT_VSCODE_EXTRA_SETTINGS,
+    )
     print("Add the following to your .code-workspace or .vscode/settings.json:\n")
     print(json.dumps(config, indent=2))
 

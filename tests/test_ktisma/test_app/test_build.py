@@ -14,7 +14,7 @@ from ktisma.app.build import (
     ConfigError,
     execute_build,
 )
-from ktisma.app.protocols import BackendResult, PrerequisiteCheck, WatchUpdate
+from ktisma.app.protocols import BackendResult, BuildServices, PrerequisiteCheck, WatchUpdate
 from ktisma.domain.config import ConfigLayer, CleanupPolicy
 from ktisma.domain.context import BuildRequest, SourceContext, SourceInputs
 from ktisma.domain.diagnostics import Diagnostic, DiagnosticLevel
@@ -268,9 +268,21 @@ def _default_request(**overrides) -> BuildRequest:
 
 
 def _execute_build(**kwargs) -> BuildResult:
+    """Adapter: accept individual service kwargs and bundle into BuildServices."""
     kwargs.setdefault("prerequisite_probe", FakePrerequisiteProbe())
     kwargs.setdefault("workspace_ops", FakeWorkspaceOps())
-    return execute_build(**kwargs)
+
+    services = BuildServices(
+        config_loader=kwargs.pop("config_loader"),
+        source_reader=kwargs.pop("source_reader"),
+        lock_manager=kwargs.pop("lock_manager"),
+        backend_runner=kwargs.pop("backend_runner"),
+        materializer=kwargs.pop("materializer"),
+        prerequisite_probe=kwargs.pop("prerequisite_probe"),
+        workspace_ops=kwargs.pop("workspace_ops"),
+        post_processor=kwargs.pop("post_processor", None),
+    )
+    return execute_build(services=services, **kwargs)
 
 
 # ===========================================================================

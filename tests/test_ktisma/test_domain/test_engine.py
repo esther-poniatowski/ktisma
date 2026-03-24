@@ -11,7 +11,6 @@ from ktisma.domain.context import SourceInputs
 from ktisma.domain.diagnostics import DiagnosticLevel
 from ktisma.domain.engine import (
     EngineDecision,
-    _extract_preamble,
     _normalize_engine,
     _scan_markers,
     AMBIGUOUS_MODERN_MARKERS,
@@ -19,6 +18,7 @@ from ktisma.domain.engine import (
     XELATEX_MARKERS,
     detect_engine,
 )
+from ktisma.infra.source_reader import _extract_preamble
 
 
 # ---------------------------------------------------------------------------

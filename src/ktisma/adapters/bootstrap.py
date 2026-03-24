@@ -10,7 +10,7 @@ from ..app.doctor import execute_doctor, DoctorResult
 from ..app.inspect import inspect_engine, inspect_route
 from ..app.batch import execute_batch, BatchResult
 from ..app.variants import execute_variants, VariantsResult
-from ..app.protocols import PostProcessor
+from ..app.protocols import BuildServices, PostProcessor
 from ..domain.context import BuildRequest, SourceContext
 from ..domain.engine import EngineDecision
 from ..domain.engine import EngineRule
@@ -54,6 +54,23 @@ def create_services() -> Services:
     )
 
 
+def _build_services(
+    services: Services,
+    post_processor: Optional[PostProcessor] = None,
+) -> BuildServices:
+    """Bundle infrastructure services into a BuildServices container."""
+    return BuildServices(
+        config_loader=services.config_loader,
+        source_reader=services.source_reader,
+        lock_manager=services.lock_manager,
+        backend_runner=services.backend_runner,
+        materializer=services.materializer,
+        prerequisite_probe=services.probe,
+        workspace_ops=services.workspace_ops,
+        post_processor=post_processor,
+    )
+
+
 def build(
     source_file: Path,
     request: BuildRequest,
@@ -64,19 +81,12 @@ def build(
     engine_rules: Optional[list[EngineRule]] = None,
 ) -> BuildResult:
     """Composition root entry for the build use-case."""
-    services = create_services()
+    infra = create_services()
     ctx = _make_context(source_file, workspace_root, adapter_workspace_root)
     return execute_build(
         ctx=ctx,
         request=request,
-        config_loader=services.config_loader,
-        source_reader=services.source_reader,
-        lock_manager=services.lock_manager,
-        backend_runner=services.backend_runner,
-        materializer=services.materializer,
-        prerequisite_probe=services.probe,
-        workspace_ops=services.workspace_ops,
-        post_processor=post_processor,
+        services=_build_services(infra, post_processor),
         route_resolvers=route_resolvers,
         engine_rules=engine_rules,
     )
@@ -146,20 +156,13 @@ def batch(
     engine_rules: Optional[list[EngineRule]] = None,
 ) -> BatchResult:
     """Composition root entry for the batch use-case."""
-    services = create_services()
+    infra = create_services()
     ws = workspace_root or resolve_workspace_root(source_dir=source_dir)
     return execute_batch(
         source_dir=source_dir,
         workspace_root=ws,
         request=request,
-        config_loader=services.config_loader,
-        source_reader=services.source_reader,
-        lock_manager=services.lock_manager,
-        backend_runner=services.backend_runner,
-        materializer=services.materializer,
-        prerequisite_probe=services.probe,
-        workspace_ops=services.workspace_ops,
-        post_processor=post_processor,
+        services=_build_services(infra, post_processor),
         route_resolvers=route_resolvers,
         engine_rules=engine_rules,
     )
@@ -175,19 +178,12 @@ def variants(
     engine_rules: Optional[list[EngineRule]] = None,
 ) -> VariantsResult:
     """Composition root entry for the variants use-case."""
-    services = create_services()
+    infra = create_services()
     ctx = _make_context(source_file, workspace_root, adapter_workspace_root)
     return execute_variants(
         ctx=ctx,
         request=request,
-        config_loader=services.config_loader,
-        source_reader=services.source_reader,
-        lock_manager=services.lock_manager,
-        backend_runner=services.backend_runner,
-        materializer=services.materializer,
-        prerequisite_probe=services.probe,
-        workspace_ops=services.workspace_ops,
-        post_processor=post_processor,
+        services=_build_services(infra, post_processor),
         route_resolvers=route_resolvers,
         engine_rules=engine_rules,
     )

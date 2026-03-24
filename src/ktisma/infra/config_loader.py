@@ -80,3 +80,27 @@ def _load_toml(path: Path) -> dict:
             return toml_module.load(f)
     except Exception as exc:
         raise ConfigLoadError(path, str(exc)) from exc
+
+
+def normalize_route_paths(data: dict) -> None:
+    """Expand ``~`` and resolve symlinks on route target paths.
+
+    This function lives in the infrastructure layer because it performs
+    filesystem I/O (``expanduser``, ``resolve``).  The application layer
+    calls it on the merged config dict after the domain merge completes.
+    """
+    routes = data.get("routes")
+    if not isinstance(routes, dict):
+        return
+    normalized: dict[str, str] = {}
+    for pattern, target in routes.items():
+        if isinstance(target, str):
+            keep_trailing = target.endswith("/")
+            resolved = Path(target).expanduser().resolve(strict=False)
+            result = str(resolved)
+            if keep_trailing and not result.endswith("/"):
+                result += "/"
+            normalized[pattern] = result
+        else:
+            normalized[pattern] = target
+    data["routes"] = normalized

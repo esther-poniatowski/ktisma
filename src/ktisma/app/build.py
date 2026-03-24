@@ -19,6 +19,7 @@ from .configuration import load_resolved_config
 from .protocols import (
     BackendResult,
     BackendRunner,
+    BuildServices,
     ConfigLoader,
     LockManager,
     Materializer,
@@ -43,14 +44,7 @@ class BuildResult:
 def execute_build(
     ctx: SourceContext,
     request: BuildRequest,
-    config_loader: ConfigLoader,
-    source_reader: SourceReader,
-    lock_manager: LockManager,
-    backend_runner: BackendRunner,
-    materializer: Materializer,
-    prerequisite_probe: PrerequisiteProbe,
-    workspace_ops: WorkspaceOps,
-    post_processor: Optional[PostProcessor] = None,
+    services: BuildServices,
     route_resolvers: Optional[list[RouteResolver]] = None,
     engine_rules: Optional[list[EngineRule]] = None,
 ) -> BuildResult:
@@ -64,12 +58,12 @@ def execute_build(
     config, config_diags = load_resolved_config(
         ctx.workspace_root,
         ctx.source_dir,
-        config_loader,
+        services.config_loader,
         extra_layers=extra_layers,
     )
     all_diagnostics.extend(config_diags)
 
-    source_inputs = source_reader.read_source(ctx.source_file)
+    source_inputs = services.source_reader.read_source(ctx.source_file)
     variant = _resolve_variant(request, config)
 
     engine_decision = _resolve_engine_decision(
@@ -93,8 +87,8 @@ def execute_build(
         ctx,
         source_inputs,
         config,
-        request.output_path_override,
-        request.output_dir_override,
+        output_path_override=request.output_path_override,
+        output_dir_override=request.output_dir_override,
         extra_resolvers=route_resolvers,
     )
     route_decision = _finalize_route_decision(
@@ -116,7 +110,9 @@ def execute_build(
             diagnostics=all_diagnostics,
         )
 
-    prerequisite_diags = _check_build_prerequisites(prerequisite_probe, engine_decision.engine)
+    prerequisite_diags = _check_build_prerequisites(
+        services.prerequisite_probe, engine_decision.engine
+    )
     all_diagnostics.extend(prerequisite_diags)
     if prerequisite_diags:
         return BuildResult(
@@ -127,12 +123,12 @@ def execute_build(
             diagnostics=all_diagnostics,
         )
 
-    workspace_ops.ensure_directory(build_plan.build_dir)
+    services.workspace_ops.ensure_directory(build_plan.build_dir)
     try:
         mode = "watch" if request.watch else "build"
-        lock_manager.acquire(build_plan.lock_file, ctx.source_file, mode)
+        services.lock_manager.acquire(build_plan.lock_file, ctx.source_file, mode)
         lock_acquired = True
-        _write_build_metadata(build_plan, ctx, variant, workspace_ops)
+        _write_build_metadata(build_plan, ctx, variant, services.workspace_ops)
     except LockContention as exc:
         all_diagnostics.extend(exc.diagnostics)
         all_diagnostics.append(
@@ -162,13 +158,13 @@ def execute_build(
                 route_decision=route_decision,
                 build_plan=build_plan,
                 variant=variant,
-                backend_runner=backend_runner,
-                materializer=materializer,
-                post_processor=post_processor,
+                backend_runner=services.backend_runner,
+                materializer=services.materializer,
+                post_processor=services.post_processor,
                 diagnostics=all_diagnostics,
             )
 
-        backend_result = backend_runner.compile(
+        backend_result = services.backend_runner.compile(
             source_file=ctx.source_file,
             build_dir=build_plan.build_dir,
             engine=engine_decision.engine,
@@ -192,8 +188,8 @@ def execute_build(
             destination=route_decision.destination,
             ctx=ctx,
             variant=variant,
-            materializer=materializer,
-            post_processor=post_processor,
+            materializer=services.materializer,
+            post_processor=services.post_processor,
             diagnostics=all_diagnostics,
         )
         if not materialized:
@@ -212,7 +208,7 @@ def execute_build(
             build_plan=build_plan,
             compile_success=backend_result.success,
             materialize_success=True,
-            workspace_ops=workspace_ops,
+            workspace_ops=services.workspace_ops,
             diagnostics=all_diagnostics,
         )
 
@@ -227,7 +223,7 @@ def execute_build(
         )
     finally:
         if lock_acquired and build_plan is not None:
-            lock_manager.release(build_plan.lock_file)
+            services.lock_manager.release(build_plan.lock_file)
 
 
 def _execute_watch(

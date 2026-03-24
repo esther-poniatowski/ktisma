@@ -14,6 +14,7 @@ from ..domain.config import (
 )
 from ..domain.diagnostics import Diagnostic, DiagnosticLevel
 from ..domain.errors import ConfigError
+from ..infra.config_loader import normalize_route_paths
 from .protocols import ConfigLoader
 
 
@@ -37,8 +38,8 @@ def load_resolved_config(
 
     merged, provenance = merge_config_layers(layers)
 
-    # Normalize merged route targets at the application boundary (expanduser + resolve).
-    _normalize_route_paths(merged)
+    # Resolve filesystem paths (expanduser, resolve) via the infrastructure layer.
+    normalize_route_paths(merged)
 
     schema_version = merged.get("schema_version", 1)
     diagnostics = validate_config(merged, schema_version)
@@ -51,22 +52,3 @@ def load_resolved_config(
         )
 
     return resolve_config(merged, provenance), diagnostics
-
-
-def _normalize_route_paths(merged: dict) -> None:
-    """Expand ~ and resolve route target paths at the application boundary."""
-    routes = merged.get("routes")
-    if not isinstance(routes, dict):
-        return
-    normalized: dict[str, str] = {}
-    for pattern, target in routes.items():
-        if isinstance(target, str):
-            keep_trailing = target.endswith("/")
-            resolved = Path(target).expanduser().resolve(strict=False)
-            result = str(resolved)
-            if keep_trailing and not result.endswith("/"):
-                result += "/"
-            normalized[pattern] = result
-        else:
-            normalized[pattern] = target
-    merged["routes"] = normalized

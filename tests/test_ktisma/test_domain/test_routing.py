@@ -61,6 +61,8 @@ def _cfg(
             preserve_relative=preserve_relative,
             collapse_entrypoint_names=collapse_entrypoint_names,
             entrypoint_names=entrypoint_names if entrypoint_names is not None else ["main", "index"],
+            default_filename_suffix=base.routing.default_filename_suffix,
+            variant_filename_suffix=base.routing.variant_filename_suffix,
         ),
         routes=routes or {},
         variants=base.variants,

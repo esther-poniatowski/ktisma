@@ -55,25 +55,27 @@ class TestCleanupPolicy:
 
 
 class TestSubConfigDefaults:
+    """Defaults are defined once in BUILTIN_DEFAULTS and verified via default_config()."""
+
     def test_build_config_defaults(self) -> None:
-        bc = BuildConfig()
-        assert bc.out_dir_name == ".ktisma_build"
-        assert bc.cleanup is CleanupPolicy.ON_OUTPUT_SUCCESS
-        assert bc.synctex is True
+        cfg = default_config()
+        assert cfg.build.out_dir_name == ".ktisma_build"
+        assert cfg.build.cleanup is CleanupPolicy.ON_OUTPUT_SUCCESS
+        assert cfg.build.synctex is True
 
     def test_engine_config_defaults(self) -> None:
-        ec = EngineConfig()
-        assert ec.default == "pdflatex"
-        assert ec.modern_default == "lualatex"
-        assert ec.strict_detection is False
+        cfg = default_config()
+        assert cfg.engines.default == "pdflatex"
+        assert cfg.engines.modern_default == "lualatex"
+        assert cfg.engines.strict_detection is False
 
     def test_routing_config_defaults(self) -> None:
-        rc = RoutingConfig()
-        assert rc.source_suffix == "-tex"
-        assert rc.output_suffix == "-pdfs"
-        assert rc.preserve_relative is True
-        assert rc.collapse_entrypoint_names is False
-        assert rc.entrypoint_names == ["main", "index"]
+        cfg = default_config()
+        assert cfg.routing.source_suffix == "-tex"
+        assert cfg.routing.output_suffix == "-pdfs"
+        assert cfg.routing.preserve_relative is True
+        assert cfg.routing.collapse_entrypoint_names is False
+        assert cfg.routing.entrypoint_names == ["main", "index"]
 
 
 # ---------------------------------------------------------------------------
@@ -100,15 +102,16 @@ class TestResolvedConfigDefaults:
         assert cfg.variants == {}
         assert cfg.provenance == ["built-in defaults"]
 
-    def test_resolved_config_bare_defaults(self) -> None:
-        cfg = ResolvedConfig()
-        assert cfg.schema_version == 1
+    def test_resolved_config_requires_explicit_fields(self) -> None:
+        """ResolvedConfig has no field defaults for schema_version, build, engines,
+        routing — they must be supplied explicitly (single source of truth is
+        BUILTIN_DEFAULTS)."""
+        cfg = default_config()
         assert isinstance(cfg.build, BuildConfig)
         assert isinstance(cfg.engines, EngineConfig)
         assert isinstance(cfg.routing, RoutingConfig)
         assert cfg.routes == {}
         assert cfg.variants == {}
-        assert cfg.provenance == []
 
     def test_frozen(self) -> None:
         cfg = default_config()
@@ -312,6 +315,8 @@ class TestResolveConfig:
                 "preserve_relative": False,
                 "collapse_entrypoint_names": True,
                 "entrypoint_names": ["document"],
+                "default_filename_suffix": "",
+                "variant_filename_suffix": "_{variant}",
             },
             "routes": {"ch1/*.tex": "output/ch1/"},
             "variants": {"print": "\\printmodetrue"},
@@ -334,19 +339,25 @@ class TestResolveConfig:
         assert cfg.provenance == ["custom"]
 
     def test_missing_sections_use_defaults(self) -> None:
-        cfg = resolve_config({}, [])
+        """When no user config is provided, BUILTIN_DEFAULTS supplies all keys."""
+        merged, prov = merge_config_layers([
+            ConfigLayer(data=copy.deepcopy(BUILTIN_DEFAULTS), source=None, label="built-in defaults"),
+        ])
+        cfg = resolve_config(merged, prov)
         assert cfg.build.out_dir_name == ".ktisma_build"
         assert cfg.engines.default == "pdflatex"
         assert cfg.routing.source_suffix == "-tex"
 
     def test_partial_section_fills_defaults(self) -> None:
-        cfg = resolve_config(
-            {"build": {"synctex": False}},
-            ["partial"],
-        )
+        """A partial user config is merged on top of BUILTIN_DEFAULTS."""
+        merged, prov = merge_config_layers([
+            ConfigLayer(data=copy.deepcopy(BUILTIN_DEFAULTS), source=None, label="built-in defaults"),
+            ConfigLayer(data={"build": {"synctex": False}}, source=None, label="partial"),
+        ])
+        cfg = resolve_config(merged, prov)
         assert cfg.build.synctex is False
-        assert cfg.build.out_dir_name == ".ktisma_build"  # default
-        assert cfg.build.cleanup is CleanupPolicy.ON_OUTPUT_SUCCESS  # default
+        assert cfg.build.out_dir_name == ".ktisma_build"  # from defaults
+        assert cfg.build.cleanup is CleanupPolicy.ON_OUTPUT_SUCCESS  # from defaults
 
 
 # ---------------------------------------------------------------------------

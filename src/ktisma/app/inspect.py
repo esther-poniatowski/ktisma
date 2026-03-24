@@ -49,6 +49,7 @@ def inspect_route(
         ctx,
         source_inputs,
         config,
-        request.output_dir_override,
+        output_path_override=request.output_path_override,
+        output_dir_override=request.output_dir_override,
         extra_resolvers=route_resolvers,
     )
