@@ -27,7 +27,8 @@ class LatexmkRunner:
             result = subprocess.run(
                 args,
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 cwd=str(source_file.parent),
                 timeout=600,
             )
