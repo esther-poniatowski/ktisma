@@ -3,7 +3,7 @@
 Implementation guide for ktisma.
 
 This document extends the [shared design principles](../../dev/design-principles.md) with
-ktisma-specific guidelines. It does not define the public product contract.
+ktisma-specific guidelines. The file does not define the public product contract.
 
 Authority order:
 

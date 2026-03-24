@@ -1,20 +1,19 @@
 # Getting Started
 
-This guide walks through adding ktisma to an existing LaTeX project and building your first
-document.
+Adding ktisma to an existing LaTeX project and building a first document.
 
 ## Prerequisites
 
 - **Python 3.11+** (3.12+ recommended). ktisma has no external dependencies beyond the standard
   library.
-- **A TeX distribution** (TeX Live, MacTeX, MiKTeX) with the engine you use (`pdflatex`,
+- **A TeX distribution** (TeX Live, MacTeX, MiKTeX) with the engine in use (`pdflatex`,
   `lualatex`, or `xelatex`).
-- **latexmk** on your `PATH`. Most TeX distributions include it.
+- **latexmk** on the `PATH`. Most TeX distributions include it.
 
-You can verify all prerequisites at once with [`ktisma doctor`](../cli-reference.md#doctor) after
+Verify all prerequisites at once with [`ktisma doctor`](../cli-reference.md#doctor) after
 installation.
 
-## Adding ktisma to Your Project
+## Adding ktisma to the Project
 
 ### As a Git Submodule (Recommended)
 
@@ -22,26 +21,26 @@ installation.
 git submodule add https://github.com/esther-poniatowski/ktisma.git vendor/ktisma
 ```
 
-This creates a `vendor/ktisma/` directory tracked by your repository. Collaborators get it
-automatically with `git submodule update --init`.
+The submodule command creates a `vendor/ktisma/` directory tracked by the repository. Collaborators
+get it automatically with `git submodule update --init`.
 
 ### As a Symlink
 
-If you have a single local checkout of ktisma and want to share it across projects:
+For a single local checkout of ktisma shared across projects:
 
 ```bash
 ln -s /path/to/ktisma vendor/ktisma
 ```
 
-## Creating Your Configuration
+## Creating the Configuration
 
-Create a `.ktisma.toml` file at the root of your project:
+Create a `.ktisma.toml` file at the root of the project:
 
 ```toml
 schema_version = 1
 ```
 
-That is a complete, valid configuration. The built-in defaults give you:
+That single line is a complete, valid configuration. The built-in defaults provide:
 
 - **Engine**: `pdflatex` (auto-detected from source when possible)
 - **Routing**: `*-tex/` directories map to sibling `*-pdfs/` directories
@@ -53,7 +52,7 @@ See the [configuration reference](../configuration.md) for the full schema.
 
 ## Building a Document
 
-Build a `.tex` file from your project root:
+Build a `.tex` file from the project root:
 
 ```bash
 python3 vendor/ktisma/bin/ktisma build slides-tex/week1.tex
@@ -65,12 +64,12 @@ On success, ktisma prints the path to the produced PDF:
 slides-pdfs/week1.pdf
 ```
 
-When your source lives under a workspace with `.ktisma.toml` files, ktisma can infer the
-workspace root automatically. Use `--workspace-root` when you want to pin it explicitly.
+When the source lives under a workspace with `.ktisma.toml` files, ktisma can infer the
+workspace root automatically. Pass `--workspace-root` when pinning the workspace root explicitly.
 
 ## Inspecting Decisions Before Building
 
-You can preview what ktisma would do without compiling:
+Preview what ktisma would do without compiling:
 
 ```bash
 # Which engine would be selected?
@@ -80,14 +79,14 @@ python3 vendor/ktisma/bin/ktisma inspect engine slides-tex/week1.tex
 python3 vendor/ktisma/bin/ktisma inspect route slides-tex/week1.tex
 ```
 
-These commands are useful for verifying your configuration before committing to a build. See the
+The inspect commands help verify the configuration before committing to a build. See the
 [CLI reference](../cli-reference.md) for all available commands and options.
 
-## Setting Up Your Editor
+## Editor Setup
 
 ### VS Code with LaTeX Workshop
 
-Add the following to your `.vscode/settings.json` or `.code-workspace` file:
+Add the following to the workspace `.vscode/settings.json` or `.code-workspace` file:
 
 ```jsonc
 "latex-workshop.latex.tools": [
@@ -112,14 +111,14 @@ Add the following to your `.vscode/settings.json` or `.code-workspace` file:
 
 Set `autoClean` to `"never"` because ktisma manages cleanup through its own
 [policies](../build-lifecycle.md#cleanup-policies). Add `--workspace-root
-%WORKSPACE_FOLDER%` only if you want the editor recipe to pin the workspace root explicitly.
+%WORKSPACE_FOLDER%` only when pinning the workspace root explicitly in the editor recipe.
 
 See [Editor Integration](../editor-integration.md) for other editors (Vim, Emacs) and advanced
 configuration.
 
 ## Updating .gitignore
 
-Add these patterns to your `.gitignore`:
+Add these patterns to the project `.gitignore`:
 
 ```gitignore
 # ktisma build artifacts
@@ -129,10 +128,10 @@ Add these patterns to your `.gitignore`:
 **/*-pdfs/
 ```
 
-The first pattern excludes intermediate build files. The second excludes the output directories
-that ktisma creates — these are regeneratable from source and typically should not be tracked.
+The first pattern excludes intermediate build files. The second pattern excludes the output
+directories that ktisma creates -- regeneratable from source and typically not tracked.
 
-## Verifying Your Setup
+## Verifying the Setup
 
 Run the prerequisite checker to confirm everything is in place:
 
@@ -149,9 +148,8 @@ Expected output:
 
 ## Next Steps
 
-- [Project Layout](project-layout.md) — understand the `-tex`/`-pdfs` directory conventions and
+- [Project Layout](project-layout.md) -- understand the `-tex`/`-pdfs` directory conventions and
   entrypoint collapse
-- [Migrating from latexmk](migration.md) — if you are replacing an existing `.latexmkrc` and
-  helper scripts
-- [Configuration Recipes](recipes.md) — concrete `.ktisma.toml` examples for common scenarios
-- [Configuration Reference](../configuration.md) — full schema documentation
+- [Migrating from latexmk](migration.md) -- replacing an existing `.latexmkrc` and helper scripts
+- [Configuration Recipes](recipes.md) -- concrete `.ktisma.toml` examples for common scenarios
+- [Configuration Reference](../configuration.md) -- full schema documentation

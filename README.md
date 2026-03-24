@@ -4,11 +4,11 @@
 [![Last Commit](https://img.shields.io/github/last-commit/esther-poniatowski/ktisma)](https://github.com/esther-poniatowski/ktisma/commits/main)
 [![License: GPL](https://img.shields.io/badge/License-GPL-yellow.svg)](https://opensource.org/licenses/GPL-3.0)
 
-Portable LaTeX build toolkit for predictable, shared document builds across multiple workspaces.
+Portable LaTeX build toolkit that produces consistent, reproducible builds across shared workspaces.
 
 ## Overview
 
-Ktisma replaces duplicated `.latexmkrc` files, helper scripts, and editor-specific shell glue with
+Ktisma replaces duplicated `.latexmkrc` files, helper scripts, and shell glue specific to each editor with
 one stable CLI and a layered build system:
 
 - One front door for build, inspect, clean, and prerequisite checks.
@@ -181,13 +181,10 @@ The preferred integration path is to call the ktisma CLI directly from LaTeX Wor
 "latex-workshop.latex.autoClean.run": "never"
 ```
 
-Use the placeholder that expands to the resolved root file including its `.tex` extension. In
-LaTeX Workshop that is typically `%DOC_EXT%`. Add `--workspace-root %WORKSPACE_FOLDER%` only when
-you want to pin the workspace explicitly instead of relying on ktisma's config discovery.
-
-Use the placeholder that expands to the resolved root file including its `.tex` extension. In
-LaTeX Workshop that is typically `%DOC_EXT%`. The important part is that the recipe calls ktisma
-directly rather than wrapping `latexmk` in `bash -c`.
+The placeholder `%DOC_EXT%` expands to the resolved root file including its `.tex` extension.
+Add `--workspace-root %WORKSPACE_FOLDER%` to pin the workspace explicitly instead of relying on
+ktisma's config discovery. The recipe should call ktisma directly rather than wrapping `latexmk`
+in `bash -c`.
 
 ## Directory Conventions
 

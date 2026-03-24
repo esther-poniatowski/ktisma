@@ -1,13 +1,13 @@
 # Editor Integration
 
 Ktisma is designed to be called directly from editor build recipes. The canonical CLI is the
-source of truth — editor adapters wrap it rather than reimplementing build logic.
+source of truth -- editor adapters wrap it rather than reimplementing build logic.
 
 ## VS Code with LaTeX Workshop
 
 ### Recommended Configuration
 
-Add the following to your workspace `.vscode/settings.json`:
+Add the following to the workspace `.vscode/settings.json`:
 
 ```jsonc
 {
@@ -38,8 +38,8 @@ Key points:
 - `autoClean` is set to `"never"` because ktisma manages cleanup through its own policies.
 - Use the placeholder that expands to the resolved root document including its `.tex` extension.
   In LaTeX Workshop that is typically `%DOC_EXT%`.
-- Add `--workspace-root %WORKSPACE_FOLDER%` only when you want the editor recipe to pin the
-  workspace root explicitly instead of relying on ktisma's config discovery.
+- Add `--workspace-root %WORKSPACE_FOLDER%` only when pinning the workspace root explicitly in
+  the editor recipe, instead of relying on ktisma's config discovery.
 
 ### Generating the Configuration
 
@@ -60,7 +60,7 @@ print(format_latex_workshop_snippet("/absolute/path/to/ktisma/bin/ktisma"))
 ### Adapter-Provided Workspace Root
 
 When ktisma is invoked from an editor, the adapter can pass the editor's workspace root via the
-`--workspace-root` flag or through the adapter API when explicit pinning is needed. This takes
+`--workspace-root` flag or through the adapter API when explicit pinning is needed. The flag takes
 precedence over environment variables and `.ktisma.toml` discovery (see
 [Configuration: Workspace Root Resolution](configuration.md#workspace-root-resolution)).
 
@@ -101,11 +101,10 @@ from ktisma.adapters.latexmkrc import write_latexmkrc
 write_latexmkrc(workspace_root=Path("."), stem="main")
 ```
 
-This produces a `.latexmkrc` file that configures `latexmk` to use the same build directory
-layout as ktisma. The generated file includes a comment indicating it should be removed after
-migration is complete.
+The generated file configures `latexmk` to use the same build directory layout as ktisma and
+includes a comment indicating it should be removed after migration is complete.
 
-This adapter is optional and does not affect the core build path.
+The adapter is optional and does not affect the core build path.
 
 ## Installation for Editor Use
 
@@ -115,7 +114,7 @@ This adapter is optional and does not affect the core build path.
 git submodule add https://github.com/esther-poniatowski/ktisma.git vendor/ktisma
 ```
 
-Then reference `vendor/ktisma/bin/ktisma` in your editor configuration.
+Then reference `vendor/ktisma/bin/ktisma` in the editor configuration.
 
 ### Symlink
 

@@ -9,7 +9,7 @@ schema, see the [configuration reference](../configuration.md).
 schema_version = 1
 ```
 
-What you get with defaults:
+Defaults:
 
 | Setting | Default |
 | ------- | ------- |
@@ -21,8 +21,8 @@ What you get with defaults:
 
 ## Nested Presentations with Entrypoint Collapse
 
-**Use case**: each presentation is a subdirectory with a `main.tex` entry point, and you want the
-output PDF named after the subdirectory rather than `main.pdf`.
+**Use case**: each presentation is a subdirectory with a `main.tex` entry point, and the output PDF
+should be named after the subdirectory rather than `main.pdf`.
 
 ```toml
 schema_version = 1
@@ -77,7 +77,7 @@ interference. See [Build Lifecycle: Variants](../build-lifecycle.md#variants).
 
 ## LuaLaTeX by Default
 
-**Use case**: your workspace primarily uses `fontspec`, `unicode-math`, or other packages that
+**Use case**: the workspace primarily uses `fontspec`, `unicode-math`, or other packages that
 require a modern engine.
 
 ```toml
@@ -92,8 +92,8 @@ definitive engine marker is found. See [Engine Detection](../engine-detection.md
 
 ## Explicit Route Rules
 
-**Use case**: your project does not follow the `-tex`/`-pdfs` convention and you want to control
-output locations explicitly.
+**Use case**: the project does not follow the `-tex`/`-pdfs` convention and output locations need
+explicit control.
 
 ```toml
 schema_version = 1
@@ -140,7 +140,7 @@ Overlay configs merge with the workspace-level config — only the overridden ke
 
 ## Custom Source and Output Suffixes
 
-**Use case**: your project uses `-src/` and `-out/` instead of `-tex/` and `-pdfs/`.
+**Use case**: the project uses `-src/` and `-out/` instead of `-tex/` and `-pdfs/`.
 
 ```toml
 schema_version = 1

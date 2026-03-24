@@ -16,13 +16,13 @@ This guide walks through replacing a manual `.latexmkrc` + helper script setup w
 
 ## Step-by-Step Migration
 
-### 1. Add ktisma to Your Project
+### 1. Add ktisma to the Project
 
 ```bash
 git submodule add https://github.com/esther-poniatowski/ktisma.git vendor/ktisma
 ```
 
-See [Getting Started: Adding ktisma](getting-started.md#adding-ktisma-to-your-project) for
+See [Getting Started: Adding ktisma](getting-started.md#adding-ktisma-to-the-project) for
 alternative installation methods.
 
 ### 2. Create .ktisma.toml
@@ -33,9 +33,9 @@ Start with a minimal config at the project root:
 schema_version = 1
 ```
 
-Then map your old settings. Common translations:
+Then map the old settings. Common translations:
 
-**Engine selection** — if your `.latexmkrc` forced a specific engine:
+**Engine selection** — if the `.latexmkrc` forced a specific engine:
 
 ```perl
 # Old: .latexmkrc
@@ -49,9 +49,9 @@ default = "lualatex"
 ```
 
 ktisma also auto-detects engines from source preambles (e.g., `\RequireLuaTeX`, `fontspec`),
-so you may not need this at all. See [Engine Detection](../engine-detection.md).
+so the explicit setting may be unnecessary. See [Engine Detection](../engine-detection.md).
 
-**SyncTeX** — if your `.latexmkrc` disabled it:
+**SyncTeX** — if the `.latexmkrc` disabled it:
 
 ```perl
 # Old: .latexmkrc
@@ -66,7 +66,7 @@ synctex = false
 
 ktisma enables SyncTeX by default (useful for PDF-to-source navigation in editors).
 
-**Custom output directories** — if your helper script moved PDFs to specific locations, the
+**Custom output directories** — if the old helper script moved PDFs to specific locations, the
 default `-tex` to `-pdfs` suffix convention likely handles it. If not, use explicit route rules:
 
 ```toml
@@ -76,9 +76,9 @@ default `-tex` to `-pdfs` suffix convention likely handles it. If not, use expli
 
 See [Configuration Reference](../configuration.md) for the full schema.
 
-### 3. Update Your Editor
+### 3. Update the Editor
 
-Replace the old latexmk tool and recipe in your VS Code workspace or settings file:
+Replace the old latexmk tool and recipe in the VS Code workspace or settings file:
 
 ```jsonc
 // Old
@@ -111,8 +111,7 @@ Replace the old latexmk tool and recipe in your VS Code workspace or settings fi
 "latex-workshop.latex.autoClean.run": "never"
 ```
 
-Add `--workspace-root %WORKSPACE_FOLDER%` only if you want the editor recipe to pin the
-workspace root explicitly.
+Add `--workspace-root %WORKSPACE_FOLDER%` only to pin the workspace root explicitly.
 
 See [Editor Integration](../editor-integration.md) for other editors.
 
@@ -125,7 +124,7 @@ Replace the old build directory pattern with the new one:
 + .ktisma_build/
 ```
 
-If you do not already have it, also add:
+If not already present, also add:
 
 ```gitignore
 **/*-pdfs/
@@ -155,7 +154,7 @@ python3 vendor/ktisma/bin/ktisma build lectures-tex/week1.tex
 
 ## Transitional .latexmkrc Shim
 
-If you need to keep `latexmk` working during a gradual transition (e.g., CI pipelines that call
+To keep `latexmk` working during a gradual transition (e.g., CI pipelines that call
 `latexmk` directly), ktisma can generate a minimal `.latexmkrc` shim:
 
 ```python
@@ -166,7 +165,7 @@ write_latexmkrc(workspace_root=Path("."))
 ```
 
 This produces a `.latexmkrc` that uses the same build directory layout as ktisma. Remove it once
-you have fully migrated to calling ktisma directly. See
+the project has fully migrated to calling ktisma directly. See
 [Editor Integration: Transitional .latexmkrc](../editor-integration.md#transitional-latexmkrc-generation).
 
 ## Common Migration Scenarios
@@ -183,7 +182,7 @@ The PDF is placed beside the source file (fallback routing).
 
 ### Multi-Document Project with -tex/-pdfs Convention
 
-If your project already uses the `-tex`/`-pdfs` directory naming, the default suffix convention
+If the project already uses the `-tex`/`-pdfs` directory naming, the default suffix convention
 handles routing automatically. For nested `main.tex` files, enable entrypoint collapse:
 
 ```toml
@@ -197,7 +196,7 @@ See [Project Layout: Entrypoint Collapse](project-layout.md#entrypoint-collapse)
 
 ### Project with Dual Outputs
 
-If you had a shell script that compiled documents twice — once normally and once with a TeX macro
+If a shell script compiled documents twice — once normally and once with a TeX macro
 injected — replace it with the [variants](../build-lifecycle.md#variants) feature:
 
 ```toml
@@ -229,7 +228,7 @@ python3 vendor/ktisma/bin/ktisma variants exercises-tex/algebra.tex --include-de
 
 ### Batch Compilation
 
-If you had a script that compiled every entrypoint `.tex` file in a directory tree, use
+If a script compiled every entrypoint `.tex` file in a directory tree, use
 [`ktisma batch`](../cli-reference.md#batch):
 
 ```bash

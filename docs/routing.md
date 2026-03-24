@@ -21,13 +21,13 @@ never strands a PDF.
 
 ## CLI Overrides
 
-Use `--output` when you need to choose the exact PDF path:
+Use `--output` to choose the exact PDF path:
 
 ```bash
 ktisma build paper.tex --output ~/Desktop/review-copy.pdf
 ```
 
-Use `--output-dir` when you want to preserve ktisma's filename logic but override the directory:
+Use `--output-dir` to preserve ktisma's filename logic while overriding the directory:
 
 ```bash
 ktisma build paper.tex --output-dir ~/Desktop/
@@ -154,7 +154,7 @@ configured `variant_filename_suffix` template:
 | `exercises.tex` | `review` | `exercises_review.pdf` |
 | `exercises.tex` | `handout` | `exercises_handout.pdf` |
 
-You can override that per variant:
+Override per variant:
 
 ```toml
 [routing]

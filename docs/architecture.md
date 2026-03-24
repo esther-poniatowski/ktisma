@@ -126,8 +126,8 @@ Two additional protocols support extension points:
 ## Composition Root
 
 `adapters/bootstrap.py` is the single module that wires concrete infrastructure into application
-use-cases. It also exposes the supported extension hooks (`engine_rules`, `route_resolvers`,
-`post_processor`) on the public adapter entry points. It:
+use-cases. The composition root also exposes the supported extension hooks (`engine_rules`,
+`route_resolvers`, `post_processor`) on the public adapter entry points. The bootstrap sequence:
 
 1. Instantiates all infrastructure implementations (`TomlConfigLoader`, `FileSourceReader`,
    `FileLockManager`, `LatexmkRunner`, `FileMaterializer`, `SystemPrerequisiteProbe`,
