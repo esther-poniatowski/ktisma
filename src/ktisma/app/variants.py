@@ -106,7 +106,7 @@ def execute_variants(
             output_path_override=request.output_path_override,
             output_dir_override=request.output_dir_override,
             variant=name,
-            variant_payload=variant_config.payload,
+            variant_spec=variant_spec,
             json_output=request.json_output,
             cleanup_override=request.cleanup_override,
         )

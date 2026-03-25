@@ -336,6 +336,18 @@ def _build_cli_config_layer(request: BuildRequest) -> ConfigLayer:
 
 def _resolve_variant(request: BuildRequest, config: ResolvedConfig) -> Optional[VariantSpec]:
     """Resolve and validate a variant from request and config."""
+    if request.variant_spec is not None:
+        if not is_valid_variant_name(request.variant_spec.name):
+            raise ConfigError(
+                f"Invalid variant name '{request.variant_spec.name}'; names must match "
+                f"{VariantSpec.VALID_NAME_PATTERN}."
+            )
+        if request.variant is not None and request.variant != request.variant_spec.name:
+            raise ConfigError(
+                f"Variant request mismatch: '{request.variant}' != '{request.variant_spec.name}'."
+            )
+        return request.variant_spec
+
     if request.variant is None:
         return None
 
@@ -554,10 +566,15 @@ def _write_build_metadata(
     workspace_ops: WorkspaceOps,
 ) -> None:
     payload = {
-        "source": str(ctx.source_file),
+        "source": _canonical_source_identity(ctx.source_file),
         "variant": variant.name if variant is not None else None,
     }
     workspace_ops.write_text(build_plan.metadata_file, json.dumps(payload, indent=2))
+
+
+def _canonical_source_identity(source_file: Path) -> str:
+    """Return the canonical source identity used across build and clean flows."""
+    return str(source_file.expanduser().resolve())
 
 
 def _materialize_output(

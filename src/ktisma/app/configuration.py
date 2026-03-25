@@ -14,7 +14,6 @@ from ..domain.config import (
 )
 from ..domain.diagnostics import Diagnostic, DiagnosticLevel
 from ..domain.errors import ConfigError
-from ..infra.config_loader import normalize_route_paths
 from .protocols import ConfigLoader
 
 
@@ -37,9 +36,6 @@ def load_resolved_config(
         layers.extend(layer for layer in extra_layers if layer.data)
 
     merged, provenance = merge_config_layers(layers)
-
-    # Resolve filesystem paths (expanduser, resolve) via the infrastructure layer.
-    normalize_route_paths(merged)
 
     schema_version = merged.get("schema_version", 1)
     diagnostics = validate_config(merged, schema_version)

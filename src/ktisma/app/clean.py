@@ -35,6 +35,7 @@ def execute_clean(
     removed: list[Path] = []
 
     if target.suffix == ".tex":
+        target = target.expanduser().resolve()
         if workspace_root is None:
             workspace_root = target.parent
 
@@ -66,12 +67,13 @@ def execute_clean(
 
         # Also clean variant build dirs that explicitly belong to this source.
         parent = build_dir.parent
+        canonical_source = _canonical_source_identity(target)
         if workspace_ops.path_exists(parent):
             for entry in workspace_ops.list_directory(parent):
                 if not workspace_ops.is_directory(entry) or entry == build_dir:
                     continue
                 metadata = _read_build_metadata(entry / ".ktisma.meta.json", workspace_ops)
-                if metadata.get("source") != str(target):
+                if metadata.get("source") != canonical_source:
                     continue
                 if metadata.get("variant") is None:
                     continue
@@ -146,3 +148,8 @@ def _read_build_metadata(metadata_file: Path, workspace_ops: WorkspaceOps) -> di
         return json.loads(workspace_ops.read_text(metadata_file))
     except Exception:
         return {}
+
+
+def _canonical_source_identity(source_file: Path) -> str:
+    """Return the canonical source identity used by build metadata."""
+    return str(source_file.expanduser().resolve())

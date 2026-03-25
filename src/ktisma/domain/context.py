@@ -27,6 +27,7 @@ class BuildRequest:
     output_path_override: Optional[Path] = None
     output_dir_override: Optional[Path] = None
     variant: Optional[str] = None
+    variant_spec: Optional["VariantSpec"] = None
     variant_payload: Optional[str] = None
     include_default: bool = False
     json_output: bool = False
