@@ -18,7 +18,7 @@ authors = [{name = "Esther Poniatowski", email = "esther.poniatowski@ens.psl.eu"
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 readme = {file = "README.md", content-type = "text/markdown"}
-description = "Portable LaTeX build toolkit for predictable, shared document builds across multiple workspaces"
+description = "Builds LaTeX documents consistently and portably across shared workspaces."
 keywords = ["latex", "build-system", "document-compilation", "latexmk", "tex"]
 classifiers = [
     "Programming Language :: Python :: 3",

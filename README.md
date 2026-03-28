@@ -4,7 +4,7 @@
 [![Last Commit](https://img.shields.io/github/last-commit/esther-poniatowski/ktisma)](https://github.com/esther-poniatowski/ktisma/commits/main)
 [![License: GPL](https://img.shields.io/badge/License-GPL-yellow.svg)](https://opensource.org/licenses/GPL-3.0)
 
-Portable LaTeX build toolkit that produces consistent, reproducible builds across shared workspaces.
+Builds LaTeX documents consistently and portably across shared workspaces.
 
 ## Overview
 
