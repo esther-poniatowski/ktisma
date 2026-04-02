@@ -1065,3 +1065,110 @@ class TestConfigIntegration:
             materializer=FakeMaterializer(),
         )
         assert backend.compile_calls[0]["engine"] == "xelatex"
+
+
+# ===========================================================================
+# Test: stale artifact quarantine
+# ===========================================================================
+
+
+class TestStaleArtifactQuarantine:
+    """Stale LaTeX artifacts in the source directory are moved to the build
+    directory before compilation so they cannot confuse latexmk."""
+
+    def test_stale_fdb_latexmk_is_quarantined(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        stale = tmp_path / "paper.fdb_latexmk"
+        stale.write_text("# stale dependency database")
+
+        result = _execute_build(
+            ctx=ctx,
+            request=_default_request(cleanup_override="never"),
+            config_loader=FakeConfigLoader(),
+            source_reader=FakeSourceReader(),
+            lock_manager=FakeLockManager(),
+            backend_runner=FakeBackendRunner(),
+            materializer=FakeMaterializer(),
+        )
+        assert result.exit_code == ExitCode.SUCCESS
+        assert not stale.exists(), "stale .fdb_latexmk should be moved out of source dir"
+
+        quarantine_dir = result.build_plan.build_dir / "_quarantined"
+        assert (quarantine_dir / "paper.fdb_latexmk").exists()
+
+    def test_multiple_stale_artifacts_quarantined(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        extensions = [".aux", ".bbl", ".bcf", ".fdb_latexmk", ".log"]
+        for ext in extensions:
+            (tmp_path / f"paper{ext}").write_text("stale")
+
+        result = _execute_build(
+            ctx=ctx,
+            request=_default_request(cleanup_override="never"),
+            config_loader=FakeConfigLoader(),
+            source_reader=FakeSourceReader(),
+            lock_manager=FakeLockManager(),
+            backend_runner=FakeBackendRunner(),
+            materializer=FakeMaterializer(),
+        )
+        assert result.exit_code == ExitCode.SUCCESS
+
+        quarantine_dir = result.build_plan.build_dir / "_quarantined"
+        for ext in extensions:
+            assert not (tmp_path / f"paper{ext}").exists()
+            assert (quarantine_dir / f"paper{ext}").exists()
+
+    def test_diagnostic_emitted_for_quarantined_artifacts(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        (tmp_path / "paper.fdb_latexmk").write_text("stale")
+        (tmp_path / "paper.aux").write_text("stale")
+
+        result = _execute_build(
+            ctx=ctx,
+            request=_default_request(),
+            config_loader=FakeConfigLoader(),
+            source_reader=FakeSourceReader(),
+            lock_manager=FakeLockManager(),
+            backend_runner=FakeBackendRunner(),
+            materializer=FakeMaterializer(),
+        )
+        quarantine_diags = [
+            d for d in result.diagnostics if d.code == "quarantined-stale-artifacts"
+        ]
+        assert len(quarantine_diags) == 1
+        assert "2 stale artifact(s)" in quarantine_diags[0].message
+
+    def test_no_quarantine_when_source_dir_is_clean(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        result = _execute_build(
+            ctx=ctx,
+            request=_default_request(),
+            config_loader=FakeConfigLoader(),
+            source_reader=FakeSourceReader(),
+            lock_manager=FakeLockManager(),
+            backend_runner=FakeBackendRunner(),
+            materializer=FakeMaterializer(),
+        )
+        assert result.exit_code == ExitCode.SUCCESS
+        quarantine_diags = [
+            d for d in result.diagnostics if d.code == "quarantined-stale-artifacts"
+        ]
+        assert len(quarantine_diags) == 0
+
+    def test_unrelated_files_not_quarantined(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        # A .aux file with a different stem, and a non-artifact file
+        (tmp_path / "other.aux").write_text("belongs to other document")
+        (tmp_path / "paper.txt").write_text("not an artifact")
+
+        result = _execute_build(
+            ctx=ctx,
+            request=_default_request(),
+            config_loader=FakeConfigLoader(),
+            source_reader=FakeSourceReader(),
+            lock_manager=FakeLockManager(),
+            backend_runner=FakeBackendRunner(),
+            materializer=FakeMaterializer(),
+        )
+        assert (tmp_path / "other.aux").exists(), "artifacts from other stems are untouched"
+        assert (tmp_path / "paper.txt").exists(), "non-artifact files are untouched"

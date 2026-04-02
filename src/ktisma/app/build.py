@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import signal
 import threading
 from dataclasses import dataclass, field
@@ -152,6 +153,7 @@ def execute_build(
         )
 
     try:
+        _quarantine_stale_artifacts(ctx, build_plan, all_diagnostics)
         extra_args = _build_extra_args(variant)
 
         if request.watch:
@@ -366,6 +368,72 @@ def _build_extra_args(variant: Optional[VariantSpec]) -> Optional[list[str]]:
     if variant is None or not variant.payload:
         return None
     return ["-usepretex", f"-pretex={variant.payload}"]
+
+
+# Extensions of LaTeX auxiliary files that can interfere with a separate build
+# directory when left over from a previous compilation in the source directory.
+# A stale .fdb_latexmk is the most common culprit: it encodes dependency rules
+# (e.g. bibtex vs biber) from a prior build that may not match the current one.
+_STALE_ARTIFACT_EXTENSIONS: frozenset[str] = frozenset(
+    {
+        ".aux",
+        ".bbl",
+        ".bcf",
+        ".blg",
+        ".fdb_latexmk",
+        ".fls",
+        ".log",
+        ".nav",
+        ".out",
+        ".run.xml",
+        ".snm",
+        ".synctex.gz",
+        ".toc",
+        ".vrb",
+    }
+)
+
+
+def _quarantine_stale_artifacts(
+    ctx: SourceContext,
+    build_plan: "BuildDirPlan",
+    diagnostics: list[Diagnostic],
+) -> None:
+    """Move stale LaTeX artifacts from the source directory into the build directory.
+
+    When latexmk runs with a separate build directory (``-outdir``), stale
+    auxiliary files left in the source directory from a prior compilation can
+    confuse its dependency tracker.  For example, a stale ``.fdb_latexmk``
+    that records bibtex rules causes latexmk to invoke bibtex even when the
+    document class loads biblatex with a biber backend.
+
+    This function moves matching files into a ``_quarantined/`` subdirectory
+    of the build directory so that latexmk starts with a clean view of the
+    source directory.
+    """
+    stem = ctx.source_file.stem
+    quarantined: list[str] = []
+    quarantine_dir = build_plan.build_dir / "_quarantined"
+
+    for ext in sorted(_STALE_ARTIFACT_EXTENSIONS):
+        artifact = ctx.source_dir / f"{stem}{ext}"
+        if artifact.is_file():
+            quarantine_dir.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(artifact), str(quarantine_dir / artifact.name))
+            quarantined.append(artifact.name)
+
+    if quarantined:
+        diagnostics.append(
+            Diagnostic(
+                level=DiagnosticLevel.INFO,
+                component="build",
+                code="quarantined-stale-artifacts",
+                message=(
+                    f"Moved {len(quarantined)} stale artifact(s) from source directory "
+                    f"to {quarantine_dir}: {', '.join(quarantined)}"
+                ),
+            )
+        )
 
 
 def _finalize_route_decision(
