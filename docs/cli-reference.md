@@ -1,8 +1,10 @@
 # CLI Reference
 
-Ktisma provides two equivalent entry points:
+Ktisma exposes the `ktisma` console entry point (installed via `pip install`),
+plus two alternative invocation forms:
 
 ```bash
+ktisma <command> [options]
 python3 -m ktisma <command> [options]
 python3 /path/to/ktisma/bin/ktisma <command> [options]
 ```
@@ -156,10 +158,9 @@ Checks performed:
 
 1. `latexmk` is on `PATH`
 2. Configured default engines are available
-3. Python meets the minimum version (3.9+)
-4. TOML parsing support is available (`tomllib` or `tomli`)
-5. Workspace root resolution works (if `--workspace-root` is provided)
-6. Any present `.ktisma.toml` validates successfully
+3. Python meets the minimum version (3.12+)
+4. Workspace root resolution works (if `--workspace-root` is provided)
+5. Any present `.ktisma.toml` validates successfully
 
 Human-readable output displays a status table with `[ok]` or `[MISSING]` for each check.
 
@@ -179,10 +180,10 @@ ktisma batch <source-dir> [options]
 | `--watch` | **Rejected** in v1 (batch watch mode is not supported) |
 | `--json` | Emit JSON output |
 
-Ktisma searches recursively. It always includes `.tex` files directly inside `source_dir`, and it
-also includes nested entrypoints such as `main.tex`, `index.tex`, or nested files that contain a
-document preamble. Included fragments without their own preamble are skipped. If any build fails,
-the batch continues and returns `COMPILATION_FAILURE` as the aggregate exit code.
+Ktisma searches recursively, collecting `.tex` files directly inside `source_dir` plus nested
+entrypoints (`main.tex`, `index.tex`, or files containing a document preamble). Fragment files
+without a preamble are skipped. If any build fails, the batch continues and returns
+`COMPILATION_FAILURE` as the aggregate exit code.
 
 ### `variants`
 
@@ -200,11 +201,28 @@ ktisma variants <source.tex> [options]
 | `--include-default` | Build the non-variant output in addition to configured variants |
 | `--json` | Emit JSON output |
 
-Reads variant definitions from the `[variants]` section of the resolved configuration and builds
-each one. Each variant uses its own build directory. Output naming defaults to
+Ktisma reads variant definitions from the `[variants]` section of the resolved configuration and
+builds each one in a separate build directory. Output naming defaults to
 `[routing].variant_filename_suffix` (default: `_{variant}`) and can be overridden per variant.
-`--include-default` adds the non-variant build to the same run, which is useful for dual-output
+`--include-default` adds the non-variant build to the same run -- suited for dual-output
 workflows such as `draft` + `review` or `student` + `annotated`.
+
+### `init`
+
+Generate a wrapper script and print VS Code LaTeX Workshop configuration.
+
+```bash
+ktisma init [options]
+```
+
+| Option | Description |
+| --- | --- |
+| `--workspace-root PATH` | Set workspace root directory |
+
+The command creates `scripts/ktisma` in the workspace root -- a shell wrapper
+that sets `KTISMA_WORKSPACE_ROOT` and delegates to the vendored ktisma entry
+point. If the wrapper already exists, the command skips creation and prints the
+VS Code configuration snippet to stdout only.
 
 ## Exit Codes
 

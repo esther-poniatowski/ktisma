@@ -4,8 +4,8 @@ Ktisma uses a single configuration format: TOML files named `.ktisma.toml`.
 
 ## File Format
 
-TOML is the only supported format. Ktisma uses `tomllib` (Python 3.11+) or `tomli` (Python
-3.9-3.10) for parsing. No INI, YAML, shell fragments, or custom parsers are supported.
+TOML is the only supported format. Ktisma parses configuration with `tomllib` from the Python
+3.12+ standard library. No INI, YAML, shell fragments, or custom parsers are supported.
 
 ## Full Example
 
@@ -237,7 +237,7 @@ The top-level `schema_version` key declares which config schema the file targets
 
 - When absent, schema version 1 is assumed.
 - Keys introduced in a later schema version are errors under an earlier version.
-- This allows config files to opt into new features without breaking older ktisma installations.
+- Explicit versioning allows config files to opt into new features without breaking older ktisma installations.
 
 ## Validation
 

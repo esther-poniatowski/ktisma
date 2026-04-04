@@ -2,18 +2,20 @@
 
 Ktisma builds LaTeX documents through a single CLI that handles engine
 detection, output routing, build directories, and cleanup. All commands accept
-`--workspace-root` to pin the workspace explicitly; without it, ktisma infers
-the workspace root from the nearest `.ktisma.toml`.
+`--workspace-root` to pin the workspace explicitly; without the flag, ktisma
+infers the workspace root from the nearest `.ktisma.toml`.
 
-For the full command reference, refer to [CLI Reference](../cli-reference.md).
-For configuration options, refer to [Configuration](../configuration.md).
+Ktisma requires Python 3.12 or later.
+
+Full command reference: [CLI Reference](../cli-reference.md).
+Configuration options: [Configuration](../configuration.md).
 
 ## Building a Document
 
 Compile a LaTeX source file:
 
 ```sh
-python3 vendor/ktisma/bin/ktisma build slides-tex/week1.tex
+ktisma build slides-tex/week1.tex
 ```
 
 On success, ktisma prints the path to the produced PDF:
@@ -28,22 +30,21 @@ Preview what ktisma would do without compiling:
 
 ```sh
 # Which engine would be selected?
-python3 vendor/ktisma/bin/ktisma inspect engine slides-tex/week1.tex
+ktisma inspect engine slides-tex/week1.tex
 
 # Where would the PDF be placed?
-python3 vendor/ktisma/bin/ktisma inspect route slides-tex/week1.tex
+ktisma inspect route slides-tex/week1.tex
 ```
 
-The inspect commands help verify the configuration before committing to a
-build. Both support `--json` for machine-readable output.
+Both inspect subcommands accept `--json` for machine-readable output.
 
 ## Cleaning Build Artifacts
 
 Remove intermediate build files for a source file or an entire directory:
 
 ```sh
-python3 vendor/ktisma/bin/ktisma clean slides-tex/week1.tex
-python3 vendor/ktisma/bin/ktisma clean slides-tex/
+ktisma clean slides-tex/week1.tex
+ktisma clean slides-tex/
 ```
 
 ## Building Multiple Documents
@@ -51,30 +52,30 @@ python3 vendor/ktisma/bin/ktisma clean slides-tex/
 The `batch` command builds all entrypoint `.tex` files in a directory tree:
 
 ```sh
-python3 vendor/ktisma/bin/ktisma batch lectures-tex/
+ktisma batch lectures-tex/
 ```
 
-Entrypoint files are identified by name (`main.tex`, `index.tex` by default)
-and can be configured via the `routing.entrypoint_names` option.
+Entrypoint files are identified by name (`main.tex`, `index.tex` by default).
+The `routing.entrypoint_names` option controls which filenames qualify.
 
 ## Building Variants
 
 Compile configured variants (e.g., review markup) alongside the default output:
 
 ```sh
-python3 vendor/ktisma/bin/ktisma variants slides-tex/week1.tex
+ktisma variants slides-tex/week1.tex
 ```
 
-Variants inject LaTeX preamble content through the `[variants]` table in
-`.ktisma.toml`. See [Build Lifecycle](../build-lifecycle.md) for the full
-reference.
+Variant definitions live in the `[variants]` table of `.ktisma.toml` and inject
+LaTeX preamble content via `latexmk -usepretex`. See
+[Build Lifecycle](../build-lifecycle.md) for the full reference.
 
 ## Verifying Prerequisites
 
 Confirm that all required tools (latexmk, engines) are installed:
 
 ```sh
-python3 vendor/ktisma/bin/ktisma doctor
+ktisma doctor
 ```
 
 Expected output:
@@ -84,10 +85,30 @@ Expected output:
   [ok] pdflatex: pdfTeX 3.x
 ```
 
+## Initializing a Workspace
+
+Generate a wrapper script (`scripts/ktisma`) and a VS Code LaTeX Workshop
+configuration snippet:
+
+```sh
+ktisma init
+```
+
+The wrapper script sets `KTISMA_WORKSPACE_ROOT` automatically and delegates to
+the vendored ktisma entry point. If `scripts/ktisma` already exists, the
+command skips creation and prints the VS Code configuration only.
+
+Pass `--workspace-root` to target a specific directory:
+
+```sh
+ktisma init --workspace-root /path/to/workspace
+```
+
 ## Setting Up VS Code Integration
 
-The preferred integration path calls the ktisma CLI directly from LaTeX
-Workshop:
+The `init` command prints a ready-to-use LaTeX Workshop configuration. For
+manual setup, add the following to `.code-workspace` or
+`.vscode/settings.json`:
 
 ```jsonc
 "latex-workshop.latex.tools": [
@@ -95,7 +116,7 @@ Workshop:
     "name": "ktisma",
     "command": "python3",
     "args": [
-      "%WORKSPACE_FOLDER%/vendor/ktisma/bin/ktisma",
+      "%WORKSPACE_FOLDER%/scripts/ktisma",
       "build",
       "%DOC_EXT%"
     ]
@@ -110,7 +131,7 @@ Workshop:
 "latex-workshop.latex.autoClean.run": "never"
 ```
 
-Set `autoClean` to `"never"` because ktisma manages cleanup through its own
+`autoClean` must be `"never"` because ktisma manages cleanup through its own
 policies. See [Editor Integration](../editor-integration.md) for other editors
 and advanced configuration.
 
