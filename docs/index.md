@@ -9,29 +9,28 @@ Builds LaTeX documents consistently and portably across shared workspaces.
 guide/installation
 guide/usage
 guide/project-layout
+guide/configuration
+guide/build-lifecycle
+guide/engine-detection
+guide/routing
+guide/cli-reference
+guide/editor-integration
 guide/migration
 guide/recipes
 ```
 
 ```{toctree}
 :maxdepth: 2
-:caption: Design
+:caption: Reference
 
-design-principles
-architecture
-configuration
-build-lifecycle
-engine-detection
-routing
+api/index
 ```
 
 ```{toctree}
 :maxdepth: 2
-:caption: Reference
+:caption: Developer Internals
 
-cli-reference
-editor-integration
-api/index
+internals/index
 ```
 
 ```{toctree}
