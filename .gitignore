@@ -54,3 +54,6 @@ docs/_build/
 *.run.xml
 *.dvi
 *.xdv
+
+## Claude Code skill-generated backups
+.claude/*.bak.*
