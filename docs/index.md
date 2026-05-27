@@ -2,40 +2,28 @@
 
 Builds LaTeX documents consistently and portably across shared workspaces.
 
-```{toctree}
-:maxdepth: 2
-:caption: User Guide
+## User Guide
 
-guide/installation
-guide/usage
-guide/project-layout
-guide/configuration
-guide/build-lifecycle
-guide/engine-detection
-guide/routing
-guide/cli-reference
-guide/editor-integration
-guide/migration
-guide/recipes
-```
+- [Installation](guide/installation.md)
+- [Usage](guide/usage.md)
+- [Project Layout](guide/project-layout.md)
+- [Configuration Reference](guide/configuration.md)
+- [Build Lifecycle](guide/build-lifecycle.md)
+- [Engine Detection](guide/engine-detection.md)
+- [Routing](guide/routing.md)
+- [CLI Reference](guide/cli-reference.md)
+- [Editor Integration](guide/editor-integration.md)
+- [Migrating from latexmk](guide/migration.md)
+- [Configuration Recipes](guide/recipes.md)
 
-```{toctree}
-:maxdepth: 2
-:caption: Reference
+## Reference
 
-api/index
-```
+- [API Reference](api/index.md)
 
-```{toctree}
-:maxdepth: 2
-:caption: Developer Internals
+## Developer Internals
 
-internals/index
-```
+- [Internals](internals/index.md)
 
-```{toctree}
-:maxdepth: 1
-:caption: Architecture Decisions
+## Architecture Decisions
 
-adr/adr-template
-```
+- [ADR Template](adr/adr-template.md)

@@ -1,8 +1,39 @@
+<a id="api-reference"></a>
+
 # API Reference
 
-```{eval-rst}
-.. automodule:: ktisma
-   :members:
-   :undoc-members:
-   :show-inheritance:
-```
+* [Top-level](top-level.md)
+  * [ktisma](top-level.md#ktisma)
+* [Domain](domain.md)
+  * [Build directories](domain.md#module-ktisma.domain.build_dir)
+  * [Configuration](domain.md#module-ktisma.domain.config)
+  * [Build context](domain.md#module-ktisma.domain.context)
+  * [Diagnostics](domain.md#module-ktisma.domain.diagnostics)
+  * [Engine selection](domain.md#module-ktisma.domain.engine)
+  * [Errors](domain.md#module-ktisma.domain.errors)
+  * [Exit codes](domain.md#module-ktisma.domain.exit_codes)
+  * [Routing](domain.md#module-ktisma.domain.routing)
+* [Application](app.md)
+  * [Build](app.md#module-ktisma.app.build)
+  * [Clean](app.md#module-ktisma.app.clean)
+  * [Doctor](app.md#module-ktisma.app.doctor)
+  * [Inspect](app.md#module-ktisma.app.inspect)
+  * [Batch](app.md#module-ktisma.app.batch)
+  * [Variants](app.md#module-ktisma.app.variants)
+  * [Configuration](app.md#module-ktisma.app.configuration)
+  * [Service protocols](app.md#module-ktisma.app.protocols)
+* [Infrastructure](infra.md)
+  * [Config loader](infra.md#module-ktisma.infra.config_loader)
+  * [Latexmk runner](infra.md#module-ktisma.infra.latexmk)
+  * [File locks](infra.md#module-ktisma.infra.locks)
+  * [Materialization](infra.md#module-ktisma.infra.materialize)
+  * [Prerequisites](infra.md#module-ktisma.infra.prerequisites)
+  * [Source reader](infra.md#module-ktisma.infra.source_reader)
+  * [Workspace](infra.md#module-ktisma.infra.workspace)
+* [Adapters](adapters.md)
+  * [CLI](adapters.md#module-ktisma.adapters.cli)
+  * [Bootstrap](adapters.md#module-ktisma.adapters.bootstrap)
+  * [Init scaffolding](adapters.md#module-ktisma.adapters.init)
+  * [Logging](adapters.md#module-ktisma.adapters.log)
+  * [VS Code integration](adapters.md#module-ktisma.adapters.vscode)
+  * [latexmkrc shim](adapters.md#module-ktisma.adapters.latexmkrc)

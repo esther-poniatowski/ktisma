@@ -2,9 +2,5 @@
 
 Developer documentation for ktisma's architecture and implementation.
 
-```{toctree}
-:maxdepth: 1
-
-architecture
-design-principles
-```
+- [Architecture](architecture.md)
+- [Design Principles](design-principles.md)

@@ -22,6 +22,7 @@ dependencies:
   - sphinxcontrib-napoleon
   - myst-parser
   - sphinx-rtd-theme
+  - sphinx-markdown-builder
   - sphinx-needs
   - esbonio
 variables:
