@@ -41,6 +41,27 @@ Key points:
 - Add `--workspace-root %WORKSPACE_FOLDER%` only when pinning the workspace root explicitly in
   the editor recipe, instead of relying on ktisma's config discovery.
 
+### Viewing a Renamed Output
+
+The PDF viewer of LaTeX Workshop, and its SyncTeX navigation, look for `<stem>.pdf` and
+`<stem>.synctex.gz` under the root file's stem. When routing writes the published PDF under another
+name or in another directory, point the viewer at the build directory, where both files keep the
+stem, and keep that directory after a successful build:
+
+```jsonc
+{
+  "latex-workshop.latex.outDir": "%DIR%/.ktisma_build/%DOCFILE%"
+}
+```
+
+```toml
+[build]
+cleanup = "never"
+```
+
+The routed PDF remains the copy to distribute; the build-directory copy is the one the editor
+displays and synchronizes with the source.
+
 ### Generating the Configuration
 
 Ktisma can generate the LaTeX Workshop configuration snippet programmatically:

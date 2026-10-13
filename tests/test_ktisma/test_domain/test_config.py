@@ -558,3 +558,35 @@ class TestBuiltinDefaults:
     def test_builtin_defaults_has_all_sections(self) -> None:
         for section in ("build", "engines", "routing", "routes", "variants"):
             assert section in BUILTIN_DEFAULTS
+
+
+class TestPlaceholderConfig:
+    def test_valid_placeholders_and_artifact_dirs(self) -> None:
+        data = {"placeholders": {"author": "Doe"}, "routing": {"artifact_dirs": ["artifacts/*"]}}
+        assert validate_config(data) == []
+        cfg = resolve_config(_merged_with_defaults(data), ["test"])
+        assert cfg.placeholders == {"author": "Doe"}
+        assert cfg.routing.artifact_dirs == ["artifacts/*"]
+
+    @pytest.mark.parametrize("name", ["stem", "artifact", "variant", "1bad", "with space"])
+    def test_invalid_placeholder_names(self, name: str) -> None:
+        diags = validate_config({"placeholders": {name: "x"}})
+        assert any(d.code == "invalid-placeholder-name" for d in diags)
+
+    def test_placeholder_value_must_be_string(self) -> None:
+        diags = validate_config({"placeholders": {"author": 3}})
+        assert any(d.code == "type-mismatch" for d in diags)
+
+    def test_artifact_dirs_must_be_array_of_strings(self) -> None:
+        diags = validate_config({"routing": {"artifact_dirs": "artifacts/*"}})
+        assert any(d.code == "type-mismatch" for d in diags)
+
+
+def _merged_with_defaults(data: dict) -> dict:
+    import copy
+
+    from ktisma.domain.config import BUILTIN_DEFAULTS, _deep_merge
+
+    merged = copy.deepcopy(BUILTIN_DEFAULTS)
+    _deep_merge(merged, copy.deepcopy(data))
+    return merged

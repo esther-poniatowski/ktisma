@@ -1079,6 +1079,24 @@ class TestConfigIntegration:
         assert backend.compile_calls[0]["engine"] == "xelatex"
 
 
+class TestRoutingErrorStopsBuild:
+    def test_unresolved_placeholder_stops_before_compilation(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        backend = FakeBackendRunner()
+        result = _execute_build(
+            ctx=ctx,
+            request=_default_request(),
+            config_loader=FakeConfigLoader(),
+            source_reader=FakeSourceReader(magic_comments={"output": "{artifact}.pdf"}),
+            lock_manager=FakeLockManager(),
+            backend_runner=backend,
+            materializer=FakeMaterializer(),
+        )
+        assert result.exit_code == ExitCode.CONFIG_ERROR
+        assert backend.compile_calls == []
+        assert any(d.code == "unresolved-placeholder" for d in result.diagnostics)
+
+
 # ===========================================================================
 # Test: stale artifact quarantine
 # ===========================================================================

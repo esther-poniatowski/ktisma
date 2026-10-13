@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -15,6 +16,8 @@ from ktisma.domain.routing import (
     _apply_suffix_convention,
     _match_route_rules,
     _specificity_score,
+    expand_placeholders,
+    resolve_artifact_name,
     resolve_route,
 )
 
@@ -526,3 +529,98 @@ class TestRouteDecisionToDict:
         d = rd.to_dict(source=Path("/src/main.tex"))
         assert d["fallback"] is True
         assert len(d["diagnostics"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Placeholders in output paths
+# ---------------------------------------------------------------------------
+
+
+def _placeholder_cfg(
+    artifact_dirs: Optional[list[str]] = None,
+    placeholders: Optional[dict[str, str]] = None,
+    routes: Optional[dict[str, str]] = None,
+) -> ResolvedConfig:
+    base = _cfg(routes=routes)
+    routing = RoutingConfig(
+        source_suffix=base.routing.source_suffix,
+        output_suffix=base.routing.output_suffix,
+        preserve_relative=base.routing.preserve_relative,
+        collapse_entrypoint_names=base.routing.collapse_entrypoint_names,
+        entrypoint_names=base.routing.entrypoint_names,
+        default_filename_suffix=base.routing.default_filename_suffix,
+        variant_filename_suffix=base.routing.variant_filename_suffix,
+        artifact_dirs=artifact_dirs or [],
+    )
+    return ResolvedConfig(
+        schema_version=base.schema_version,
+        build=base.build,
+        engines=base.engines,
+        routing=routing,
+        routes=base.routes,
+        variants=base.variants,
+        provenance=base.provenance,
+        placeholders=placeholders or {},
+    )
+
+
+class TestArtifactName:
+    def test_nearest_matching_ancestor(self) -> None:
+        cfg = _placeholder_cfg(artifact_dirs=["artifacts/*"])
+        ctx = _ctx(source="artifacts/topic_poster_ccn2026/poster-tex/poster.tex")
+        assert resolve_artifact_name(ctx, cfg) == "topic_poster_ccn2026"
+
+    def test_pattern_matches_whole_path_component_by_component(self) -> None:
+        # `artifacts/*` must not match a directory nested deeper under an artifact.
+        cfg = _placeholder_cfg(artifact_dirs=["artifacts/*"])
+        ctx = _ctx(source="artifacts/a_poster/poster-tex/parts/block.tex")
+        assert resolve_artifact_name(ctx, cfg) == "a_poster"
+
+    def test_no_pattern_or_no_match(self) -> None:
+        ctx = _ctx(source="notes/draft.tex")
+        assert resolve_artifact_name(ctx, _placeholder_cfg()) is None
+        assert resolve_artifact_name(ctx, _placeholder_cfg(artifact_dirs=["artifacts/*"])) is None
+
+
+class TestPlaceholderExpansion:
+    def test_magic_comment_with_artifact_and_user_placeholder(self) -> None:
+        cfg = _placeholder_cfg(artifact_dirs=["artifacts/*"], placeholders={"author": "Doe"})
+        ctx = _ctx(source="artifacts/topic_poster_ccn2026/poster-tex/poster.tex")
+        inputs = _inputs(magic={"output": "../poster-pdfs/{author}_{artifact}.pdf"})
+        decision = resolve_route(ctx, inputs, cfg)
+        assert Path(os.path.normpath(decision.destination)) == (
+            WS / "artifacts/topic_poster_ccn2026/poster-pdfs/Doe_topic_poster_ccn2026.pdf"
+        )
+        assert decision.diagnostics == []
+
+    def test_stem_placeholder(self) -> None:
+        ctx = _ctx(source="project-tex/supplement.tex")
+        expanded, diags = expand_placeholders("out/{stem}_final.pdf", ctx, default_config())
+        assert expanded == "out/supplement_final.pdf"
+        assert diags == []
+
+    def test_unresolved_artifact_is_an_error(self) -> None:
+        ctx = _ctx(source="project-tex/main.tex")
+        decision = resolve_route(ctx, _inputs(magic={"output": "{artifact}.pdf"}), default_config())
+        assert [d.code for d in decision.diagnostics] == ["unresolved-placeholder"]
+        assert decision.diagnostics[0].level is DiagnosticLevel.ERROR
+
+    def test_unknown_placeholder_is_an_error(self) -> None:
+        ctx = _ctx(source="project-tex/main.tex")
+        _, diags = expand_placeholders("{author}.pdf", ctx, default_config())
+        assert len(diags) == 1 and "[placeholders]" in diags[0].message
+
+    def test_route_target_expansion(self) -> None:
+        cfg = _placeholder_cfg(
+            artifact_dirs=["artifacts/*"],
+            placeholders={"author": "Doe"},
+            routes={"artifacts/*/poster-tex/poster.tex": "/out/{author}_{artifact}.pdf"},
+        )
+        ctx = _ctx(source="artifacts/x_poster/poster-tex/poster.tex")
+        decision = resolve_route(ctx, _inputs(), cfg)
+        assert decision.destination == Path("/out/Doe_x_poster.pdf")
+
+    def test_unresolved_route_target_is_an_error(self) -> None:
+        cfg = _placeholder_cfg(routes={"project-tex/main.tex": "/out/{artifact}.pdf"})
+        decision = resolve_route(ctx=_ctx(source="project-tex/main.tex"), source_inputs=_inputs(), config=cfg)
+        assert [d.code for d in decision.diagnostics] == ["unresolved-placeholder"]

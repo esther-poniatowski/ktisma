@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -47,6 +49,9 @@ class RoutingConfig:
     entrypoint_names: list[str]
     default_filename_suffix: str
     variant_filename_suffix: str
+    # Workspace-relative glob patterns naming the directories that hold one artifact each; the
+    # nearest ancestor of a source matching one of them supplies the `{artifact}` placeholder.
+    artifact_dirs: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -66,12 +71,14 @@ class ResolvedConfig:
     routes: dict[str, str] = field(default_factory=dict)
     variants: dict[str, VariantConfig] = field(default_factory=dict)
     provenance: list[str] = field(default_factory=list)
+    # User-defined values substituted for `{name}` in output paths, e.g. `author`.
+    placeholders: dict[str, str] = field(default_factory=dict)
 
 
 # --- Schema validation ---
 
 SCHEMA_V1_KEYS: dict[str, set[str]] = {
-    "": {"schema_version", "build", "engines", "routing", "routes", "variants"},
+    "": {"schema_version", "build", "engines", "routing", "routes", "variants", "placeholders"},
     "build": {"out_dir_name", "cleanup", "synctex"},
     "engines": {"default", "modern_default", "strict_detection"},
     "routing": {
@@ -82,8 +89,13 @@ SCHEMA_V1_KEYS: dict[str, set[str]] = {
         "entrypoint_names",
         "default_filename_suffix",
         "variant_filename_suffix",
+        "artifact_dirs",
     },
 }
+
+# Placeholders that ktisma derives itself; a user-defined placeholder may not shadow them.
+BUILTIN_PLACEHOLDERS: frozenset[str] = frozenset({"stem", "artifact", "variant"})
+PLACEHOLDER_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
 
 VALID_ENGINES: set[str] = {"pdflatex", "lualatex", "xelatex", "latex"}
 
@@ -231,6 +243,19 @@ def validate_config(data: dict[str, Any], schema_version: int = 1) -> list[Diagn
                         message=f"'routing.{key}' must be a boolean, got {type(val).__name__}.",
                     )
                 )
+        artifact_dirs = routing.get("artifact_dirs")
+        if artifact_dirs is not None and (
+            not isinstance(artifact_dirs, list)
+            or not all(isinstance(p, str) for p in artifact_dirs)
+        ):
+            diagnostics.append(
+                Diagnostic(
+                    level=DiagnosticLevel.ERROR,
+                    component="config",
+                    code="type-mismatch",
+                    message="'routing.artifact_dirs' must be an array of strings.",
+                )
+            )
         entrypoint_names = routing.get("entrypoint_names")
         if entrypoint_names is not None:
             if not isinstance(entrypoint_names, list):
@@ -298,6 +323,40 @@ def validate_config(data: dict[str, Any], schema_version: int = 1) -> list[Diagn
                         message=(
                             f"'routes.{pattern}' must be a string, got {type(target).__name__}."
                         ),
+                    )
+                )
+
+    placeholders = data.get("placeholders", {})
+    if not isinstance(placeholders, dict):
+        diagnostics.append(
+            Diagnostic(
+                level=DiagnosticLevel.ERROR,
+                component="config",
+                code="type-mismatch",
+                message="'placeholders' must be a table.",
+            )
+        )
+    else:
+        for name, value in placeholders.items():
+            if not PLACEHOLDER_NAME.match(name) or name in BUILTIN_PLACEHOLDERS:
+                diagnostics.append(
+                    Diagnostic(
+                        level=DiagnosticLevel.ERROR,
+                        component="config",
+                        code="invalid-placeholder-name",
+                        message=(
+                            f"Placeholder name '{name}' must be an identifier and must not "
+                            f"shadow a built-in placeholder ({', '.join(sorted(BUILTIN_PLACEHOLDERS))})."
+                        ),
+                    )
+                )
+            if not isinstance(value, str):
+                diagnostics.append(
+                    Diagnostic(
+                        level=DiagnosticLevel.ERROR,
+                        component="config",
+                        code="type-mismatch",
+                        message=f"'placeholders.{name}' must be a string, got {type(value).__name__}.",
                     )
                 )
 
@@ -600,9 +659,11 @@ BUILTIN_DEFAULTS: dict[str, Any] = {
         "entrypoint_names": ["main", "index"],
         "default_filename_suffix": "",
         "variant_filename_suffix": "_{variant}",
+        "artifact_dirs": [],
     },
     "routes": {},
     "variants": {},
+    "placeholders": {},
 }
 
 
@@ -636,6 +697,7 @@ def resolve_config(merged: dict[str, Any], provenance: list[str]) -> ResolvedCon
             entrypoint_names=routing_data["entrypoint_names"],
             default_filename_suffix=routing_data["default_filename_suffix"],
             variant_filename_suffix=routing_data["variant_filename_suffix"],
+            artifact_dirs=list(routing_data.get("artifact_dirs", [])),
         ),
         routes=dict(merged["routes"]),
         variants={
@@ -643,6 +705,7 @@ def resolve_config(merged: dict[str, Any], provenance: list[str]) -> ResolvedCon
             for name, definition in merged["variants"].items()
         },
         provenance=list(provenance),
+        placeholders=dict(merged.get("placeholders", {})),
     )
 
 

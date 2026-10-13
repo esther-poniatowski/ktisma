@@ -102,6 +102,15 @@ def execute_build(
     all_diagnostics.extend(route_decision.diagnostics)
     build_plan = plan_build_dir(ctx, config, variant)
 
+    if _has_errors(route_decision.diagnostics):
+        return BuildResult(
+            exit_code=ExitCode.CONFIG_ERROR,
+            engine=engine_decision,
+            route=route_decision,
+            build_plan=build_plan,
+            diagnostics=all_diagnostics,
+        )
+
     if request.dry_run:
         return BuildResult(
             exit_code=ExitCode.SUCCESS,

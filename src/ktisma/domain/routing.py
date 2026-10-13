@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import fnmatch
+import re
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Callable, Optional
@@ -25,6 +26,84 @@ class RouteDecision:
             "fallback": self.fallback,
             "diagnostics": [d.to_dict() for d in self.diagnostics],
         }
+
+
+_PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_-]*)\}")
+
+
+class PlaceholderError(Exception):
+    """Raised when an output template names a placeholder that cannot be resolved."""
+
+    def __init__(self, diagnostics: list[Diagnostic]):
+        super().__init__("; ".join(d.message for d in diagnostics))
+        self.diagnostics = diagnostics
+
+
+def resolve_artifact_name(ctx: SourceContext, config: ResolvedConfig) -> Optional[str]:
+    """Return the name of the nearest ancestor directory of the source that holds one artifact.
+
+    An ancestor qualifies when its workspace-relative path matches one of
+    ``config.routing.artifact_dirs`` component by component (``fnmatch`` per component, so a
+    pattern ``artifacts/*`` names the directories directly under ``artifacts/`` and no deeper one).
+    """
+    patterns = [PurePosixPath(p).parts for p in config.routing.artifact_dirs]
+    if not patterns:
+        return None
+    try:
+        rel_dir = ctx.source_dir.relative_to(ctx.workspace_root)
+    except ValueError:
+        return None
+    parts = PurePosixPath(rel_dir.as_posix()).parts
+    for end in range(len(parts), 0, -1):
+        candidate = parts[:end]
+        for pattern in patterns:
+            if len(pattern) == len(candidate) and all(
+                fnmatch.fnmatchcase(c, p) for c, p in zip(candidate, pattern)
+            ):
+                return candidate[-1]
+    return None
+
+
+def expand_placeholders(
+    template: str, ctx: SourceContext, config: ResolvedConfig
+) -> tuple[str, list[Diagnostic]]:
+    """Substitute ``{name}`` placeholders in an output template.
+
+    Available names: ``stem`` (source filename without extension), ``artifact`` (see
+    :func:`resolve_artifact_name`), and every user-defined entry of ``[placeholders]``.
+    A placeholder that cannot be resolved yields an error diagnostic instead of a literal name.
+    """
+    values = dict(config.placeholders)
+    values["stem"] = ctx.source_file.stem
+    artifact = resolve_artifact_name(ctx, config)
+    if artifact is not None:
+        values["artifact"] = artifact
+    missing: list[str] = []
+
+    def _sub(match: re.Match[str]) -> str:
+        name = match.group(1)
+        if name in values:
+            return values[name]
+        missing.append(name)
+        return match.group(0)
+
+    expanded = _PLACEHOLDER.sub(_sub, template)
+    diagnostics = []
+    for name in dict.fromkeys(missing):
+        hint = (
+            "no ancestor of the source matches routing.artifact_dirs"
+            if name == "artifact"
+            else "declare it under [placeholders]"
+        )
+        diagnostics.append(
+            Diagnostic(
+                level=DiagnosticLevel.ERROR,
+                component="routing",
+                code="unresolved-placeholder",
+                message=f"Placeholder '{{{name}}}' in output '{template}' cannot be resolved: {hint}.",
+            )
+        )
+    return expanded, diagnostics
 
 
 RouteResolver = Callable[
@@ -66,6 +145,13 @@ def resolve_route(
     # Step 3: Magic comment override
     magic_output = source_inputs.magic_comments.get("output")
     if magic_output:
+        magic_output, placeholder_diags = expand_placeholders(magic_output, ctx, config)
+        if placeholder_diags:
+            return RouteDecision(
+                destination=ctx.source_dir / pdf_name,
+                matched_rule="% !ktisma output",
+                diagnostics=placeholder_diags,
+            )
         magic_path = Path(magic_output)
         if not magic_path.is_absolute():
             magic_path = ctx.source_dir / magic_path
@@ -162,11 +248,24 @@ def _match_route_rules(
     diagnostics: list[Diagnostic] = []
     pattern, target, _ = top_matches[0]
 
+    try:
+        dest = _resolve_route_target(ctx, pattern, target, pdf_name, rel_source, config)
+    except PlaceholderError as error:
+        return RouteDecision(
+            destination=ctx.source_dir / pdf_name,
+            matched_rule=pattern,
+            diagnostics=error.diagnostics,
+        )
+
     if len(top_matches) > 1:
-        destinations = {
-            _resolve_route_target(ctx, candidate_pattern, t, pdf_name, rel_source)
-            for candidate_pattern, t, _ in top_matches
-        }
+        destinations: set[Optional[Path]] = set()
+        for candidate_pattern, t, _ in top_matches:
+            try:
+                destinations.add(
+                    _resolve_route_target(ctx, candidate_pattern, t, pdf_name, rel_source, config)
+                )
+            except PlaceholderError:
+                destinations.add(None)
         if len(destinations) > 1:
             diagnostics.append(
                 Diagnostic(
@@ -180,7 +279,6 @@ def _match_route_rules(
                     )
                 )
 
-    dest = _resolve_route_target(ctx, pattern, target, pdf_name, rel_source)
     return RouteDecision(destination=dest, matched_rule=pattern, diagnostics=diagnostics)
 
 
@@ -190,8 +288,14 @@ def _resolve_route_target(
     target: str,
     pdf_name: str,
     rel_source: Path,
+    config: Optional[ResolvedConfig] = None,
 ) -> Path:
     """Resolve a route target to an absolute destination path."""
+    if config is not None:
+        expanded, diags = expand_placeholders(target, ctx, config)
+        if diags:
+            raise PlaceholderError(diags)
+        target = expanded
     target_path = Path(target)
     if not target_path.is_absolute():
         target_path = ctx.workspace_root / target_path

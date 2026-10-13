@@ -78,6 +78,18 @@ Valid engine values: `pdflatex`, `lualatex`, `xelatex`, `latex`.
 | `entrypoint_names` | array of strings | `["main", "index"]` | Filenames eligible for entrypoint collapse. |
 | `default_filename_suffix` | string | `""` | Suffix template appended to non-variant outputs before `.pdf`. Supports `{stem}` and `{variant}` placeholders. |
 | `variant_filename_suffix` | string | `_{variant}` | Default suffix template appended to variant outputs before `.pdf`. Supports `{stem}` and `{variant}` placeholders. |
+| `artifact_dirs` | array of strings | `[]` | Workspace-relative glob patterns naming the directories that hold one artifact each; the nearest matching ancestor of a source supplies `{artifact}` in output paths. |
+
+### `[placeholders]`
+
+User-defined values substituted for `{name}` in the output path of a magic comment and in route
+targets. A name is an identifier and may not shadow a built-in placeholder (`stem`, `artifact`,
+`variant`). Layers merge by key. See [Placeholders in Output Paths](routing.md#placeholders-in-output-paths).
+
+```toml
+[placeholders]
+author = "Doe"
+```
 
 ### `[routes]`
 

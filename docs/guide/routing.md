@@ -45,6 +45,38 @@ set. Both paths resolve relative to the current working directory.
 The path resolves relative to the source file's directory. A trailing `/` indicates the path is a
 directory and the source basename is preserved.
 
+## Placeholders in Output Paths
+
+The output path of a magic comment and the target of a `[routes]` rule may contain `{name}`
+placeholders, so that the published filename differs from the source filename without repeating
+names that ktisma can derive:
+
+| Placeholder | Value |
+| --- | --- |
+| `{stem}` | the source filename without its extension |
+| `{artifact}` | the name of the nearest ancestor directory of the source whose workspace-relative path matches a pattern of `[routing].artifact_dirs` |
+| any key of `[placeholders]` | the string declared there, for example `{author}` |
+
+```toml
+[routing]
+artifact_dirs = ["artifacts/*"]
+
+[placeholders]
+author = "Doe"
+```
+
+```latex
+% !ktisma output = ../poster-pdfs/{author}_{artifact}.pdf
+```
+
+Built from `artifacts/topic_poster_ccn2026/poster-tex/poster.tex`, this writes
+`artifacts/topic_poster_ccn2026/poster-pdfs/Doe_topic_poster_ccn2026.pdf`.
+
+An artifact pattern is matched against the whole workspace-relative path of an ancestor, one path
+component at a time, so `artifacts/*` names the directories directly under `artifacts/` and never a
+directory nested inside one of them. A placeholder that cannot be resolved stops the build with an
+`unresolved-placeholder` error, rather than writing a filename that contains the literal `{name}`.
+
 ## Explicit Route Rules
 
 Route rules are defined in the `[routes]` section of `.ktisma.toml`:
