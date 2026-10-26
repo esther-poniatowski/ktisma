@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `ktisma check-log`: checks recursively discovered LaTeX logs against a zero baseline and reports
+  selected measurement channels.
 - Placeholders in output paths: the output path of a `% !ktisma output` magic comment and the
   targets of `[routes]` expand `{stem}`, `{artifact}` and every key of the new `[placeholders]`
   table. `{artifact}` names the nearest ancestor directory matching `[routing].artifact_dirs`.

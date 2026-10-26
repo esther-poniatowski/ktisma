@@ -1,12 +1,21 @@
 # Domain
 
-Pure domain model: build context, configuration, engine selection, routing,
-and error vocabulary. No I/O.
+Pure domain model: build context, build-log evaluation, configuration, engine
+selection, routing, and error vocabulary. No I/O.
 
 ## Build directories
 
 ```{eval-rst}
 .. automodule:: ktisma.domain.build_dir
+   :members:
+   :undoc-members:
+   :show-inheritance:
+```
+
+## Build-log evaluation
+
+```{eval-rst}
+.. automodule:: ktisma.domain.build_log
    :members:
    :undoc-members:
    :show-inheritance:

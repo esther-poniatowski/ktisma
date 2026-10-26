@@ -27,7 +27,7 @@ Main CLI entry point.
 
 ### *class* ktisma.adapters.bootstrap.Services(config_loader, source_reader, lock_manager, backend_runner, materializer, probe, workspace_ops)
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 Wired infrastructure implementations.
 
@@ -91,6 +91,12 @@ Composition root entry for inspect route.
 ### ktisma.adapters.bootstrap.clean(target, workspace_root=None)
 
 Composition root entry for the clean use-case.
+
+<a id="ktisma.adapters.bootstrap.check_log"></a>
+
+### ktisma.adapters.bootstrap.check_log(source_dir, build_dir_name='.ktisma_build', stem=None, channels=())
+
+Composition root entry for the build-log check use case.
 
 <a id="ktisma.adapters.bootstrap.doctor"></a>
 
@@ -161,12 +167,12 @@ Generate LaTeX Workshop configuration for VS Code.
 Returns a dict suitable for merging into .vscode/settings.json.
 
 * **Parameters:**
-  * **ktisma_path** ([*str*](https://docs.python.org/3/library/stdtypes.html#str)) – Path (or VS Code variable expression) to the ktisma executable.
-  * **use_wrapper_script** ([*bool*](https://docs.python.org/3/library/functions.html#bool)) – If `True`, the tool entry calls *ktisma_path* directly as the
+  * **ktisma_path** ([*str*](https://docs.python.org/3/builtins/stdtypes.html#str)) – Path (or VS Code variable expression) to the ktisma executable.
+  * **use_wrapper_script** ([*bool*](https://docs.python.org/3/builtins/functions.html#bool)) – If `True`, the tool entry calls *ktisma_path* directly as the
     command (wrapper-script pattern used by `ktisma init`).
     If `False` (default), it invokes `python3` with *ktisma_path*
     as the first argument.
-  * **extra_settings** ([*dict*](https://docs.python.org/3/library/stdtypes.html#dict) *[*[*str*](https://docs.python.org/3/library/stdtypes.html#str) *,* [*object*](https://docs.python.org/3/library/functions.html#object) *]*  *|* *None*) – Additional VS Code settings to include in the returned dict
+  * **extra_settings** ([*dict*](https://docs.python.org/3/builtins/stdtypes.html#dict) *[*[*str*](https://docs.python.org/3/builtins/stdtypes.html#str) *,* [*object*](https://docs.python.org/3/builtins/functions.html#object) *]*  *|* *None*) – Additional VS Code settings to include in the returned dict
     (e.g. `{"latex-workshop.view.pdf.viewer": "tab"}`).
 
 <a id="ktisma.adapters.vscode.format_latex_workshop_snippet"></a>

@@ -1,7 +1,7 @@
 # Application
 
-Application services: build, clean, doctor, inspect, batch, variants,
-configuration, and the service protocols.
+Application services: build, clean, build-log checks, doctor, inspect, batch,
+variants, configuration, and the service protocols.
 
 ## Build
 
@@ -16,6 +16,15 @@ configuration, and the service protocols.
 
 ```{eval-rst}
 .. automodule:: ktisma.app.clean
+   :members:
+   :undoc-members:
+   :show-inheritance:
+```
+
+## Build-log checks
+
+```{eval-rst}
+.. automodule:: ktisma.app.check_log
    :members:
    :undoc-members:
    :show-inheritance:

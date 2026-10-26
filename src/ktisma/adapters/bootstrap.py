@@ -6,6 +6,7 @@ from typing import Optional
 
 from ..app.build import execute_build, BuildResult
 from ..app.clean import execute_clean, CleanResult
+from ..app.check_log import execute_check_log, CheckLogResult
 from ..app.doctor import execute_doctor, DoctorResult
 from ..app.inspect import inspect_engine, inspect_route
 from ..app.batch import execute_batch, BatchResult
@@ -137,6 +138,23 @@ def clean(
     """Composition root entry for the clean use-case."""
     services = create_services()
     return execute_clean(target, workspace_root, services.config_loader, services.workspace_ops)
+
+
+def check_log(
+    source_dir: Path,
+    build_dir_name: str = ".ktisma_build",
+    stem: str | None = None,
+    channels: tuple[str, ...] = (),
+) -> CheckLogResult:
+    """Composition root entry for the build-log check use case."""
+    services = create_services()
+    return execute_check_log(
+        source_dir=source_dir,
+        build_dir_name=build_dir_name,
+        stem=stem,
+        channels=channels,
+        workspace_ops=services.workspace_ops,
+    )
 
 
 def doctor(

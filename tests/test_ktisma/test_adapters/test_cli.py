@@ -29,6 +29,7 @@ class _StubResult:
         self.removed_dirs: list = []
         self.checks: list = []
         self.results: list = []
+        self.reports: list = []
 
 
 class _StubDecision:
@@ -238,6 +239,92 @@ def test_clean_with_workspace_root(mock_fn):
     mock_fn.return_value = _StubResult()
     main(["clean", "main.tex", "--workspace-root", "/home/user/project"])
     assert mock_fn.call_args[1]["workspace_root"] == Path("/home/user/project")
+
+
+# ---------------------------------------------------------------------------
+# check-log subcommand
+# ---------------------------------------------------------------------------
+
+
+@patch("ktisma.adapters.bootstrap.check_log")
+def test_check_log_parses_paths_and_channels(mock_fn):
+    mock_fn.return_value = _StubResult()
+
+    code = main(
+        [
+            "check-log",
+            "tex",
+            "poster",
+            "--build-dir",
+            "work",
+            "--channel",
+            "layout,fit",
+            "--channel",
+            "banner",
+        ]
+    )
+
+    assert code == ExitCode.SUCCESS
+    assert mock_fn.call_args.kwargs == {
+        "source_dir": Path("tex"),
+        "build_dir_name": "work",
+        "stem": "poster",
+        "channels": ("layout", "fit", "banner"),
+    }
+
+
+def test_check_log_cli_reports_planted_failure(tmp_path, capsys):
+    log = tmp_path / ".ktisma_build" / "poster" / "poster.log"
+    log.parent.mkdir(parents=True)
+    log.write_text(
+        "Overfull \\hbox (1.0pt too wide)\nOutput written on poster.pdf (1 page).\n",
+        encoding="utf-8",
+    )
+
+    code = main(["check-log", str(tmp_path), "--channel", "layout"])
+
+    captured = capsys.readouterr()
+    assert code == ExitCode.COMPILATION_FAILURE
+    assert "FAIL  1 x overfull hbox" in captured.out
+    assert "BASELINE VIOLATED." in captured.out
+
+
+def test_check_log_cli_returns_contract_error_for_missing_source(tmp_path, capsys):
+    code = main(["check-log", str(tmp_path / "missing")])
+
+    captured = capsys.readouterr()
+    assert code == ExitCode.CONFIG_ERROR
+    assert "missing-source-dir" in captured.err
+
+
+def test_check_log_cli_returns_failure_for_missing_build_directory(tmp_path, capsys):
+    code = main(["check-log", str(tmp_path)])
+
+    captured = capsys.readouterr()
+    assert code == ExitCode.COMPILATION_FAILURE
+    assert "missing-build-dir" in captured.err
+
+
+def test_check_log_cli_returns_failure_for_missing_selected_log(tmp_path, capsys):
+    (tmp_path / ".ktisma_build").mkdir()
+
+    code = main(["check-log", str(tmp_path), "poster"])
+
+    captured = capsys.readouterr()
+    assert code == ExitCode.COMPILATION_FAILURE
+    assert "missing-log" in captured.err
+
+
+def test_check_log_cli_returns_success_for_clean_log(tmp_path, capsys):
+    log = tmp_path / ".ktisma_build" / "poster.log"
+    log.parent.mkdir(parents=True)
+    log.write_text("Output written on poster.pdf (1 page).\n", encoding="utf-8")
+
+    code = main(["check-log", str(tmp_path)])
+
+    captured = capsys.readouterr()
+    assert code == ExitCode.SUCCESS
+    assert "zero baseline holds." in captured.out
 
 
 # ---------------------------------------------------------------------------

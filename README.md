@@ -49,6 +49,8 @@ contributor relies on different configuration fragments.
 
 - [x] **Build**: Compile LaTeX documents with automatic engine detection and
   routing.
+- [x] **Build-log checks**: Require reported PDF output and a zero baseline for errors,
+  font substitutions, and bad boxes while reporting document measurement channels.
 - [x] **Inspect**: Preview engine selection and output routing without compiling.
 - [x] **Clean**: Remove build artifacts for a source file or directory.
 - [x] **Doctor**: Verify prerequisites (latexmk, engines) in one command.

@@ -2,8 +2,8 @@
 
 # Domain
 
-Pure domain model: build context, configuration, engine selection, routing,
-and error vocabulary. No I/O.
+Pure domain model: build context, build-log evaluation, configuration, engine
+selection, routing, and error vocabulary. No I/O.
 
 <a id="module-ktisma.domain.build_dir"></a>
 
@@ -15,7 +15,7 @@ and error vocabulary. No I/O.
 
 ### *class* ktisma.domain.build_dir.BuildDirPlan(build_dir: 'Path', expected_pdf: 'Path', lock_file: 'Path', metadata_file: 'Path', source_stem: 'str', variant: 'Optional[VariantSpec]' = None)
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.domain.build_dir.BuildDirPlan.build_dir"></a>
 
@@ -35,11 +35,11 @@ Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
 
 <a id="ktisma.domain.build_dir.BuildDirPlan.source_stem"></a>
 
-#### source_stem *: [str](https://docs.python.org/3/library/stdtypes.html#str)*
+#### source_stem *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)*
 
 <a id="ktisma.domain.build_dir.BuildDirPlan.variant"></a>
 
-#### variant *: [VariantSpec](#ktisma.domain.context.VariantSpec) | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### variant *: [VariantSpec](#ktisma.domain.context.VariantSpec) | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
 
 <a id="ktisma.domain.build_dir.BuildDirPlan.to_dict"></a>
 
@@ -54,6 +54,70 @@ Plan the build directory and expected artifact paths.
 Default pattern per roadmap:
 - <source-dir>/.ktisma_build/<stem>/
 - <source-dir>/.ktisma_build/<stem>-<variant>/ for variants
+
+<a id="module-ktisma.domain.build_log"></a>
+
+<a id="build-log-evaluation"></a>
+
+## Build-log evaluation
+
+Pure classification of LaTeX build logs against a zero baseline.
+
+<a id="ktisma.domain.build_log.FindingCount"></a>
+
+### *class* ktisma.domain.build_log.FindingCount(name, count)
+
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
+
+Count one class of defect found in a LaTeX log.
+
+<a id="ktisma.domain.build_log.FindingCount.name"></a>
+
+#### name *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)*
+
+<a id="ktisma.domain.build_log.FindingCount.count"></a>
+
+#### count *: [int](https://docs.python.org/3/builtins/functions.html#int)*
+
+<a id="ktisma.domain.build_log.BuildLogEvaluation"></a>
+
+### *class* ktisma.domain.build_log.BuildLogEvaluation(findings, output_line, channel_lines)
+
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
+
+Results obtained by evaluating one LaTeX log.
+
+<a id="ktisma.domain.build_log.BuildLogEvaluation.findings"></a>
+
+#### findings *: [tuple](https://docs.python.org/3/builtins/stdtypes.html#tuple)[[FindingCount](#ktisma.domain.build_log.FindingCount), ...]*
+
+<a id="ktisma.domain.build_log.BuildLogEvaluation.output_line"></a>
+
+#### output_line *: [str](https://docs.python.org/3/builtins/stdtypes.html#str) | [None](https://docs.python.org/3/builtins/constants.html#None)*
+
+<a id="ktisma.domain.build_log.BuildLogEvaluation.channel_lines"></a>
+
+#### channel_lines *: [tuple](https://docs.python.org/3/builtins/stdtypes.html#tuple)[[str](https://docs.python.org/3/builtins/stdtypes.html#str), ...]*
+
+<a id="ktisma.domain.build_log.BuildLogEvaluation.passed"></a>
+
+#### *property* passed *: [bool](https://docs.python.org/3/builtins/functions.html#bool)*
+
+Return whether the log satisfies the zero baseline.
+
+<a id="ktisma.domain.build_log.evaluate_build_log"></a>
+
+### ktisma.domain.build_log.evaluate_build_log(text, channels=())
+
+Evaluate one log and retain the requested measurement-channel lines.
+
+* **Parameters:**
+  * **text** ([*str*](https://docs.python.org/3/builtins/stdtypes.html#str)) – Complete text of one LaTeX log.
+  * **channels** ([*tuple*](https://docs.python.org/3/builtins/stdtypes.html#tuple) *[*[*str*](https://docs.python.org/3/builtins/stdtypes.html#str) *,*  *...* *]*) – Channel names whose lines begin with `[<channel>]`.
+* **Returns:**
+  Counts, the last output record, and the selected channel lines.
+* **Return type:**
+  [BuildLogEvaluation](#ktisma.domain.build_log.BuildLogEvaluation)
 
 <a id="module-ktisma.domain.config"></a>
 
@@ -87,33 +151,33 @@ Bases: [`Enum`](https://docs.python.org/3/library/enum.html#enum.Enum)
 
 ### *class* ktisma.domain.config.ConfigLayer(data: 'dict[str, Any]', source: 'Optional[Path]', label: 'str', base_dir: 'Optional[Path]' = None)
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.domain.config.ConfigLayer.data"></a>
 
-#### data *: [dict](https://docs.python.org/3/library/stdtypes.html#dict)[[str](https://docs.python.org/3/library/stdtypes.html#str), [Any](https://docs.python.org/3/library/typing.html#typing.Any)]*
+#### data *: [dict](https://docs.python.org/3/builtins/stdtypes.html#dict)[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [Any](https://docs.python.org/3/library/typing.html#typing.Any)]*
 
 <a id="ktisma.domain.config.ConfigLayer.source"></a>
 
-#### source *: [Path](https://docs.python.org/3/library/pathlib.html#pathlib.Path) | [None](https://docs.python.org/3/library/constants.html#None)*
+#### source *: [Path](https://docs.python.org/3/library/pathlib.html#pathlib.Path) | [None](https://docs.python.org/3/builtins/constants.html#None)*
 
 <a id="ktisma.domain.config.ConfigLayer.label"></a>
 
-#### label *: [str](https://docs.python.org/3/library/stdtypes.html#str)*
+#### label *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)*
 
 <a id="ktisma.domain.config.ConfigLayer.base_dir"></a>
 
-#### base_dir *: [Path](https://docs.python.org/3/library/pathlib.html#pathlib.Path) | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### base_dir *: [Path](https://docs.python.org/3/library/pathlib.html#pathlib.Path) | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
 
 <a id="ktisma.domain.config.BuildConfig"></a>
 
 ### *class* ktisma.domain.config.BuildConfig(out_dir_name: 'str', cleanup: 'CleanupPolicy', synctex: 'bool')
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.domain.config.BuildConfig.out_dir_name"></a>
 
-#### out_dir_name *: [str](https://docs.python.org/3/library/stdtypes.html#str)*
+#### out_dir_name *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)*
 
 <a id="ktisma.domain.config.BuildConfig.cleanup"></a>
 
@@ -121,91 +185,95 @@ Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
 
 <a id="ktisma.domain.config.BuildConfig.synctex"></a>
 
-#### synctex *: [bool](https://docs.python.org/3/library/functions.html#bool)*
+#### synctex *: [bool](https://docs.python.org/3/builtins/functions.html#bool)*
 
 <a id="ktisma.domain.config.EngineConfig"></a>
 
 ### *class* ktisma.domain.config.EngineConfig(default: 'str', modern_default: 'str', strict_detection: 'bool')
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.domain.config.EngineConfig.default"></a>
 
-#### default *: [str](https://docs.python.org/3/library/stdtypes.html#str)*
+#### default *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)*
 
 <a id="ktisma.domain.config.EngineConfig.modern_default"></a>
 
-#### modern_default *: [str](https://docs.python.org/3/library/stdtypes.html#str)*
+#### modern_default *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)*
 
 <a id="ktisma.domain.config.EngineConfig.strict_detection"></a>
 
-#### strict_detection *: [bool](https://docs.python.org/3/library/functions.html#bool)*
+#### strict_detection *: [bool](https://docs.python.org/3/builtins/functions.html#bool)*
 
 <a id="ktisma.domain.config.RoutingConfig"></a>
 
-### *class* ktisma.domain.config.RoutingConfig(source_suffix: 'str', output_suffix: 'str', preserve_relative: 'bool', collapse_entrypoint_names: 'bool', entrypoint_names: 'list[str]', default_filename_suffix: 'str', variant_filename_suffix: 'str')
+### *class* ktisma.domain.config.RoutingConfig(source_suffix: 'str', output_suffix: 'str', preserve_relative: 'bool', collapse_entrypoint_names: 'bool', entrypoint_names: 'list[str]', default_filename_suffix: 'str', variant_filename_suffix: 'str', artifact_dirs: 'list[str]' = <factory>)
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.domain.config.RoutingConfig.source_suffix"></a>
 
-#### source_suffix *: [str](https://docs.python.org/3/library/stdtypes.html#str)*
+#### source_suffix *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)*
 
 <a id="ktisma.domain.config.RoutingConfig.output_suffix"></a>
 
-#### output_suffix *: [str](https://docs.python.org/3/library/stdtypes.html#str)*
+#### output_suffix *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)*
 
 <a id="ktisma.domain.config.RoutingConfig.preserve_relative"></a>
 
-#### preserve_relative *: [bool](https://docs.python.org/3/library/functions.html#bool)*
+#### preserve_relative *: [bool](https://docs.python.org/3/builtins/functions.html#bool)*
 
 <a id="ktisma.domain.config.RoutingConfig.collapse_entrypoint_names"></a>
 
-#### collapse_entrypoint_names *: [bool](https://docs.python.org/3/library/functions.html#bool)*
+#### collapse_entrypoint_names *: [bool](https://docs.python.org/3/builtins/functions.html#bool)*
 
 <a id="ktisma.domain.config.RoutingConfig.entrypoint_names"></a>
 
-#### entrypoint_names *: [list](https://docs.python.org/3/library/stdtypes.html#list)[[str](https://docs.python.org/3/library/stdtypes.html#str)]*
+#### entrypoint_names *: [list](https://docs.python.org/3/builtins/stdtypes.html#list)[[str](https://docs.python.org/3/builtins/stdtypes.html#str)]*
 
 <a id="ktisma.domain.config.RoutingConfig.default_filename_suffix"></a>
 
-#### default_filename_suffix *: [str](https://docs.python.org/3/library/stdtypes.html#str)*
+#### default_filename_suffix *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)*
 
 <a id="ktisma.domain.config.RoutingConfig.variant_filename_suffix"></a>
 
-#### variant_filename_suffix *: [str](https://docs.python.org/3/library/stdtypes.html#str)*
+#### variant_filename_suffix *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)*
+
+<a id="ktisma.domain.config.RoutingConfig.artifact_dirs"></a>
+
+#### artifact_dirs *: [list](https://docs.python.org/3/builtins/stdtypes.html#list)[[str](https://docs.python.org/3/builtins/stdtypes.html#str)]*
 
 <a id="ktisma.domain.config.VariantConfig"></a>
 
 ### *class* ktisma.domain.config.VariantConfig(payload: 'str' = '', engine: 'Optional[str]' = None, output: 'Optional[str]' = None, filename_suffix: 'Optional[str]' = None)
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.domain.config.VariantConfig.payload"></a>
 
-#### payload *: [str](https://docs.python.org/3/library/stdtypes.html#str)* *= ''*
+#### payload *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)* *= ''*
 
 <a id="ktisma.domain.config.VariantConfig.engine"></a>
 
-#### engine *: [str](https://docs.python.org/3/library/stdtypes.html#str) | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### engine *: [str](https://docs.python.org/3/builtins/stdtypes.html#str) | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
 
 <a id="ktisma.domain.config.VariantConfig.output"></a>
 
-#### output *: [str](https://docs.python.org/3/library/stdtypes.html#str) | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### output *: [str](https://docs.python.org/3/builtins/stdtypes.html#str) | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
 
 <a id="ktisma.domain.config.VariantConfig.filename_suffix"></a>
 
-#### filename_suffix *: [str](https://docs.python.org/3/library/stdtypes.html#str) | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### filename_suffix *: [str](https://docs.python.org/3/builtins/stdtypes.html#str) | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
 
 <a id="ktisma.domain.config.ResolvedConfig"></a>
 
-### *class* ktisma.domain.config.ResolvedConfig(schema_version: 'int', build: 'BuildConfig', engines: 'EngineConfig', routing: 'RoutingConfig', routes: 'dict[str, str]' = <factory>, variants: 'dict[str, VariantConfig]' = <factory>, provenance: 'list[str]' = <factory>)
+### *class* ktisma.domain.config.ResolvedConfig(schema_version: 'int', build: 'BuildConfig', engines: 'EngineConfig', routing: 'RoutingConfig', routes: 'dict[str, str]' = <factory>, variants: 'dict[str, VariantConfig]' = <factory>, provenance: 'list[str]' = <factory>, placeholders: 'dict[str, str]' = <factory>)
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.domain.config.ResolvedConfig.schema_version"></a>
 
-#### schema_version *: [int](https://docs.python.org/3/library/functions.html#int)*
+#### schema_version *: [int](https://docs.python.org/3/builtins/functions.html#int)*
 
 <a id="ktisma.domain.config.ResolvedConfig.build"></a>
 
@@ -221,15 +289,19 @@ Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
 
 <a id="ktisma.domain.config.ResolvedConfig.routes"></a>
 
-#### routes *: [dict](https://docs.python.org/3/library/stdtypes.html#dict)[[str](https://docs.python.org/3/library/stdtypes.html#str), [str](https://docs.python.org/3/library/stdtypes.html#str)]*
+#### routes *: [dict](https://docs.python.org/3/builtins/stdtypes.html#dict)[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [str](https://docs.python.org/3/builtins/stdtypes.html#str)]*
 
 <a id="ktisma.domain.config.ResolvedConfig.variants"></a>
 
-#### variants *: [dict](https://docs.python.org/3/library/stdtypes.html#dict)[[str](https://docs.python.org/3/library/stdtypes.html#str), [VariantConfig](#ktisma.domain.config.VariantConfig)]*
+#### variants *: [dict](https://docs.python.org/3/builtins/stdtypes.html#dict)[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [VariantConfig](#ktisma.domain.config.VariantConfig)]*
 
 <a id="ktisma.domain.config.ResolvedConfig.provenance"></a>
 
-#### provenance *: [list](https://docs.python.org/3/library/stdtypes.html#list)[[str](https://docs.python.org/3/library/stdtypes.html#str)]*
+#### provenance *: [list](https://docs.python.org/3/builtins/stdtypes.html#list)[[str](https://docs.python.org/3/builtins/stdtypes.html#str)]*
+
+<a id="ktisma.domain.config.ResolvedConfig.placeholders"></a>
+
+#### placeholders *: [dict](https://docs.python.org/3/builtins/stdtypes.html#dict)[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [str](https://docs.python.org/3/builtins/stdtypes.html#str)]*
 
 <a id="ktisma.domain.config.validate_config"></a>
 
@@ -269,7 +341,7 @@ Return a ResolvedConfig with all built-in defaults.
 
 ### *class* ktisma.domain.context.SourceContext(source_file: 'Path', source_dir: 'Path', workspace_root: 'Path')
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.domain.context.SourceContext.source_file"></a>
 
@@ -287,7 +359,7 @@ Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
 
 ### *class* ktisma.domain.context.ToolkitInfo(toolkit_root: 'Path', installation_mode: 'str')
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.domain.context.ToolkitInfo.toolkit_root"></a>
 
@@ -295,101 +367,101 @@ Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
 
 <a id="ktisma.domain.context.ToolkitInfo.installation_mode"></a>
 
-#### installation_mode *: [str](https://docs.python.org/3/library/stdtypes.html#str)*
+#### installation_mode *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)*
 
 <a id="ktisma.domain.context.BuildRequest"></a>
 
 ### *class* ktisma.domain.context.BuildRequest(watch: 'bool' = False, dry_run: 'bool' = False, engine_override: 'Optional[str]' = None, output_path_override: 'Optional[Path]' = None, output_dir_override: 'Optional[Path]' = None, variant: 'Optional[str]' = None, variant_spec: "Optional['VariantSpec']" = None, variant_payload: 'Optional[str]' = None, include_default: 'bool' = False, json_output: 'bool' = False, cleanup_override: 'Optional[str]' = None)
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.domain.context.BuildRequest.watch"></a>
 
-#### watch *: [bool](https://docs.python.org/3/library/functions.html#bool)* *= False*
+#### watch *: [bool](https://docs.python.org/3/builtins/functions.html#bool)* *= False*
 
 <a id="ktisma.domain.context.BuildRequest.dry_run"></a>
 
-#### dry_run *: [bool](https://docs.python.org/3/library/functions.html#bool)* *= False*
+#### dry_run *: [bool](https://docs.python.org/3/builtins/functions.html#bool)* *= False*
 
 <a id="ktisma.domain.context.BuildRequest.engine_override"></a>
 
-#### engine_override *: [str](https://docs.python.org/3/library/stdtypes.html#str) | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### engine_override *: [str](https://docs.python.org/3/builtins/stdtypes.html#str) | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
 
 <a id="ktisma.domain.context.BuildRequest.output_path_override"></a>
 
-#### output_path_override *: [Path](https://docs.python.org/3/library/pathlib.html#pathlib.Path) | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### output_path_override *: [Path](https://docs.python.org/3/library/pathlib.html#pathlib.Path) | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
 
 <a id="ktisma.domain.context.BuildRequest.output_dir_override"></a>
 
-#### output_dir_override *: [Path](https://docs.python.org/3/library/pathlib.html#pathlib.Path) | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### output_dir_override *: [Path](https://docs.python.org/3/library/pathlib.html#pathlib.Path) | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
 
 <a id="ktisma.domain.context.BuildRequest.variant"></a>
 
-#### variant *: [str](https://docs.python.org/3/library/stdtypes.html#str) | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### variant *: [str](https://docs.python.org/3/builtins/stdtypes.html#str) | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
 
 <a id="ktisma.domain.context.BuildRequest.variant_spec"></a>
 
-#### variant_spec *: [VariantSpec](#ktisma.domain.context.VariantSpec) | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### variant_spec *: [VariantSpec](#ktisma.domain.context.VariantSpec) | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
 
 <a id="ktisma.domain.context.BuildRequest.variant_payload"></a>
 
-#### variant_payload *: [str](https://docs.python.org/3/library/stdtypes.html#str) | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### variant_payload *: [str](https://docs.python.org/3/builtins/stdtypes.html#str) | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
 
 <a id="ktisma.domain.context.BuildRequest.include_default"></a>
 
-#### include_default *: [bool](https://docs.python.org/3/library/functions.html#bool)* *= False*
+#### include_default *: [bool](https://docs.python.org/3/builtins/functions.html#bool)* *= False*
 
 <a id="ktisma.domain.context.BuildRequest.json_output"></a>
 
-#### json_output *: [bool](https://docs.python.org/3/library/functions.html#bool)* *= False*
+#### json_output *: [bool](https://docs.python.org/3/builtins/functions.html#bool)* *= False*
 
 <a id="ktisma.domain.context.BuildRequest.cleanup_override"></a>
 
-#### cleanup_override *: [str](https://docs.python.org/3/library/stdtypes.html#str) | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### cleanup_override *: [str](https://docs.python.org/3/builtins/stdtypes.html#str) | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
 
 <a id="ktisma.domain.context.SourceInputs"></a>
 
 ### *class* ktisma.domain.context.SourceInputs(preamble: 'str', magic_comments: 'dict[str, str]' = <factory>)
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.domain.context.SourceInputs.preamble"></a>
 
-#### preamble *: [str](https://docs.python.org/3/library/stdtypes.html#str)*
+#### preamble *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)*
 
 <a id="ktisma.domain.context.SourceInputs.magic_comments"></a>
 
-#### magic_comments *: [dict](https://docs.python.org/3/library/stdtypes.html#dict)[[str](https://docs.python.org/3/library/stdtypes.html#str), [str](https://docs.python.org/3/library/stdtypes.html#str)]*
+#### magic_comments *: [dict](https://docs.python.org/3/builtins/stdtypes.html#dict)[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [str](https://docs.python.org/3/builtins/stdtypes.html#str)]*
 
 <a id="ktisma.domain.context.VariantSpec"></a>
 
 ### *class* ktisma.domain.context.VariantSpec(name: 'str', payload: 'str', engine_override: 'Optional[str]' = None, output_override: 'Optional[str]' = None, filename_suffix: 'Optional[str]' = None)
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.domain.context.VariantSpec.name"></a>
 
-#### name *: [str](https://docs.python.org/3/library/stdtypes.html#str)*
+#### name *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)*
 
 <a id="ktisma.domain.context.VariantSpec.payload"></a>
 
-#### payload *: [str](https://docs.python.org/3/library/stdtypes.html#str)*
+#### payload *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)*
 
 <a id="ktisma.domain.context.VariantSpec.engine_override"></a>
 
-#### engine_override *: [str](https://docs.python.org/3/library/stdtypes.html#str) | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### engine_override *: [str](https://docs.python.org/3/builtins/stdtypes.html#str) | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
 
 <a id="ktisma.domain.context.VariantSpec.output_override"></a>
 
-#### output_override *: [str](https://docs.python.org/3/library/stdtypes.html#str) | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### output_override *: [str](https://docs.python.org/3/builtins/stdtypes.html#str) | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
 
 <a id="ktisma.domain.context.VariantSpec.filename_suffix"></a>
 
-#### filename_suffix *: [str](https://docs.python.org/3/library/stdtypes.html#str) | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### filename_suffix *: [str](https://docs.python.org/3/builtins/stdtypes.html#str) | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
 
 <a id="ktisma.domain.context.VariantSpec.VALID_NAME_PATTERN"></a>
 
-#### VALID_NAME_PATTERN *: [ClassVar](https://docs.python.org/3/library/typing.html#typing.ClassVar)[[str](https://docs.python.org/3/library/stdtypes.html#str)]* *= '^[a-zA-Z][a-zA-Z0-9_-]\*$'*
+#### VALID_NAME_PATTERN *: [ClassVar](https://docs.python.org/3/library/typing.html#typing.ClassVar)[[str](https://docs.python.org/3/builtins/stdtypes.html#str)]* *= '^[a-zA-Z][a-zA-Z0-9_-]\*$'*
 
 <a id="ktisma.domain.context.is_valid_variant_name"></a>
 
@@ -425,7 +497,7 @@ Bases: [`Enum`](https://docs.python.org/3/library/enum.html#enum.Enum)
 
 ### *class* ktisma.domain.diagnostics.Diagnostic(level: 'DiagnosticLevel', component: 'str', code: 'str', message: 'str', evidence: 'Optional[list[str]]' = None)
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.domain.diagnostics.Diagnostic.level"></a>
 
@@ -433,19 +505,19 @@ Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
 
 <a id="ktisma.domain.diagnostics.Diagnostic.component"></a>
 
-#### component *: [str](https://docs.python.org/3/library/stdtypes.html#str)*
+#### component *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)*
 
 <a id="ktisma.domain.diagnostics.Diagnostic.code"></a>
 
-#### code *: [str](https://docs.python.org/3/library/stdtypes.html#str)*
+#### code *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)*
 
 <a id="ktisma.domain.diagnostics.Diagnostic.message"></a>
 
-#### message *: [str](https://docs.python.org/3/library/stdtypes.html#str)*
+#### message *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)*
 
 <a id="ktisma.domain.diagnostics.Diagnostic.evidence"></a>
 
-#### evidence *: [list](https://docs.python.org/3/library/stdtypes.html#list)[[str](https://docs.python.org/3/library/stdtypes.html#str)] | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### evidence *: [list](https://docs.python.org/3/builtins/stdtypes.html#list)[[str](https://docs.python.org/3/builtins/stdtypes.html#str)] | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
 
 <a id="ktisma.domain.diagnostics.Diagnostic.to_dict"></a>
 
@@ -461,23 +533,23 @@ Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
 
 ### *class* ktisma.domain.engine.EngineDecision(engine: 'str', evidence: 'list[str]' = <factory>, ambiguous: 'bool' = False, diagnostics: 'list[Diagnostic]' = <factory>)
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.domain.engine.EngineDecision.engine"></a>
 
-#### engine *: [str](https://docs.python.org/3/library/stdtypes.html#str)*
+#### engine *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)*
 
 <a id="ktisma.domain.engine.EngineDecision.evidence"></a>
 
-#### evidence *: [list](https://docs.python.org/3/library/stdtypes.html#list)[[str](https://docs.python.org/3/library/stdtypes.html#str)]*
+#### evidence *: [list](https://docs.python.org/3/builtins/stdtypes.html#list)[[str](https://docs.python.org/3/builtins/stdtypes.html#str)]*
 
 <a id="ktisma.domain.engine.EngineDecision.ambiguous"></a>
 
-#### ambiguous *: [bool](https://docs.python.org/3/library/functions.html#bool)* *= False*
+#### ambiguous *: [bool](https://docs.python.org/3/builtins/functions.html#bool)* *= False*
 
 <a id="ktisma.domain.engine.EngineDecision.diagnostics"></a>
 
-#### diagnostics *: [list](https://docs.python.org/3/library/stdtypes.html#list)[[Diagnostic](#ktisma.domain.diagnostics.Diagnostic)]*
+#### diagnostics *: [list](https://docs.python.org/3/builtins/stdtypes.html#list)[[Diagnostic](#ktisma.domain.diagnostics.Diagnostic)]*
 
 <a id="ktisma.domain.engine.EngineDecision.to_dict"></a>
 
@@ -487,15 +559,15 @@ Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
 
 ### *class* ktisma.domain.engine.EngineRule(engine: 'str', markers: 'list[tuple[str, str]]')
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.domain.engine.EngineRule.engine"></a>
 
-#### engine *: [str](https://docs.python.org/3/library/stdtypes.html#str)*
+#### engine *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)*
 
 <a id="ktisma.domain.engine.EngineRule.markers"></a>
 
-#### markers *: [list](https://docs.python.org/3/library/stdtypes.html#list)[[tuple](https://docs.python.org/3/library/stdtypes.html#tuple)[[str](https://docs.python.org/3/library/stdtypes.html#str), [str](https://docs.python.org/3/library/stdtypes.html#str)]]*
+#### markers *: [list](https://docs.python.org/3/builtins/stdtypes.html#list)[[tuple](https://docs.python.org/3/builtins/stdtypes.html#tuple)[[str](https://docs.python.org/3/builtins/stdtypes.html#str), [str](https://docs.python.org/3/builtins/stdtypes.html#str)]]*
 
 <a id="ktisma.domain.engine.detect_engine"></a>
 
@@ -519,7 +591,7 @@ Detection steps per roadmap:
 
 ### *exception* ktisma.domain.errors.KtismaError(exit_code, message, diagnostics=None)
 
-Bases: [`Exception`](https://docs.python.org/3/library/exceptions.html#Exception)
+Bases: [`Exception`](https://docs.python.org/3/builtins/exceptions.html#Exception)
 
 Base exception for ktisma failures that map to a public exit code.
 
@@ -593,7 +665,7 @@ Bases: [`IntEnum`](https://docs.python.org/3/library/enum.html#enum.IntEnum)
 
 ### *class* ktisma.domain.routing.RouteDecision(destination: 'Path', matched_rule: 'Optional[str]' = None, fallback: 'bool' = False, diagnostics: 'list[Diagnostic]' = <factory>)
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.domain.routing.RouteDecision.destination"></a>
 
@@ -601,19 +673,47 @@ Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
 
 <a id="ktisma.domain.routing.RouteDecision.matched_rule"></a>
 
-#### matched_rule *: [str](https://docs.python.org/3/library/stdtypes.html#str) | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### matched_rule *: [str](https://docs.python.org/3/builtins/stdtypes.html#str) | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
 
 <a id="ktisma.domain.routing.RouteDecision.fallback"></a>
 
-#### fallback *: [bool](https://docs.python.org/3/library/functions.html#bool)* *= False*
+#### fallback *: [bool](https://docs.python.org/3/builtins/functions.html#bool)* *= False*
 
 <a id="ktisma.domain.routing.RouteDecision.diagnostics"></a>
 
-#### diagnostics *: [list](https://docs.python.org/3/library/stdtypes.html#list)[[Diagnostic](#ktisma.domain.diagnostics.Diagnostic)]*
+#### diagnostics *: [list](https://docs.python.org/3/builtins/stdtypes.html#list)[[Diagnostic](#ktisma.domain.diagnostics.Diagnostic)]*
 
 <a id="ktisma.domain.routing.RouteDecision.to_dict"></a>
 
 #### to_dict(source)
+
+<a id="ktisma.domain.routing.PlaceholderError"></a>
+
+### *exception* ktisma.domain.routing.PlaceholderError(diagnostics)
+
+Bases: [`Exception`](https://docs.python.org/3/builtins/exceptions.html#Exception)
+
+Raised when an output template names a placeholder that cannot be resolved.
+
+<a id="ktisma.domain.routing.resolve_artifact_name"></a>
+
+### ktisma.domain.routing.resolve_artifact_name(ctx, config)
+
+Return the name of the nearest ancestor directory of the source that holds one artifact.
+
+An ancestor qualifies when its workspace-relative path matches one of
+`config.routing.artifact_dirs` component by component (`fnmatch` per component, so a
+pattern `artifacts/*` names the directories directly under `artifacts/` and no deeper one).
+
+<a id="ktisma.domain.routing.expand_placeholders"></a>
+
+### ktisma.domain.routing.expand_placeholders(template, ctx, config)
+
+Substitute `{name}` placeholders in an output template.
+
+Available names: `stem` (source filename without extension), `artifact` (see
+[`resolve_artifact_name()`](#ktisma.domain.routing.resolve_artifact_name)), and every user-defined entry of `[placeholders]`.
+A placeholder that cannot be resolved yields an error diagnostic instead of a literal name.
 
 <a id="ktisma.domain.routing.resolve_route"></a>
 

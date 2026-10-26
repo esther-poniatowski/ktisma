@@ -15,7 +15,7 @@ materialization, prerequisite probing, source reading, and workspace ops.
 
 ### *class* ktisma.infra.config_loader.TomlConfigLoader
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 Concrete ConfigLoader: loads .ktisma.toml files from disk.
 
@@ -50,7 +50,7 @@ calls it on the merged config dict after the domain merge completes.
 
 ### *class* ktisma.infra.latexmk.LatexmkRunner
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 Concrete BackendRunner: invokes latexmk for compilation.
 
@@ -70,7 +70,7 @@ Launch latexmk in continuous watch mode (latexmk -pvc).
 
 ### *class* ktisma.infra.latexmk.LatexmkWatchSession(source_file, build_dir, args)
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 Polling watch session over a live latexmk -pvc subprocess.
 
@@ -92,7 +92,7 @@ Polling watch session over a live latexmk -pvc subprocess.
 
 ### *class* ktisma.infra.locks.FileLockManager
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 Concrete LockManager: file-based exclusive build locks.
 
@@ -125,7 +125,7 @@ Release a previously acquired build lock.
 
 ### *class* ktisma.infra.materialize.FileMaterializer
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 Concrete Materializer: copies build artifacts to final destinations.
 
@@ -148,7 +148,7 @@ Copy a build artifact to its final destination.
 
 ### *class* ktisma.infra.prerequisites.SystemPrerequisiteProbe
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 Concrete PrerequisiteProbe: checks system prerequisites.
 
@@ -186,7 +186,7 @@ Check if TOML parsing is available.
 
 ### *class* ktisma.infra.source_reader.FileSourceReader
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 Concrete SourceReader: reads .tex files from disk and extracts magic comments.
 
@@ -222,7 +222,7 @@ Resolution order:
 
 ### *class* ktisma.infra.workspace.FileWorkspaceOps
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 Filesystem implementation for build-dir creation and cleanup helpers.
 

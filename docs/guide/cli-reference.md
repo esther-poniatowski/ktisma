@@ -141,6 +141,33 @@ ktisma clean slides-tex/main.tex
 ktisma clean slides-tex/.ktisma_build/main/
 ```
 
+### `check-log`
+
+Check retained LaTeX logs against a zero baseline after a build.
+
+```bash
+ktisma check-log [--build-dir NAME] [--channel TAGS] <source-dir> [stem]
+```
+
+| Argument or option | Description |
+| --- | --- |
+| `source-dir` | Directory holding the sources and build directory |
+| `stem` | Optional document stem; without it, every retained log is checked |
+| `--build-dir NAME` | Build directory relative to `source-dir` (default: `.ktisma_build`) |
+| `--channel TAGS` | Comma-separated measurement channels to print; repeatable |
+
+The command searches recursively below the build directory. Each selected log must report
+`Output written`. Its zero baseline covers fatal errors, LaTeX font warnings, TeX error lines in
+both supported forms, and overfull or underfull horizontal or vertical boxes. Requested channel
+lines are reported without affecting the exit status.
+
+```bash
+ktisma check-log --channel banner,fit,layout posters/tex poster
+```
+
+The command exits with code `1` when a log violates the baseline or when the build directory or
+selected logs are absent. A missing source directory is a usage error and exits with code `2`.
+
 ### `doctor`
 
 Verify that prerequisites are available.

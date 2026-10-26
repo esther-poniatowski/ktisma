@@ -87,6 +87,26 @@ def _build_parser() -> argparse.ArgumentParser:
     clean_parser.add_argument("--workspace-root", type=Path)
     clean_parser.set_defaults(func=_cmd_clean)
 
+    # --- check-log ---
+    check_log_parser = subparsers.add_parser(
+        "check-log", help="Check retained LaTeX build logs against a zero baseline"
+    )
+    check_log_parser.add_argument("source_dir", type=Path, help="Directory holding the sources")
+    check_log_parser.add_argument("stem", nargs="?", help="Restrict the check to one document stem")
+    check_log_parser.add_argument(
+        "--build-dir",
+        default=".ktisma_build",
+        help="Build directory relative to the source directory",
+    )
+    check_log_parser.add_argument(
+        "--channel",
+        action="append",
+        default=[],
+        metavar="TAGS",
+        help="Report comma-separated measurement channels; may be repeated",
+    )
+    check_log_parser.set_defaults(func=_cmd_check_log)
+
     # --- doctor ---
     doctor_parser = subparsers.add_parser("doctor", help="Check prerequisites")
     doctor_parser.add_argument("--workspace-root", type=Path)
@@ -221,6 +241,42 @@ def _cmd_clean(args: argparse.Namespace) -> int:
         for d in result.removed_dirs:
             print(f"Removed: {d}")
 
+    return result.exit_code
+
+
+def _cmd_check_log(args: argparse.Namespace) -> int:
+    channels = tuple(
+        channel
+        for group in args.channel
+        for channel in (item.strip() for item in group.split(","))
+        if channel
+    )
+    result = bootstrap.check_log(
+        source_dir=args.source_dir,
+        build_dir_name=args.build_dir,
+        stem=args.stem,
+        channels=channels,
+    )
+    _print_diagnostics(result.diagnostics, False)
+    if result.diagnostics:
+        return result.exit_code
+
+    for report in result.reports:
+        print(f"\n=== {report.relative_path} ===")
+        for finding in report.evaluation.findings:
+            if finding.count:
+                print(f"  FAIL  {finding.count} x {finding.name}")
+        if report.evaluation.output_line is None:
+            print("  FAIL  no PDF written")
+        else:
+            print(f"  ok    {report.evaluation.output_line}")
+        for line in report.evaluation.channel_lines:
+            print(f"  {line}")
+
+    verdict = (
+        "zero baseline holds." if result.exit_code == ExitCode.SUCCESS else "BASELINE VIOLATED."
+    )
+    print(f"\n{verdict}")
     return result.exit_code
 
 

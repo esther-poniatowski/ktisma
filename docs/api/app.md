@@ -2,8 +2,8 @@
 
 # Application
 
-Application services: build, clean, doctor, inspect, batch, variants,
-configuration, and the service protocols.
+Application services: build, clean, build-log checks, doctor, inspect, batch,
+variants, configuration, and the service protocols.
 
 <a id="module-ktisma.app.build"></a>
 
@@ -15,7 +15,7 @@ configuration, and the service protocols.
 
 ### *class* ktisma.app.build.BuildResult(exit_code: 'ExitCode', engine: 'Optional[EngineDecision]' = None, route: 'Optional[RouteDecision]' = None, build_plan: 'Optional[BuildDirPlan]' = None, backend_result: 'Optional[BackendResult]' = None, produced_paths: 'list[Path]' = <factory>, diagnostics: 'list[Diagnostic]' = <factory>)
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.app.build.BuildResult.exit_code"></a>
 
@@ -23,27 +23,27 @@ Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
 
 <a id="ktisma.app.build.BuildResult.engine"></a>
 
-#### engine *: [EngineDecision](domain.md#ktisma.domain.engine.EngineDecision) | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### engine *: [EngineDecision](domain.md#ktisma.domain.engine.EngineDecision) | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
 
 <a id="ktisma.app.build.BuildResult.route"></a>
 
-#### route *: [RouteDecision](domain.md#ktisma.domain.routing.RouteDecision) | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### route *: [RouteDecision](domain.md#ktisma.domain.routing.RouteDecision) | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
 
 <a id="ktisma.app.build.BuildResult.build_plan"></a>
 
-#### build_plan *: [BuildDirPlan](domain.md#ktisma.domain.build_dir.BuildDirPlan) | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### build_plan *: [BuildDirPlan](domain.md#ktisma.domain.build_dir.BuildDirPlan) | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
 
 <a id="ktisma.app.build.BuildResult.backend_result"></a>
 
-#### backend_result *: [BackendResult](#ktisma.app.protocols.BackendResult) | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### backend_result *: [BackendResult](#ktisma.app.protocols.BackendResult) | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
 
 <a id="ktisma.app.build.BuildResult.produced_paths"></a>
 
-#### produced_paths *: [list](https://docs.python.org/3/library/stdtypes.html#list)[[Path](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]*
+#### produced_paths *: [list](https://docs.python.org/3/builtins/stdtypes.html#list)[[Path](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]*
 
 <a id="ktisma.app.build.BuildResult.diagnostics"></a>
 
-#### diagnostics *: [list](https://docs.python.org/3/library/stdtypes.html#list)[[Diagnostic](domain.md#ktisma.domain.diagnostics.Diagnostic)]*
+#### diagnostics *: [list](https://docs.python.org/3/builtins/stdtypes.html#list)[[Diagnostic](domain.md#ktisma.domain.diagnostics.Diagnostic)]*
 
 <a id="ktisma.app.build.execute_build"></a>
 
@@ -61,7 +61,7 @@ Execute the build use-case.
 
 ### *class* ktisma.app.clean.CleanResult(exit_code: 'ExitCode', removed_dirs: 'list[Path]' = <factory>, diagnostics: 'list[Diagnostic]' = <factory>)
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.app.clean.CleanResult.exit_code"></a>
 
@@ -69,11 +69,11 @@ Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
 
 <a id="ktisma.app.clean.CleanResult.removed_dirs"></a>
 
-#### removed_dirs *: [list](https://docs.python.org/3/library/stdtypes.html#list)[[Path](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]*
+#### removed_dirs *: [list](https://docs.python.org/3/builtins/stdtypes.html#list)[[Path](https://docs.python.org/3/library/pathlib.html#pathlib.Path)]*
 
 <a id="ktisma.app.clean.CleanResult.diagnostics"></a>
 
-#### diagnostics *: [list](https://docs.python.org/3/library/stdtypes.html#list)[[Diagnostic](domain.md#ktisma.domain.diagnostics.Diagnostic)]*
+#### diagnostics *: [list](https://docs.python.org/3/builtins/stdtypes.html#list)[[Diagnostic](domain.md#ktisma.domain.diagnostics.Diagnostic)]*
 
 <a id="ktisma.app.clean.execute_clean"></a>
 
@@ -83,6 +83,71 @@ Clean build directories for a source file or a specific build directory.
 
 If target is a .tex file, removes its build directory.
 If target is a directory, removes it directly (if it looks like a ktisma build dir).
+
+<a id="module-ktisma.app.check_log"></a>
+
+<a id="build-log-checks"></a>
+
+## Build-log checks
+
+Application use case for checking retained LaTeX build logs.
+
+<a id="ktisma.app.check_log.BuildLogReport"></a>
+
+### *class* ktisma.app.check_log.BuildLogReport(path, relative_path, evaluation)
+
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
+
+Evaluation of one log with its path relative to the build directory.
+
+<a id="ktisma.app.check_log.BuildLogReport.path"></a>
+
+#### path *: [Path](https://docs.python.org/3/library/pathlib.html#pathlib.Path)*
+
+<a id="ktisma.app.check_log.BuildLogReport.relative_path"></a>
+
+#### relative_path *: [Path](https://docs.python.org/3/library/pathlib.html#pathlib.Path)*
+
+<a id="ktisma.app.check_log.BuildLogReport.evaluation"></a>
+
+#### evaluation *: [BuildLogEvaluation](domain.md#ktisma.domain.build_log.BuildLogEvaluation)*
+
+<a id="ktisma.app.check_log.CheckLogResult"></a>
+
+### *class* ktisma.app.check_log.CheckLogResult(exit_code, reports=<factory>, diagnostics=<factory>)
+
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
+
+Outcome of checking every selected log.
+
+<a id="ktisma.app.check_log.CheckLogResult.exit_code"></a>
+
+#### exit_code *: [ExitCode](domain.md#ktisma.domain.exit_codes.ExitCode)*
+
+<a id="ktisma.app.check_log.CheckLogResult.reports"></a>
+
+#### reports *: [list](https://docs.python.org/3/builtins/stdtypes.html#list)[[BuildLogReport](#ktisma.app.check_log.BuildLogReport)]*
+
+<a id="ktisma.app.check_log.CheckLogResult.diagnostics"></a>
+
+#### diagnostics *: [list](https://docs.python.org/3/builtins/stdtypes.html#list)[[Diagnostic](domain.md#ktisma.domain.diagnostics.Diagnostic)]*
+
+<a id="ktisma.app.check_log.execute_check_log"></a>
+
+### ktisma.app.check_log.execute_check_log(source_dir, build_dir_name, stem, channels, workspace_ops)
+
+Find and evaluate build logs below one source directory.
+
+* **Parameters:**
+  * **source_dir** ([*Path*](https://docs.python.org/3/library/pathlib.html#pathlib.Path)) – Directory holding the configured build directory.
+  * **build_dir_name** ([*str*](https://docs.python.org/3/builtins/stdtypes.html#str)) – Build-directory path relative to `source_dir`.
+  * **stem** ([*str*](https://docs.python.org/3/builtins/stdtypes.html#str) *|* *None*) – Optional document stem restricting the selected `.log` files.
+  * **channels** ([*tuple*](https://docs.python.org/3/builtins/stdtypes.html#tuple) *[*[*str*](https://docs.python.org/3/builtins/stdtypes.html#str) *,*  *...* *]*) – Measurement channels retained in the report.
+  * **workspace_ops** ([*WorkspaceOps*](#ktisma.app.protocols.WorkspaceOps)) – Filesystem operations supplied by the composition root.
+* **Returns:**
+  Selected reports, diagnostics, and the public exit status.
+* **Return type:**
+  [CheckLogResult](#ktisma.app.check_log.CheckLogResult)
 
 <a id="module-ktisma.app.doctor"></a>
 
@@ -94,7 +159,7 @@ If target is a directory, removes it directly (if it looks like a ktisma build d
 
 ### *class* ktisma.app.doctor.DoctorResult(exit_code: 'ExitCode', checks: 'list[PrerequisiteCheck]' = <factory>, diagnostics: 'list[Diagnostic]' = <factory>)
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.app.doctor.DoctorResult.exit_code"></a>
 
@@ -102,11 +167,11 @@ Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
 
 <a id="ktisma.app.doctor.DoctorResult.checks"></a>
 
-#### checks *: [list](https://docs.python.org/3/library/stdtypes.html#list)[[PrerequisiteCheck](#ktisma.app.protocols.PrerequisiteCheck)]*
+#### checks *: [list](https://docs.python.org/3/builtins/stdtypes.html#list)[[PrerequisiteCheck](#ktisma.app.protocols.PrerequisiteCheck)]*
 
 <a id="ktisma.app.doctor.DoctorResult.diagnostics"></a>
 
-#### diagnostics *: [list](https://docs.python.org/3/library/stdtypes.html#list)[[Diagnostic](domain.md#ktisma.domain.diagnostics.Diagnostic)]*
+#### diagnostics *: [list](https://docs.python.org/3/builtins/stdtypes.html#list)[[Diagnostic](domain.md#ktisma.domain.diagnostics.Diagnostic)]*
 
 <a id="ktisma.app.doctor.execute_doctor"></a>
 
@@ -154,7 +219,7 @@ Reuses the same config and decision path as build, stopping before compilation.
 
 ### *class* ktisma.app.batch.BatchResult(exit_code: 'ExitCode', results: 'list[tuple[Path, BuildResult]]' = <factory>, diagnostics: 'list[Diagnostic]' = <factory>)
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.app.batch.BatchResult.exit_code"></a>
 
@@ -162,11 +227,11 @@ Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
 
 <a id="ktisma.app.batch.BatchResult.results"></a>
 
-#### results *: [list](https://docs.python.org/3/library/stdtypes.html#list)[[tuple](https://docs.python.org/3/library/stdtypes.html#tuple)[[Path](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [BuildResult](#ktisma.app.build.BuildResult)]]*
+#### results *: [list](https://docs.python.org/3/builtins/stdtypes.html#list)[[tuple](https://docs.python.org/3/builtins/stdtypes.html#tuple)[[Path](https://docs.python.org/3/library/pathlib.html#pathlib.Path), [BuildResult](#ktisma.app.build.BuildResult)]]*
 
 <a id="ktisma.app.batch.BatchResult.diagnostics"></a>
 
-#### diagnostics *: [list](https://docs.python.org/3/library/stdtypes.html#list)[[Diagnostic](domain.md#ktisma.domain.diagnostics.Diagnostic)]*
+#### diagnostics *: [list](https://docs.python.org/3/builtins/stdtypes.html#list)[[Diagnostic](domain.md#ktisma.domain.diagnostics.Diagnostic)]*
 
 <a id="ktisma.app.batch.execute_batch"></a>
 
@@ -187,7 +252,7 @@ batch –watch is unsupported in v1 and rejected explicitly.
 
 ### *class* ktisma.app.variants.VariantsResult(exit_code: 'ExitCode', results: 'list[tuple[VariantSpec, BuildResult]]' = <factory>, diagnostics: 'list[Diagnostic]' = <factory>)
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.app.variants.VariantsResult.exit_code"></a>
 
@@ -195,11 +260,11 @@ Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
 
 <a id="ktisma.app.variants.VariantsResult.results"></a>
 
-#### results *: [list](https://docs.python.org/3/library/stdtypes.html#list)[[tuple](https://docs.python.org/3/library/stdtypes.html#tuple)[[VariantSpec](domain.md#ktisma.domain.context.VariantSpec), [BuildResult](#ktisma.app.build.BuildResult)]]*
+#### results *: [list](https://docs.python.org/3/builtins/stdtypes.html#list)[[tuple](https://docs.python.org/3/builtins/stdtypes.html#tuple)[[VariantSpec](domain.md#ktisma.domain.context.VariantSpec), [BuildResult](#ktisma.app.build.BuildResult)]]*
 
 <a id="ktisma.app.variants.VariantsResult.diagnostics"></a>
 
-#### diagnostics *: [list](https://docs.python.org/3/library/stdtypes.html#list)[[Diagnostic](domain.md#ktisma.domain.diagnostics.Diagnostic)]*
+#### diagnostics *: [list](https://docs.python.org/3/builtins/stdtypes.html#list)[[Diagnostic](domain.md#ktisma.domain.diagnostics.Diagnostic)]*
 
 <a id="ktisma.app.variants.validate_variant_name"></a>
 
@@ -284,37 +349,37 @@ Release a previously acquired build lock.
 
 ### *class* ktisma.app.protocols.BackendResult(success: 'bool', exit_code: 'int', stdout: 'str' = '', stderr: 'str' = '', pdf_path: 'Optional[Path]' = None, diagnostics: 'list[Diagnostic]' = <factory>)
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.app.protocols.BackendResult.success"></a>
 
-#### success *: [bool](https://docs.python.org/3/library/functions.html#bool)*
+#### success *: [bool](https://docs.python.org/3/builtins/functions.html#bool)*
 
 <a id="ktisma.app.protocols.BackendResult.exit_code"></a>
 
-#### exit_code *: [int](https://docs.python.org/3/library/functions.html#int)*
+#### exit_code *: [int](https://docs.python.org/3/builtins/functions.html#int)*
 
 <a id="ktisma.app.protocols.BackendResult.stdout"></a>
 
-#### stdout *: [str](https://docs.python.org/3/library/stdtypes.html#str)* *= ''*
+#### stdout *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)* *= ''*
 
 <a id="ktisma.app.protocols.BackendResult.stderr"></a>
 
-#### stderr *: [str](https://docs.python.org/3/library/stdtypes.html#str)* *= ''*
+#### stderr *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)* *= ''*
 
 <a id="ktisma.app.protocols.BackendResult.pdf_path"></a>
 
-#### pdf_path *: [Path](https://docs.python.org/3/library/pathlib.html#pathlib.Path) | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### pdf_path *: [Path](https://docs.python.org/3/library/pathlib.html#pathlib.Path) | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
 
 <a id="ktisma.app.protocols.BackendResult.diagnostics"></a>
 
-#### diagnostics *: [list](https://docs.python.org/3/library/stdtypes.html#list)[[Diagnostic](domain.md#ktisma.domain.diagnostics.Diagnostic)]*
+#### diagnostics *: [list](https://docs.python.org/3/builtins/stdtypes.html#list)[[Diagnostic](domain.md#ktisma.domain.diagnostics.Diagnostic)]*
 
 <a id="ktisma.app.protocols.WatchUpdate"></a>
 
 ### *class* ktisma.app.protocols.WatchUpdate(result: 'BackendResult', finished: 'bool' = False)
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.app.protocols.WatchUpdate.result"></a>
 
@@ -322,7 +387,7 @@ Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
 
 <a id="ktisma.app.protocols.WatchUpdate.finished"></a>
 
-#### finished *: [bool](https://docs.python.org/3/library/functions.html#bool)* *= False*
+#### finished *: [bool](https://docs.python.org/3/builtins/functions.html#bool)* *= False*
 
 <a id="ktisma.app.protocols.WatchSession"></a>
 
@@ -432,23 +497,23 @@ Return sorted files matching a glob pattern in a directory.
 
 ### *class* ktisma.app.protocols.PrerequisiteCheck(name: 'str', available: 'bool', version: 'Optional[str]' = None, message: 'str' = '')
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 <a id="ktisma.app.protocols.PrerequisiteCheck.name"></a>
 
-#### name *: [str](https://docs.python.org/3/library/stdtypes.html#str)*
+#### name *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)*
 
 <a id="ktisma.app.protocols.PrerequisiteCheck.available"></a>
 
-#### available *: [bool](https://docs.python.org/3/library/functions.html#bool)*
+#### available *: [bool](https://docs.python.org/3/builtins/functions.html#bool)*
 
 <a id="ktisma.app.protocols.PrerequisiteCheck.version"></a>
 
-#### version *: [str](https://docs.python.org/3/library/stdtypes.html#str) | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### version *: [str](https://docs.python.org/3/builtins/stdtypes.html#str) | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
 
 <a id="ktisma.app.protocols.PrerequisiteCheck.message"></a>
 
-#### message *: [str](https://docs.python.org/3/library/stdtypes.html#str)* *= ''*
+#### message *: [str](https://docs.python.org/3/builtins/stdtypes.html#str)* *= ''*
 
 <a id="ktisma.app.protocols.PrerequisiteProbe"></a>
 
@@ -496,7 +561,7 @@ Run post-materialization steps before cleanup.
 
 ### *class* ktisma.app.protocols.BuildServices(config_loader, source_reader, lock_manager, backend_runner, materializer, prerequisite_probe, workspace_ops, post_processor=None)
 
-Bases: [`object`](https://docs.python.org/3/library/functions.html#object)
+Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
 Bundle of protocol dependencies for build use-cases.
 
@@ -534,4 +599,4 @@ instead of passing each dependency as a separate argument.
 
 <a id="ktisma.app.protocols.BuildServices.post_processor"></a>
 
-#### post_processor *: [PostProcessor](#ktisma.app.protocols.PostProcessor) | [None](https://docs.python.org/3/library/constants.html#None)* *= None*
+#### post_processor *: [PostProcessor](#ktisma.app.protocols.PostProcessor) | [None](https://docs.python.org/3/builtins/constants.html#None)* *= None*
