@@ -4,8 +4,16 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from unittest.mock import patch
 
-from ktisma.infra.tex_dependencies import FileTexSnapshotStore, GitTexSourceFetcher
+import pytest
+
+from ktisma.domain.config import TexDependency
+from ktisma.infra.tex_dependencies import (
+    FileTexSnapshotStore,
+    GitTexSourceFetcher,
+    L3BuildTexPackageBuilder,
+)
 
 
 def _git(repository: Path, *args: str) -> str:
@@ -45,3 +53,48 @@ def test_invalid_active_pointer_is_not_treated_as_a_path(tmp_path: Path) -> None
     pointer.write_text("../../outside\n", encoding="utf-8")
 
     assert FileTexSnapshotStore().read_active_digest(tmp_path) is None
+
+
+def test_l3build_builder_uses_the_ordinary_runtime_target(tmp_path: Path) -> None:
+    dependency = TexDependency(
+        name="fixture",
+        repository="https://example.test/fixture.git",
+        commit="0" * 40,
+        builder="l3build",
+        provides=("fixture.sty",),
+    )
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    texmf_root = tmp_path / "texmf"
+
+    with patch("ktisma.infra.tex_dependencies.subprocess.run") as run:
+        run.return_value.returncode = 0
+        L3BuildTexPackageBuilder().install(dependency, checkout, texmf_root)
+
+    run.assert_called_once_with(
+        ["l3build", "install", "--texmfhome", str(texmf_root.resolve())],
+        cwd=checkout,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+
+
+def test_l3build_builder_reports_package_failure(tmp_path: Path) -> None:
+    dependency = TexDependency(
+        name="fixture",
+        repository="https://example.test/fixture.git",
+        commit="0" * 40,
+        builder="l3build",
+        provides=("fixture.sty",),
+    )
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+
+    with patch("ktisma.infra.tex_dependencies.subprocess.run") as run:
+        run.return_value.returncode = 1
+        run.return_value.stderr = "builder failed"
+        run.return_value.stdout = ""
+        with pytest.raises(RuntimeError, match="fixture: l3build installation failed"):
+            L3BuildTexPackageBuilder().install(dependency, checkout, tmp_path / "texmf")

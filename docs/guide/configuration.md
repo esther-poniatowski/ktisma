@@ -154,6 +154,10 @@ provides = ["scholia.sty"]
 | `builder` | Identifier registered by the installed Ktisma adapters |
 | `provides` | Nonempty list of unique relative TeX entry-point paths |
 
+Ktisma registers the `l3build` adapter. This adapter invokes the package's ordinary
+`l3build install --texmfhome <package-tree>` target. Package-specific target names and source-tree
+paths do not enter the dependency record.
+
 Only the workspace-root `.ktisma.toml` may declare this table. Directory overlays and command-line
 configuration layers cannot replace or extend the closure. Run `ktisma tex install` after changing
 the record. Normal builds verify the selected snapshot without network access and pass its absolute

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Mapping, Optional
 
 from ..app.build import execute_build, BuildResult
 from ..app.clean import execute_clean, CleanResult
@@ -16,6 +16,7 @@ from ..app.tex_dependencies import (
     ConfiguredTexRuntimeVerifier,
     TexDependencyResult,
     TexInstallServices,
+    TexPackageBuilder,
     TexRuntimeServices,
     execute_tex_check,
     execute_tex_inspect,
@@ -36,6 +37,7 @@ from ..infra.tex_dependencies import (
     FileTexSnapshotStore,
     GitTexSourceFetcher,
     KpsewhichTexPathResolver,
+    L3BuildTexPackageBuilder,
 )
 from ..infra.workspace import FileWorkspaceOps, resolve_workspace_root
 
@@ -58,6 +60,7 @@ class Services:
     tex_store: FileTexSnapshotStore
     tex_source_fetcher: GitTexSourceFetcher
     tex_resolver: KpsewhichTexPathResolver
+    tex_builders: Mapping[str, TexPackageBuilder]
 
 
 def create_services() -> Services:
@@ -73,6 +76,7 @@ def create_services() -> Services:
         tex_store=FileTexSnapshotStore(),
         tex_source_fetcher=GitTexSourceFetcher(),
         tex_resolver=KpsewhichTexPathResolver(),
+        tex_builders={"l3build": L3BuildTexPackageBuilder()},
     )
 
 
@@ -82,7 +86,7 @@ def _tex_runtime_services(services: Services) -> TexRuntimeServices:
         config_loader=services.config_loader,
         resolver=services.tex_resolver,
         store=services.tex_store,
-        supported_builders=frozenset(),
+        supported_builders=frozenset(services.tex_builders),
     )
 
 
@@ -114,7 +118,7 @@ def tex_install(workspace_root: Optional[Path] = None) -> TexDependencyResult:
         TexInstallServices(
             runtime=runtime,
             source_fetcher=services.tex_source_fetcher,
-            builders={},
+            builders=services.tex_builders,
             lock_manager=services.lock_manager,
         ),
     )

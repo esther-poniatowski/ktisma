@@ -70,7 +70,7 @@ execution, and system probing but does not own business policy.
 | `latexmk.py` | `LatexmkRunner` | `BackendRunner` |
 | `latexmk.py` | `LatexmkWatchSession` | `WatchSession` |
 | `prerequisites.py` | `SystemPrerequisiteProbe` | `PrerequisiteProbe` |
-| `tex_dependencies.py` | `GitTexSourceFetcher`, `KpsewhichTexPathResolver`, `FileTexSnapshotStore` | TeX dependency protocols |
+| `tex_dependencies.py` | `GitTexSourceFetcher`, `L3BuildTexPackageBuilder`, `KpsewhichTexPathResolver`, `FileTexSnapshotStore` | TeX dependency protocols |
 
 `workspace.py` also provides the standalone function `resolve_workspace_root()` for workspace root
 resolution.
@@ -235,7 +235,7 @@ src/ktisma/
 │   ├── materialize.py       FileMaterializer
 │   ├── latexmk.py           LatexmkRunner, LatexmkWatchSession
 │   ├── prerequisites.py     SystemPrerequisiteProbe
-│   └── tex_dependencies.py  Git, kpsewhich, and snapshot-store adapters
+│   └── tex_dependencies.py  Git, l3build, kpsewhich, and snapshot-store adapters
 ├── adapters/
 │   ├── cli.py               CLI argument parsing and command handlers
 │   ├── bootstrap.py         Composition root

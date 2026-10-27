@@ -107,6 +107,8 @@ def test_install_publishes_a_verifiable_snapshot(tmp_path: Path) -> None:
     checked = execute_tex_check(tmp_path, services.runtime)
 
     assert installed.exit_code == ExitCode.SUCCESS
+    assert installed.resolved_entrypoints["fixture:fixture.sty"].is_file()
+    assert "tex-staging" not in str(installed.resolved_entrypoints["fixture:fixture.sty"])
     assert checked.exit_code == ExitCode.SUCCESS
     assert checked.texmf_root is not None
     assert checked.texmf_root.is_absolute()

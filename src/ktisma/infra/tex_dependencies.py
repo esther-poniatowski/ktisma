@@ -11,6 +11,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
+from ..domain.config import TexDependency
 from ..domain.tex_dependencies import InstalledFile, TexReceipt, sha256_bytes
 
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
@@ -60,6 +61,27 @@ class KpsewhichTexPathResolver:
         if result.returncode != 0 or not result.stdout.strip():
             return None
         return Path(result.stdout.strip())
+
+
+class L3BuildTexPackageBuilder:
+    """Install an l3build package through its ordinary runtime target."""
+
+    def install(self, dependency: TexDependency, checkout: Path, texmf_root: Path) -> None:
+        texmf_root.mkdir(parents=True, exist_ok=True)
+        result = subprocess.run(
+            ["l3build", "install", "--texmfhome", str(texmf_root.resolve())],
+            cwd=checkout,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        if result.returncode != 0:
+            message = result.stderr.strip() or result.stdout.strip()
+            raise RuntimeError(
+                f"{dependency.name}: l3build installation failed"
+                + (f": {message}" if message else ".")
+            )
 
 
 class FileTexSnapshotStore:

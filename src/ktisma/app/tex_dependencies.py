@@ -185,13 +185,20 @@ def _install_new_snapshot(
                 resolved_entrypoints=resolutions,
                 diagnostics=diagnostics,
             )
+        relative_resolutions = {
+            key: path.relative_to(assembled_texmf.resolve()) for key, path in resolutions.items()
+        }
         snapshot = runtime.store.publish(workspace_root, digest, staged_snapshot)
+        published_texmf = snapshot / "texmf"
         return TexDependencyResult(
             exit_code=ExitCode.SUCCESS,
             record_digest=digest,
-            texmf_root=snapshot / "texmf",
+            texmf_root=published_texmf,
             receipt=receipt,
-            resolved_entrypoints=resolutions,
+            resolved_entrypoints={
+                key: (published_texmf / relative).resolve(strict=True)
+                for key, relative in relative_resolutions.items()
+            },
         )
     except Exception as exc:
         return _failure(digest, "tex-install-failed", str(exc))
