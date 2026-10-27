@@ -251,6 +251,28 @@ that sets `KTISMA_WORKSPACE_ROOT` and delegates to the vendored ktisma entry
 point. If the wrapper already exists, the command skips creation and prints the
 VS Code configuration snippet to stdout only.
 
+### `tex install`, `tex check`, and `tex inspect`
+
+Manage the dependency closure declared by `[[tex.dependencies]]` in the workspace-root
+`.ktisma.toml`.
+
+```bash
+ktisma tex install [--workspace-root PATH] [--json]
+ktisma tex check [--workspace-root PATH] [--json]
+ktisma tex inspect [--workspace-root PATH] [--json]
+```
+
+| Command | Result |
+| --- | --- |
+| `tex install` | Fetches each exact commit, runs its registered builder, verifies the assembled tree, and selects the immutable snapshot |
+| `tex check` | Verifies the selected snapshot, its receipt, every file digest, and every declared TeX entry point |
+| `tex inspect` | Returns the same validated state with its record digest, snapshot path, receipt, and resolved entry points |
+
+Only `tex install` receives network and package-builder capabilities. The other commands and normal
+document builds can read and verify existing snapshots but cannot fetch dependencies. A normal build
+fails before invoking LaTeX when the declared snapshot is absent, stale, modified, or resolved from
+outside the managed tree.
+
 ## Exit Codes
 
 | Code | Meaning |

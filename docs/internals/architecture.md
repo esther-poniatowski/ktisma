@@ -34,6 +34,7 @@ no subprocess calls, no logging, no environment access.
 | `engine.py` | Engine detection from preamble markers and magic comments (`EngineDecision`) |
 | `routing.py` | Output path resolution from config routes, suffix conventions, and fallback (`RouteDecision`) |
 | `build_dir.py` | Build directory layout planning (`BuildDirPlan`) |
+| `tex_dependencies.py` | Canonical dependency-record digests and immutable snapshot receipts |
 | `exit_codes.py` | `ExitCode` enum (0-5) |
 | `errors.py` | Exception hierarchy: `KtismaError`, `ConfigError`, `ConfigLoadError`, `PrerequisiteError`, `LockContention` |
 
@@ -52,6 +53,7 @@ interfaces. Application modules never import concrete infrastructure modules dir
 | `doctor.py` | Prerequisite verification: latexmk, engines, Python version, TOML support, config validation |
 | `batch.py` | Build all `.tex` files in a directory (sequential, shared infrastructure) |
 | `variants.py` | Build all configured variants of a single source file |
+| `tex_dependencies.py` | Install, verify, and inspect managed TeX dependency snapshots |
 
 ### Infrastructure (`infra/`)
 
@@ -68,6 +70,7 @@ execution, and system probing but does not own business policy.
 | `latexmk.py` | `LatexmkRunner` | `BackendRunner` |
 | `latexmk.py` | `LatexmkWatchSession` | `WatchSession` |
 | `prerequisites.py` | `SystemPrerequisiteProbe` | `PrerequisiteProbe` |
+| `tex_dependencies.py` | `GitTexSourceFetcher`, `KpsewhichTexPathResolver`, `FileTexSnapshotStore` | TeX dependency protocols |
 
 `workspace.py` also provides the standalone function `resolve_workspace_root()` for workspace root
 resolution.
@@ -104,7 +107,7 @@ Adapters  ──→  Application  ──→  Domain
 
 ## Protocol Boundaries
 
-Application defines seven protocol interfaces that infrastructure must satisfy:
+The shared build path uses these protocol interfaces:
 
 | Protocol | Methods | Purpose |
 | --- | --- | --- |
@@ -115,6 +118,11 @@ Application defines seven protocol interfaces that infrastructure must satisfy:
 | `Materializer` | `materialize()` | Copy build artifacts to final destinations |
 | `WorkspaceOps` | `ensure_directory()`, `path_exists()`, `is_directory()`, `list_directory()`, `read_text()`, `write_text()`, `remove_tree()`, `glob_files()` | Filesystem operations |
 | `PrerequisiteProbe` | `check_latexmk()`, `check_engine()`, `check_python_version()`, `check_toml_support()` | System prerequisite checks |
+
+Managed TeX dependencies use narrower protocols. Install commands receive source-fetching and
+package-builder capabilities. Checks and normal builds receive only the snapshot store, TeX path
+resolver, and runtime verifier. Therefore, a document build has no dependency that could access the
+network or modify a snapshot.
 
 Two additional protocols support extension points:
 
@@ -206,6 +214,7 @@ src/ktisma/
 │   ├── engine.py            EngineDecision, detect_engine(), marker definitions
 │   ├── routing.py           RouteDecision, resolve_route(), suffix conventions
 │   ├── build_dir.py         BuildDirPlan, plan_build_dir()
+│   ├── tex_dependencies.py  Dependency record digests and snapshot receipts
 │   ├── exit_codes.py        ExitCode enum (0-5)
 │   └── errors.py            KtismaError hierarchy
 ├── app/
@@ -216,7 +225,8 @@ src/ktisma/
 │   ├── clean.py             execute_clean(), CleanResult
 │   ├── doctor.py            execute_doctor(), DoctorResult
 │   ├── batch.py             execute_batch(), BatchResult
-│   └── variants.py          execute_variants(), VariantsResult
+│   ├── variants.py          execute_variants(), VariantsResult
+│   └── tex_dependencies.py  Install, check, and inspect dependency snapshots
 ├── infra/
 │   ├── workspace.py         FileWorkspaceOps, resolve_workspace_root()
 │   ├── config_loader.py     TomlConfigLoader
@@ -224,7 +234,8 @@ src/ktisma/
 │   ├── locks.py             FileLockManager
 │   ├── materialize.py       FileMaterializer
 │   ├── latexmk.py           LatexmkRunner, LatexmkWatchSession
-│   └── prerequisites.py     SystemPrerequisiteProbe
+│   ├── prerequisites.py     SystemPrerequisiteProbe
+│   └── tex_dependencies.py  Git, kpsewhich, and snapshot-store adapters
 ├── adapters/
 │   ├── cli.py               CLI argument parsing and command handlers
 │   ├── bootstrap.py         Composition root

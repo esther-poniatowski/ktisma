@@ -6,7 +6,7 @@ import signal
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Mapping, Optional
 
 from ..domain.build_dir import BuildDirPlan, plan_build_dir
 from ..domain.config import VALID_ENGINES, CleanupPolicy, ConfigLayer, ResolvedConfig, VariantConfig
@@ -111,6 +111,36 @@ def execute_build(
             diagnostics=all_diagnostics,
         )
 
+    backend_environment: Optional[Mapping[str, str]] = None
+    if config.tex.dependencies:
+        if services.tex_runtime_verifier is None:
+            all_diagnostics.append(
+                Diagnostic(
+                    level=DiagnosticLevel.ERROR,
+                    component="tex-dependencies",
+                    code="tex-runtime-unavailable",
+                    message="Managed TeX dependencies are declared, but no runtime verifier is configured.",
+                )
+            )
+            return BuildResult(
+                exit_code=ExitCode.CONFIG_ERROR,
+                engine=engine_decision,
+                route=route_decision,
+                build_plan=build_plan,
+                diagnostics=all_diagnostics,
+            )
+        runtime_check = services.tex_runtime_verifier.verify(ctx.workspace_root)
+        all_diagnostics.extend(runtime_check.diagnostics)
+        if runtime_check.diagnostics or runtime_check.texmf_root is None:
+            return BuildResult(
+                exit_code=ExitCode.CONFIG_ERROR,
+                engine=engine_decision,
+                route=route_decision,
+                build_plan=build_plan,
+                diagnostics=all_diagnostics,
+            )
+        backend_environment = {"TEXMFHOME": str(runtime_check.texmf_root.resolve())}
+
     if request.dry_run:
         return BuildResult(
             exit_code=ExitCode.SUCCESS,
@@ -173,6 +203,7 @@ def execute_build(
                 materializer=services.materializer,
                 post_processor=services.post_processor,
                 diagnostics=all_diagnostics,
+                backend_environment=backend_environment,
             )
 
         backend_result = services.backend_runner.compile(
@@ -181,6 +212,7 @@ def execute_build(
             engine=engine_decision.engine,
             synctex=config.build.synctex,
             extra_args=extra_args,
+            environment=backend_environment,
         )
         all_diagnostics.extend(backend_result.diagnostics)
 
@@ -248,6 +280,7 @@ def _execute_watch(
     materializer: Materializer,
     post_processor: Optional[PostProcessor],
     diagnostics: list[Diagnostic],
+    backend_environment: Optional[Mapping[str, str]],
 ) -> BuildResult:
     """Execute watch mode with a long-lived backend session."""
     session = backend_runner.start_watch(
@@ -256,6 +289,7 @@ def _execute_watch(
         engine=engine_decision.engine,
         synctex=config.build.synctex,
         extra_args=_build_extra_args(variant),
+        environment=backend_environment,
     )
     produced_paths: list[Path] = []
     last_backend_result: Optional[BackendResult] = None

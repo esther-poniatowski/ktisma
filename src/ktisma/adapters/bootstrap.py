@@ -12,6 +12,15 @@ from ..app.inspect import inspect_engine, inspect_route
 from ..app.batch import execute_batch, BatchResult
 from ..app.variants import execute_variants, VariantsResult
 from ..app.protocols import BuildServices, PostProcessor
+from ..app.tex_dependencies import (
+    ConfiguredTexRuntimeVerifier,
+    TexDependencyResult,
+    TexInstallServices,
+    TexRuntimeServices,
+    execute_tex_check,
+    execute_tex_inspect,
+    execute_tex_install,
+)
 from ..domain.context import BuildRequest, SourceContext
 from ..domain.engine import EngineDecision
 from ..domain.engine import EngineRule
@@ -23,6 +32,11 @@ from ..infra.locks import FileLockManager
 from ..infra.materialize import FileMaterializer
 from ..infra.prerequisites import SystemPrerequisiteProbe
 from ..infra.source_reader import FileSourceReader
+from ..infra.tex_dependencies import (
+    FileTexSnapshotStore,
+    GitTexSourceFetcher,
+    KpsewhichTexPathResolver,
+)
 from ..infra.workspace import FileWorkspaceOps, resolve_workspace_root
 
 
@@ -33,6 +47,7 @@ class Services:
     All wiring of concrete infrastructure into application use-cases
     happens here in the composition root.
     """
+
     config_loader: TomlConfigLoader
     source_reader: FileSourceReader
     lock_manager: FileLockManager
@@ -40,6 +55,9 @@ class Services:
     materializer: FileMaterializer
     probe: SystemPrerequisiteProbe
     workspace_ops: FileWorkspaceOps
+    tex_store: FileTexSnapshotStore
+    tex_source_fetcher: GitTexSourceFetcher
+    tex_resolver: KpsewhichTexPathResolver
 
 
 def create_services() -> Services:
@@ -52,6 +70,19 @@ def create_services() -> Services:
         materializer=FileMaterializer(),
         probe=SystemPrerequisiteProbe(),
         workspace_ops=FileWorkspaceOps(),
+        tex_store=FileTexSnapshotStore(),
+        tex_source_fetcher=GitTexSourceFetcher(),
+        tex_resolver=KpsewhichTexPathResolver(),
+    )
+
+
+def _tex_runtime_services(services: Services) -> TexRuntimeServices:
+    """Bundle the read-only services available to checks and builds."""
+    return TexRuntimeServices(
+        config_loader=services.config_loader,
+        resolver=services.tex_resolver,
+        store=services.tex_store,
+        supported_builders=frozenset(),
     )
 
 
@@ -69,6 +100,39 @@ def _build_services(
         prerequisite_probe=services.probe,
         workspace_ops=services.workspace_ops,
         post_processor=post_processor,
+        tex_runtime_verifier=ConfiguredTexRuntimeVerifier(_tex_runtime_services(services)),
+    )
+
+
+def tex_install(workspace_root: Optional[Path] = None) -> TexDependencyResult:
+    """Install the declared TeX dependency closure."""
+    services = create_services()
+    root = _resolve_tex_workspace(workspace_root)
+    runtime = _tex_runtime_services(services)
+    return execute_tex_install(
+        root,
+        TexInstallServices(
+            runtime=runtime,
+            source_fetcher=services.tex_source_fetcher,
+            builders={},
+            lock_manager=services.lock_manager,
+        ),
+    )
+
+
+def tex_check(workspace_root: Optional[Path] = None) -> TexDependencyResult:
+    """Validate the selected TeX dependency snapshot."""
+    services = create_services()
+    return execute_tex_check(
+        _resolve_tex_workspace(workspace_root), _tex_runtime_services(services)
+    )
+
+
+def tex_inspect(workspace_root: Optional[Path] = None) -> TexDependencyResult:
+    """Inspect the selected TeX dependency snapshot."""
+    services = create_services()
+    return execute_tex_inspect(
+        _resolve_tex_workspace(workspace_root), _tex_runtime_services(services)
     )
 
 
@@ -226,4 +290,12 @@ def _make_context(
         source_file=source_file,
         source_dir=source_dir,
         workspace_root=workspace_root,
+    )
+
+
+def _resolve_tex_workspace(workspace_root: Optional[Path]) -> Path:
+    return resolve_workspace_root(
+        cli_workspace_root=workspace_root,
+        adapter_workspace_root=None,
+        source_dir=Path.cwd(),
     )

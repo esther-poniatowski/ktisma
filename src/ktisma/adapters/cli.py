@@ -58,7 +58,9 @@ def _build_parser() -> argparse.ArgumentParser:
     build_parser.add_argument("--dry-run", action="store_true", help="Show plan without building")
     build_parser.add_argument("--variant", help="Build a specific variant")
     build_parser.add_argument("--variant-payload", help="Explicit variant TeX payload")
-    build_parser.add_argument("--cleanup", choices=["never", "on_success", "on_output_success", "always"])
+    build_parser.add_argument(
+        "--cleanup", choices=["never", "on_success", "on_output_success", "always"]
+    )
     build_parser.add_argument("--json", action="store_true", help="JSON output")
     build_parser.set_defaults(func=_cmd_build)
 
@@ -142,6 +144,23 @@ def _build_parser() -> argparse.ArgumentParser:
     init_parser.add_argument("--workspace-root", type=Path, help="Workspace root directory")
     init_parser.set_defaults(func=_cmd_init)
 
+    # --- tex ---
+    tex_parser = subparsers.add_parser("tex", help="Manage declared TeX dependencies")
+    tex_sub = tex_parser.add_subparsers(dest="tex_command")
+    for name, help_text, handler in (
+        (
+            "install",
+            "Install and select the declared dependency snapshot",
+            _cmd_tex_install,
+        ),
+        ("check", "Validate the selected dependency snapshot", _cmd_tex_check),
+        ("inspect", "Inspect the selected dependency snapshot", _cmd_tex_inspect),
+    ):
+        command = tex_sub.add_parser(name, help=help_text)
+        command.add_argument("--workspace-root", type=Path)
+        command.add_argument("--json", action="store_true")
+        command.set_defaults(func=handler)
+
     return parser
 
 
@@ -150,10 +169,10 @@ def _cmd_build(args: argparse.Namespace) -> int:
         watch=args.watch,
         dry_run=args.dry_run,
         engine_override=args.engine,
-        output_path_override=args.output.expanduser().resolve() if args.output else None,
-        output_dir_override=args.output_dir.expanduser().resolve() if args.output_dir else None,
+        output_path_override=(args.output.expanduser().resolve() if args.output else None),
+        output_dir_override=(args.output_dir.expanduser().resolve() if args.output_dir else None),
         variant=args.variant,
-        variant_payload=args.variant_payload if hasattr(args, "variant_payload") else None,
+        variant_payload=(args.variant_payload if hasattr(args, "variant_payload") else None),
         json_output=args.json,
         cleanup_override=args.cleanup,
     )
@@ -205,8 +224,8 @@ def _cmd_inspect_engine(args: argparse.Namespace) -> int:
 
 def _cmd_inspect_route(args: argparse.Namespace) -> int:
     request = BuildRequest(
-        output_path_override=args.output.expanduser().resolve() if args.output else None,
-        output_dir_override=args.output_dir.expanduser().resolve() if args.output_dir else None,
+        output_path_override=(args.output.expanduser().resolve() if args.output else None),
+        output_dir_override=(args.output_dir.expanduser().resolve() if args.output_dir else None),
         json_output=args.json,
     )
 
@@ -284,19 +303,21 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
     result = bootstrap.doctor(workspace_root=args.workspace_root)
 
     if args.json:
-        _print_json({
-            "exit_code": int(result.exit_code),
-            "checks": [
-                {
-                    "name": c.name,
-                    "available": c.available,
-                    "version": c.version,
-                    "message": c.message,
-                }
-                for c in result.checks
-            ],
-            "diagnostics": [d.to_dict() for d in result.diagnostics],
-        })
+        _print_json(
+            {
+                "exit_code": int(result.exit_code),
+                "checks": [
+                    {
+                        "name": c.name,
+                        "available": c.available,
+                        "version": c.version,
+                        "message": c.message,
+                    }
+                    for c in result.checks
+                ],
+                "diagnostics": [d.to_dict() for d in result.diagnostics],
+            }
+        )
     else:
         for check in result.checks:
             status = "ok" if check.available else "MISSING"
@@ -322,14 +343,16 @@ def _cmd_batch(args: argparse.Namespace) -> int:
     _print_diagnostics(result.diagnostics, args.json)
 
     if args.json:
-        _print_json({
-            "exit_code": int(result.exit_code),
-            "results": [
-                {"source": str(p), "build": _build_result_to_dict(r, p)}
-                for p, r in result.results
-            ],
-            "diagnostics": [d.to_dict() for d in result.diagnostics],
-        })
+        _print_json(
+            {
+                "exit_code": int(result.exit_code),
+                "results": [
+                    {"source": str(p), "build": _build_result_to_dict(r, p)}
+                    for p, r in result.results
+                ],
+                "diagnostics": [d.to_dict() for d in result.diagnostics],
+            }
+        )
 
     return result.exit_code
 
@@ -362,18 +385,66 @@ def _cmd_variants(args: argparse.Namespace) -> int:
     _print_diagnostics(result.diagnostics, args.json)
 
     if args.json:
-        _print_json({
-            "exit_code": int(result.exit_code),
-            "variants": [
-                {
-                    "name": v.name,
-                    "build": _build_result_to_dict(r, args.source.expanduser().resolve()),
-                }
-                for v, r in result.results
-            ],
-            "diagnostics": [d.to_dict() for d in result.diagnostics],
-        })
+        _print_json(
+            {
+                "exit_code": int(result.exit_code),
+                "variants": [
+                    {
+                        "name": v.name,
+                        "build": _build_result_to_dict(r, args.source.expanduser().resolve()),
+                    }
+                    for v, r in result.results
+                ],
+                "diagnostics": [d.to_dict() for d in result.diagnostics],
+            }
+        )
 
+    return result.exit_code
+
+
+def _cmd_tex_install(args: argparse.Namespace) -> int:
+    return _render_tex_result(bootstrap.tex_install(args.workspace_root), args.json)
+
+
+def _cmd_tex_check(args: argparse.Namespace) -> int:
+    return _render_tex_result(bootstrap.tex_check(args.workspace_root), args.json)
+
+
+def _cmd_tex_inspect(args: argparse.Namespace) -> int:
+    return _render_tex_result(bootstrap.tex_inspect(args.workspace_root), args.json)
+
+
+def _render_tex_result(result, use_json: bool) -> int:
+    _print_diagnostics(result.diagnostics, use_json)
+    data = {
+        "exit_code": int(result.exit_code),
+        "record_digest": result.record_digest,
+        "texmf_root": str(result.texmf_root) if result.texmf_root else None,
+        "receipt": result.receipt.to_dict() if result.receipt else None,
+        "declared_dependencies": [
+            {
+                "name": dependency.name,
+                "repository": dependency.repository,
+                "commit": dependency.commit,
+                "builder": dependency.builder,
+                "provides": list(dependency.provides),
+            }
+            for dependency in result.declared_dependencies
+        ],
+        "resolved_entrypoints": {
+            key: str(path) for key, path in sorted(result.resolved_entrypoints.items())
+        },
+        "diagnostics": [diagnostic.to_dict() for diagnostic in result.diagnostics],
+    }
+    if use_json:
+        _print_json(data)
+    else:
+        if result.record_digest:
+            print(f"Record: {result.record_digest}")
+        if result.texmf_root:
+            print(f"TEXMFHOME: {result.texmf_root}")
+        for entrypoint, path in sorted(result.resolved_entrypoints.items()):
+            print(f"{entrypoint}: {path}")
     return result.exit_code
 
 
@@ -419,6 +490,14 @@ def _backend_result_to_dict(result) -> Optional[dict]:
 
 def _print_backend_streams(result) -> None:
     if result.stderr:
-        print(result.stderr, file=sys.stderr, end="" if result.stderr.endswith("\n") else "\n")
+        print(
+            result.stderr,
+            file=sys.stderr,
+            end="" if result.stderr.endswith("\n") else "\n",
+        )
     if result.stdout:
-        print(result.stdout, file=sys.stderr, end="" if result.stdout.endswith("\n") else "\n")
+        print(
+            result.stdout,
+            file=sys.stderr,
+            end="" if result.stdout.endswith("\n") else "\n",
+        )

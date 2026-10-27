@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Mapping, Optional
 
 import pytest
 
@@ -14,12 +14,17 @@ from ktisma.app.build import (
     ConfigError,
     execute_build,
 )
-from ktisma.app.protocols import BackendResult, BuildServices, PrerequisiteCheck, WatchUpdate
+from ktisma.app.protocols import (
+    BackendResult,
+    BuildServices,
+    PrerequisiteCheck,
+    TexRuntimeCheck,
+    WatchUpdate,
+)
 from ktisma.domain.config import ConfigLayer, CleanupPolicy
 from ktisma.domain.context import BuildRequest, SourceContext, SourceInputs
 from ktisma.domain.diagnostics import Diagnostic, DiagnosticLevel
 from ktisma.domain.exit_codes import ExitCode
-
 
 # ===========================================================================
 # Fake / stub implementations of the protocol interfaces
@@ -110,6 +115,7 @@ class FakeBackendRunner:
         engine: str,
         synctex: bool,
         extra_args: Optional[list[str]] = None,
+        environment: Optional[Mapping[str, str]] = None,
     ) -> BackendResult:
         self.compile_calls.append(
             {
@@ -118,6 +124,7 @@ class FakeBackendRunner:
                 "engine": engine,
                 "synctex": synctex,
                 "extra_args": extra_args,
+                "environment": environment,
             }
         )
 
@@ -144,6 +151,7 @@ class FakeBackendRunner:
         engine: str,
         synctex: bool,
         extra_args: Optional[list[str]] = None,
+        environment: Optional[Mapping[str, str]] = None,
     ) -> FakeWatchSession:
         self.watch_calls.append(
             {
@@ -152,6 +160,7 @@ class FakeBackendRunner:
                 "engine": engine,
                 "synctex": synctex,
                 "extra_args": extra_args,
+                "environment": environment,
             }
         )
         pdf_path = build_dir / f"{source_file.stem}.pdf" if self._success else None
@@ -247,6 +256,16 @@ class FakeWorkspaceOps:
         return sorted(path.glob(pattern))
 
 
+class FakeTexRuntimeVerifier:
+    def __init__(self, check: TexRuntimeCheck) -> None:
+        self.check = check
+        self.calls: list[Path] = []
+
+    def verify(self, workspace_root: Path) -> TexRuntimeCheck:
+        self.calls.append(workspace_root)
+        return self.check
+
+
 # ===========================================================================
 # Helpers
 # ===========================================================================
@@ -267,6 +286,27 @@ def _default_request(**overrides) -> BuildRequest:
     return BuildRequest(**overrides)
 
 
+def _tex_layer(workspace_root: Path) -> ConfigLayer:
+    return ConfigLayer(
+        data={
+            "schema_version": 2,
+            "tex": {
+                "dependencies": [
+                    {
+                        "name": "fixture",
+                        "repository": "https://example.test/fixture.git",
+                        "commit": "0123456789abcdef0123456789abcdef01234567",
+                        "builder": "fixture",
+                        "provides": ["fixture.sty"],
+                    }
+                ]
+            },
+        },
+        source=workspace_root / ".ktisma.toml",
+        label="root config",
+    )
+
+
 def _execute_build(**kwargs) -> BuildResult:
     """Adapter: accept individual service kwargs and bundle into BuildServices."""
     kwargs.setdefault("prerequisite_probe", FakePrerequisiteProbe())
@@ -281,8 +321,81 @@ def _execute_build(**kwargs) -> BuildResult:
         prerequisite_probe=kwargs.pop("prerequisite_probe"),
         workspace_ops=kwargs.pop("workspace_ops"),
         post_processor=kwargs.pop("post_processor", None),
+        tex_runtime_verifier=kwargs.pop("tex_runtime_verifier", None),
     )
     return execute_build(services=services, **kwargs)
+
+
+def test_managed_tex_snapshot_is_verified_and_injected(tmp_path: Path) -> None:
+    ctx = _make_ctx(tmp_path)
+    texmf_root = tmp_path / ".ktisma" / "tex-snapshots" / "digest" / "texmf"
+    texmf_root.mkdir(parents=True)
+    verifier = FakeTexRuntimeVerifier(TexRuntimeCheck(texmf_root=texmf_root))
+    backend = FakeBackendRunner()
+
+    result = _execute_build(
+        ctx=ctx,
+        request=_default_request(),
+        config_loader=FakeConfigLoader([_tex_layer(tmp_path)]),
+        source_reader=FakeSourceReader(),
+        lock_manager=FakeLockManager(),
+        backend_runner=backend,
+        materializer=FakeMaterializer(),
+        tex_runtime_verifier=verifier,
+    )
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert verifier.calls == [tmp_path]
+    assert backend.compile_calls[0]["environment"] == {"TEXMFHOME": str(texmf_root.resolve())}
+
+
+def test_invalid_managed_tex_snapshot_prevents_backend_call(tmp_path: Path) -> None:
+    ctx = _make_ctx(tmp_path)
+    diagnostic = Diagnostic(
+        level=DiagnosticLevel.ERROR,
+        component="tex-dependencies",
+        code="invalid-fixture",
+        message="Fixture snapshot is invalid.",
+    )
+    verifier = FakeTexRuntimeVerifier(TexRuntimeCheck(diagnostics=[diagnostic]))
+    backend = FakeBackendRunner()
+
+    result = _execute_build(
+        ctx=ctx,
+        request=_default_request(dry_run=True),
+        config_loader=FakeConfigLoader([_tex_layer(tmp_path)]),
+        source_reader=FakeSourceReader(),
+        lock_manager=FakeLockManager(),
+        backend_runner=backend,
+        materializer=FakeMaterializer(),
+        tex_runtime_verifier=verifier,
+    )
+
+    assert result.exit_code == ExitCode.CONFIG_ERROR
+    assert backend.compile_calls == []
+    assert backend.watch_calls == []
+
+
+def test_managed_tex_snapshot_is_fixed_for_watch_session(tmp_path: Path) -> None:
+    ctx = _make_ctx(tmp_path)
+    texmf_root = tmp_path / ".ktisma" / "tex-snapshots" / "digest" / "texmf"
+    texmf_root.mkdir(parents=True)
+    verifier = FakeTexRuntimeVerifier(TexRuntimeCheck(texmf_root=texmf_root))
+    backend = FakeBackendRunner()
+
+    result = _execute_build(
+        ctx=ctx,
+        request=_default_request(watch=True),
+        config_loader=FakeConfigLoader([_tex_layer(tmp_path)]),
+        source_reader=FakeSourceReader(),
+        lock_manager=FakeLockManager(),
+        backend_runner=backend,
+        materializer=FakeMaterializer(),
+        tex_runtime_verifier=verifier,
+    )
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert backend.watch_calls[0]["environment"] == {"TEXMFHOME": str(texmf_root.resolve())}
 
 
 # ===========================================================================
@@ -823,8 +936,8 @@ class TestVariantBuilds:
                 source_reader=FakeSourceReader(),
                 lock_manager=FakeLockManager(),
                 backend_runner=FakeBackendRunner(),
-                    materializer=FakeMaterializer(),
-                )
+                materializer=FakeMaterializer(),
+            )
 
     def test_invalid_variant_name_raises_config_error(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
@@ -959,9 +1072,7 @@ class TestVariantBuilds:
 
 
 class TestMaterializationFailure:
-    def test_materialization_failure_returns_internal_error(
-        self, tmp_path: Path
-    ) -> None:
+    def test_materialization_failure_returns_internal_error(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
         result = _execute_build(
             ctx=ctx,

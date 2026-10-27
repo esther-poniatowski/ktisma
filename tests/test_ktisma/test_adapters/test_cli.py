@@ -10,10 +10,10 @@ import pytest
 from ktisma.adapters.cli import main
 from ktisma.domain.exit_codes import ExitCode
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 class _StubResult:
     """Minimal stub satisfying the interface of BuildResult and friends."""
@@ -30,6 +30,11 @@ class _StubResult:
         self.checks: list = []
         self.results: list = []
         self.reports: list = []
+        self.record_digest = None
+        self.texmf_root = None
+        self.receipt = None
+        self.declared_dependencies: tuple = ()
+        self.resolved_entrypoints: dict = {}
 
 
 class _StubDecision:
@@ -161,6 +166,20 @@ def test_build_with_workspace_root(mock_build):
     main(["build", "main.tex", "--workspace-root", "/home/user/project"])
     call_kwargs = mock_build.call_args[1]
     assert call_kwargs["workspace_root"] == Path("/home/user/project")
+
+
+@pytest.mark.parametrize(
+    ("command", "bootstrap_name"),
+    [("install", "tex_install"), ("check", "tex_check"), ("inspect", "tex_inspect")],
+)
+def test_tex_subcommands_dispatch(command, bootstrap_name):
+    with patch(f"ktisma.adapters.bootstrap.{bootstrap_name}") as mock_fn:
+        mock_fn.return_value = _StubResult()
+
+        code = main(["tex", command, "--workspace-root", "/tmp/workspace", "--json"])
+
+    assert code == ExitCode.SUCCESS
+    assert mock_fn.call_args.args == (Path("/tmp/workspace"),)
 
 
 # ---------------------------------------------------------------------------

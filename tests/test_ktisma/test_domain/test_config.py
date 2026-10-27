@@ -17,6 +17,8 @@ from ktisma.domain.config import (
     EngineConfig,
     ResolvedConfig,
     RoutingConfig,
+    TexConfig,
+    TexDependency,
     VariantConfig,
     default_config,
     merge_config_layers,
@@ -24,7 +26,6 @@ from ktisma.domain.config import (
     validate_config,
 )
 from ktisma.domain.diagnostics import DiagnosticLevel
-
 
 # ---------------------------------------------------------------------------
 # CleanupPolicy
@@ -101,6 +102,7 @@ class TestResolvedConfigDefaults:
         assert cfg.routes == {}
         assert cfg.variants == {}
         assert cfg.provenance == ["built-in defaults"]
+        assert cfg.tex == TexConfig()
 
     def test_resolved_config_requires_explicit_fields(self) -> None:
         """ResolvedConfig has no field defaults for schema_version, build, engines,
@@ -112,6 +114,7 @@ class TestResolvedConfigDefaults:
         assert isinstance(cfg.routing, RoutingConfig)
         assert cfg.routes == {}
         assert cfg.variants == {}
+        assert cfg.tex.dependencies == ()
 
     def test_frozen(self) -> None:
         cfg = default_config()
@@ -340,9 +343,15 @@ class TestResolveConfig:
 
     def test_missing_sections_use_defaults(self) -> None:
         """When no user config is provided, BUILTIN_DEFAULTS supplies all keys."""
-        merged, prov = merge_config_layers([
-            ConfigLayer(data=copy.deepcopy(BUILTIN_DEFAULTS), source=None, label="built-in defaults"),
-        ])
+        merged, prov = merge_config_layers(
+            [
+                ConfigLayer(
+                    data=copy.deepcopy(BUILTIN_DEFAULTS),
+                    source=None,
+                    label="built-in defaults",
+                ),
+            ]
+        )
         cfg = resolve_config(merged, prov)
         assert cfg.build.out_dir_name == ".ktisma_build"
         assert cfg.engines.default == "pdflatex"
@@ -350,10 +359,16 @@ class TestResolveConfig:
 
     def test_partial_section_fills_defaults(self) -> None:
         """A partial user config is merged on top of BUILTIN_DEFAULTS."""
-        merged, prov = merge_config_layers([
-            ConfigLayer(data=copy.deepcopy(BUILTIN_DEFAULTS), source=None, label="built-in defaults"),
-            ConfigLayer(data={"build": {"synctex": False}}, source=None, label="partial"),
-        ])
+        merged, prov = merge_config_layers(
+            [
+                ConfigLayer(
+                    data=copy.deepcopy(BUILTIN_DEFAULTS),
+                    source=None,
+                    label="built-in defaults",
+                ),
+                ConfigLayer(data={"build": {"synctex": False}}, source=None, label="partial"),
+            ]
+        )
         cfg = resolve_config(merged, prov)
         assert cfg.build.synctex is False
         assert cfg.build.out_dir_name == ".ktisma_build"  # from defaults
@@ -425,23 +440,33 @@ class TestValidateConfigUnknownKeys:
 class TestValidateConfigTypeMismatches:
     def test_build_not_a_table(self) -> None:
         diags = validate_config({"build": "string"})
-        assert any(d.code == "type-mismatch" and "'build' must be a table" in d.message for d in diags)
+        assert any(
+            d.code == "type-mismatch" and "'build' must be a table" in d.message for d in diags
+        )
 
     def test_engines_not_a_table(self) -> None:
         diags = validate_config({"engines": 42})
-        assert any(d.code == "type-mismatch" and "'engines' must be a table" in d.message for d in diags)
+        assert any(
+            d.code == "type-mismatch" and "'engines' must be a table" in d.message for d in diags
+        )
 
     def test_routing_not_a_table(self) -> None:
         diags = validate_config({"routing": []})
-        assert any(d.code == "type-mismatch" and "'routing' must be a table" in d.message for d in diags)
+        assert any(
+            d.code == "type-mismatch" and "'routing' must be a table" in d.message for d in diags
+        )
 
     def test_routes_not_a_table(self) -> None:
         diags = validate_config({"routes": "flat"})
-        assert any(d.code == "type-mismatch" and "'routes' must be a table" in d.message for d in diags)
+        assert any(
+            d.code == "type-mismatch" and "'routes' must be a table" in d.message for d in diags
+        )
 
     def test_variants_not_a_table(self) -> None:
         diags = validate_config({"variants": [1, 2]})
-        assert any(d.code == "type-mismatch" and "'variants' must be a table" in d.message for d in diags)
+        assert any(
+            d.code == "type-mismatch" and "'variants' must be a table" in d.message for d in diags
+        )
 
     def test_synctex_not_bool(self) -> None:
         diags = validate_config({"build": {"synctex": "yes"}})
@@ -504,11 +529,9 @@ class TestValidateConfigInvalidCleanup:
 
 
 class TestValidateConfigSchemaVersion:
-    def test_unsupported_version(self) -> None:
+    def test_version_2_ok(self) -> None:
         diags = validate_config({}, schema_version=2)
-        assert len(diags) == 1
-        assert diags[0].code == "unsupported-schema-version"
-        assert diags[0].level is DiagnosticLevel.ERROR
+        assert diags == []
 
     def test_version_1_ok(self) -> None:
         diags = validate_config({}, schema_version=1)
@@ -560,9 +583,144 @@ class TestBuiltinDefaults:
             assert section in BUILTIN_DEFAULTS
 
 
+class TestTexDependencyConfig:
+    COMMIT = "0123456789abcdef0123456789abcdef01234567"
+
+    @classmethod
+    def dependency(cls, **overrides: Any) -> dict[str, Any]:
+        result: dict[str, Any] = {
+            "name": "scholia",
+            "repository": "https://example.test/scholia.git",
+            "commit": cls.COMMIT,
+            "builder": "l3build",
+            "provides": ["scholia.sty"],
+        }
+        result.update(overrides)
+        return result
+
+    def test_version_2_accepts_dependency_record(self) -> None:
+        data = {"schema_version": 2, "tex": {"dependencies": [self.dependency()]}}
+        assert validate_config(data, schema_version=2) == []
+
+    def test_version_1_rejects_tex_section(self) -> None:
+        diags = validate_config({"tex": {"dependencies": []}}, schema_version=1)
+        assert any(d.code == "unknown-key" for d in diags)
+
+    @pytest.mark.parametrize(
+        ("data", "code"),
+        [
+            ({"tex": []}, "type-mismatch"),
+            ({"tex": {"dependencies": {}}}, "type-mismatch"),
+            ({"tex": {"dependencies": ["scholia"]}}, "type-mismatch"),
+            ({"tex": {"unknown": True}}, "unknown-key"),
+            (
+                {"tex": {"dependencies": [{"unknown": True}]}},
+                "unknown-key",
+            ),
+        ],
+    )
+    def test_tex_structure_rejects_unknown_keys_and_wrong_types(
+        self, data: dict[str, Any], code: str
+    ) -> None:
+        diags = validate_config(data, schema_version=2)
+        assert any(d.code == code for d in diags)
+
+    @pytest.mark.parametrize(
+        ("field", "value", "code"),
+        [
+            ("name", "Scholia", "invalid-tex-dependency-name"),
+            ("name", "two words", "invalid-tex-dependency-name"),
+            ("repository", "", "invalid-tex-repository"),
+            ("repository", "   ", "invalid-tex-repository"),
+            ("builder", "Custom Builder", "invalid-tex-builder-name"),
+        ],
+    )
+    def test_dependency_scalar_constraints(self, field: str, value: str, code: str) -> None:
+        data = {"tex": {"dependencies": [self.dependency(**{field: value})]}}
+        diags = validate_config(data, schema_version=2)
+        assert any(d.code == code for d in diags)
+
+    @pytest.mark.parametrize(
+        "commit",
+        ["main", "v1.0.0", "0123456", "g" * 40, "0" * 39, "0" * 41],
+    )
+    def test_commit_must_be_full_hexadecimal_hash(self, commit: str) -> None:
+        data = {"tex": {"dependencies": [self.dependency(commit=commit)]}}
+        diags = validate_config(data, schema_version=2)
+        assert any(d.code == "invalid-tex-commit" for d in diags)
+
+    def test_dependency_name_must_be_unique(self) -> None:
+        data = {
+            "tex": {
+                "dependencies": [
+                    self.dependency(),
+                    self.dependency(repository="https://example.test/other.git"),
+                ]
+            }
+        }
+        diags = validate_config(data, schema_version=2)
+        assert any(d.code == "duplicate-tex-dependency" for d in diags)
+
+    @pytest.mark.parametrize("missing", ["name", "repository", "commit", "builder", "provides"])
+    def test_every_dependency_field_is_required(self, missing: str) -> None:
+        dependency = self.dependency()
+        dependency.pop(missing)
+        diags = validate_config({"tex": {"dependencies": [dependency]}}, schema_version=2)
+        assert any(d.code == "missing-key" and missing in d.message for d in diags)
+
+    @pytest.mark.parametrize(
+        "provides",
+        [
+            [],
+            [""],
+            ["../scholia.sty"],
+            ["/scholia.sty"],
+            ["scholia.sty", "scholia.sty"],
+        ],
+    )
+    def test_provides_must_name_unique_relative_entries(self, provides: list[str]) -> None:
+        data = {"tex": {"dependencies": [self.dependency(provides=provides)]}}
+        diags = validate_config(data, schema_version=2)
+        assert any(d.code == "invalid-tex-provides" for d in diags)
+
+    def test_resolution_is_immutable_and_order_independent(self) -> None:
+        first = self.dependency(name="zeta", provides=["zeta-b.sty", "zeta-a.sty"])
+        second = self.dependency(
+            name="alpha",
+            repository="https://example.test/alpha.git",
+            commit="ABCDEF0123456789ABCDEF0123456789ABCDEF01",
+            provides=["alpha.sty"],
+        )
+        merged = _merged_with_defaults(
+            {"schema_version": 2, "tex": {"dependencies": [first, second]}}
+        )
+        cfg = resolve_config(merged, ["test"])
+        assert cfg.tex.dependencies == (
+            TexDependency(
+                name="alpha",
+                repository="https://example.test/alpha.git",
+                commit="abcdef0123456789abcdef0123456789abcdef01",
+                builder="l3build",
+                provides=("alpha.sty",),
+            ),
+            TexDependency(
+                name="zeta",
+                repository="https://example.test/scholia.git",
+                commit=self.COMMIT,
+                builder="l3build",
+                provides=("zeta-a.sty", "zeta-b.sty"),
+            ),
+        )
+        with pytest.raises(AttributeError):
+            cfg.tex.dependencies[0].commit = "0" * 40  # type: ignore[misc]
+
+
 class TestPlaceholderConfig:
     def test_valid_placeholders_and_artifact_dirs(self) -> None:
-        data = {"placeholders": {"author": "Doe"}, "routing": {"artifact_dirs": ["artifacts/*"]}}
+        data = {
+            "placeholders": {"author": "Doe"},
+            "routing": {"artifact_dirs": ["artifacts/*"]},
+        }
         assert validate_config(data) == []
         cfg = resolve_config(_merged_with_defaults(data), ["test"])
         assert cfg.placeholders == {"author": "Doe"}

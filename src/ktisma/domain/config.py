@@ -63,6 +63,20 @@ class VariantConfig:
 
 
 @dataclass(frozen=True)
+class TexDependency:
+    name: str
+    repository: str
+    commit: str
+    builder: str
+    provides: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class TexConfig:
+    dependencies: tuple[TexDependency, ...] = ()
+
+
+@dataclass(frozen=True)
 class ResolvedConfig:
     schema_version: int
     build: BuildConfig
@@ -73,12 +87,21 @@ class ResolvedConfig:
     provenance: list[str] = field(default_factory=list)
     # User-defined values substituted for `{name}` in output paths, e.g. `author`.
     placeholders: dict[str, str] = field(default_factory=dict)
+    tex: TexConfig = field(default_factory=TexConfig)
 
 
 # --- Schema validation ---
 
-SCHEMA_V1_KEYS: dict[str, set[str]] = {
-    "": {"schema_version", "build", "engines", "routing", "routes", "variants", "placeholders"},
+SCHEMA_COMMON_KEYS: dict[str, set[str]] = {
+    "": {
+        "schema_version",
+        "build",
+        "engines",
+        "routing",
+        "routes",
+        "variants",
+        "placeholders",
+    },
     "build": {"out_dir_name", "cleanup", "synctex"},
     "engines": {"default", "modern_default", "strict_detection"},
     "routing": {
@@ -93,6 +116,18 @@ SCHEMA_V1_KEYS: dict[str, set[str]] = {
     },
 }
 
+SCHEMA_TOP_LEVEL_KEYS: dict[int, set[str]] = {
+    1: set(SCHEMA_COMMON_KEYS[""]),
+    2: set(SCHEMA_COMMON_KEYS[""]) | {"tex"},
+}
+
+TEX_DEPENDENCY_KEYS: frozenset[str] = frozenset(
+    {"name", "repository", "commit", "builder", "provides"}
+)
+TEX_DEPENDENCY_NAME = re.compile(r"^[a-z][a-z0-9_-]*$")
+TEX_BUILDER_NAME = re.compile(r"^[a-z][a-z0-9_-]*$")
+FULL_GIT_COMMIT = re.compile(r"^[0-9a-fA-F]{40}$")
+
 # Placeholders that ktisma derives itself; a user-defined placeholder may not shadow them.
 BUILTIN_PLACEHOLDERS: frozenset[str] = frozenset({"stem", "artifact", "variant"})
 PLACEHOLDER_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
@@ -103,18 +138,21 @@ VALID_ENGINES: set[str] = {"pdflatex", "lualatex", "xelatex", "latex"}
 def validate_config(data: dict[str, Any], schema_version: int = 1) -> list[Diagnostic]:
     diagnostics: list[Diagnostic] = []
 
-    if schema_version != 1:
+    if schema_version not in SCHEMA_TOP_LEVEL_KEYS:
         diagnostics.append(
             Diagnostic(
                 level=DiagnosticLevel.ERROR,
                 component="config",
                 code="unsupported-schema-version",
-                message=f"Unsupported schema version {schema_version}; only version 1 is supported.",
+                message=(
+                    f"Unsupported schema version {schema_version}; supported versions: "
+                    f"{', '.join(str(version) for version in sorted(SCHEMA_TOP_LEVEL_KEYS))}."
+                ),
             )
         )
         return diagnostics
 
-    _validate_keys(data, "", diagnostics)
+    _validate_keys(data, "", diagnostics, schema_version=schema_version)
 
     build = data.get("build", {})
     if isinstance(build, dict):
@@ -226,7 +264,10 @@ def validate_config(data: dict[str, Any], schema_version: int = 1) -> list[Diagn
                         message=f"'routing.{key}' must be a string, got {type(val).__name__}.",
                     )
                 )
-            elif val is not None and key in {"default_filename_suffix", "variant_filename_suffix"}:
+            elif val is not None and key in {
+                "default_filename_suffix",
+                "variant_filename_suffix",
+            }:
                 _validate_filename_suffix_template(
                     section=f"routing.{key}",
                     template=val,
@@ -309,9 +350,7 @@ def validate_config(data: dict[str, Any], schema_version: int = 1) -> list[Diagn
                         level=DiagnosticLevel.ERROR,
                         component="config",
                         code="type-mismatch",
-                        message=(
-                            f"'routes' keys must be strings, got {type(pattern).__name__}."
-                        ),
+                        message=(f"'routes' keys must be strings, got {type(pattern).__name__}."),
                     )
                 )
             if not isinstance(target, str):
@@ -378,9 +417,7 @@ def validate_config(data: dict[str, Any], schema_version: int = 1) -> list[Diagn
                         level=DiagnosticLevel.ERROR,
                         component="config",
                         code="type-mismatch",
-                        message=(
-                            f"'variants' keys must be strings, got {type(name).__name__}."
-                        ),
+                        message=(f"'variants' keys must be strings, got {type(name).__name__}."),
                     )
                 )
                 continue
@@ -414,11 +451,23 @@ def validate_config(data: dict[str, Any], schema_version: int = 1) -> list[Diagn
                 continue
             _validate_variant_definition(name, definition, diagnostics)
 
+    if schema_version == 2:
+        _validate_tex_config(data.get("tex", {}), diagnostics)
+
     return diagnostics
 
 
-def _validate_keys(data: dict[str, Any], section: str, diagnostics: list[Diagnostic]) -> None:
-    allowed = SCHEMA_V1_KEYS.get(section)
+def _validate_keys(
+    data: dict[str, Any],
+    section: str,
+    diagnostics: list[Diagnostic],
+    schema_version: int = 1,
+) -> None:
+    allowed = (
+        SCHEMA_TOP_LEVEL_KEYS.get(schema_version)
+        if section == ""
+        else SCHEMA_COMMON_KEYS.get(section)
+    )
     if allowed is None:
         return
     for key in data:
@@ -429,9 +478,207 @@ def _validate_keys(data: dict[str, Any], section: str, diagnostics: list[Diagnos
                     level=DiagnosticLevel.ERROR,
                     component="config",
                     code="unknown-key",
-                    message=f"{prefix} is not a recognized key in schema version 1.",
+                    message=(
+                        f"{prefix} is not a recognized key in schema version " f"{schema_version}."
+                    ),
                 )
             )
+
+
+def _validate_tex_config(tex: Any, diagnostics: list[Diagnostic]) -> None:
+    if not isinstance(tex, dict):
+        diagnostics.append(
+            Diagnostic(
+                level=DiagnosticLevel.ERROR,
+                component="config",
+                code="type-mismatch",
+                message="'tex' must be a table.",
+            )
+        )
+        return
+
+    for key in tex:
+        if key != "dependencies":
+            diagnostics.append(
+                Diagnostic(
+                    level=DiagnosticLevel.ERROR,
+                    component="config",
+                    code="unknown-key",
+                    message=f"'tex.{key}' is not a recognized key in schema version 2.",
+                )
+            )
+
+    dependencies = tex.get("dependencies", [])
+    if not isinstance(dependencies, list):
+        diagnostics.append(
+            Diagnostic(
+                level=DiagnosticLevel.ERROR,
+                component="config",
+                code="type-mismatch",
+                message="'tex.dependencies' must be an array of tables.",
+            )
+        )
+        return
+
+    names: set[str] = set()
+    for index, dependency in enumerate(dependencies):
+        path = f"tex.dependencies[{index}]"
+        if not isinstance(dependency, dict):
+            diagnostics.append(
+                Diagnostic(
+                    level=DiagnosticLevel.ERROR,
+                    component="config",
+                    code="type-mismatch",
+                    message=f"'{path}' must be a table.",
+                )
+            )
+            continue
+
+        for key in dependency:
+            if key not in TEX_DEPENDENCY_KEYS:
+                diagnostics.append(
+                    Diagnostic(
+                        level=DiagnosticLevel.ERROR,
+                        component="config",
+                        code="unknown-key",
+                        message=f"'{path}.{key}' is not recognized in schema version 2.",
+                    )
+                )
+
+        missing = sorted(TEX_DEPENDENCY_KEYS - dependency.keys())
+        for key in missing:
+            diagnostics.append(
+                Diagnostic(
+                    level=DiagnosticLevel.ERROR,
+                    component="config",
+                    code="missing-key",
+                    message=f"'{path}.{key}' is required.",
+                )
+            )
+
+        name = dependency.get("name")
+        if not isinstance(name, str):
+            _tex_type_mismatch(path, "name", "a string", name, diagnostics)
+        elif not TEX_DEPENDENCY_NAME.fullmatch(name):
+            diagnostics.append(
+                Diagnostic(
+                    level=DiagnosticLevel.ERROR,
+                    component="config",
+                    code="invalid-tex-dependency-name",
+                    message=(
+                        f"'{path}.name' must start with a lowercase letter and contain only "
+                        "lowercase letters, numbers, underscores, and dashes."
+                    ),
+                )
+            )
+        elif name in names:
+            diagnostics.append(
+                Diagnostic(
+                    level=DiagnosticLevel.ERROR,
+                    component="config",
+                    code="duplicate-tex-dependency",
+                    message=f"TeX dependency name '{name}' is declared more than once.",
+                )
+            )
+        else:
+            names.add(name)
+
+        repository = dependency.get("repository")
+        if not isinstance(repository, str):
+            _tex_type_mismatch(path, "repository", "a string", repository, diagnostics)
+        elif not repository.strip():
+            diagnostics.append(
+                Diagnostic(
+                    level=DiagnosticLevel.ERROR,
+                    component="config",
+                    code="invalid-tex-repository",
+                    message=f"'{path}.repository' must not be empty.",
+                )
+            )
+
+        commit = dependency.get("commit")
+        if not isinstance(commit, str):
+            _tex_type_mismatch(path, "commit", "a string", commit, diagnostics)
+        elif not FULL_GIT_COMMIT.fullmatch(commit):
+            diagnostics.append(
+                Diagnostic(
+                    level=DiagnosticLevel.ERROR,
+                    component="config",
+                    code="invalid-tex-commit",
+                    message=f"'{path}.commit' must be a full 40-character hexadecimal commit.",
+                )
+            )
+
+        builder = dependency.get("builder")
+        if not isinstance(builder, str):
+            _tex_type_mismatch(path, "builder", "a string", builder, diagnostics)
+        elif not TEX_BUILDER_NAME.fullmatch(builder):
+            diagnostics.append(
+                Diagnostic(
+                    level=DiagnosticLevel.ERROR,
+                    component="config",
+                    code="invalid-tex-builder-name",
+                    message=f"'{path}.builder' is not a valid builder identifier.",
+                )
+            )
+
+        provides = dependency.get("provides")
+        if not isinstance(provides, list):
+            _tex_type_mismatch(path, "provides", "an array of strings", provides, diagnostics)
+        elif not provides:
+            diagnostics.append(
+                Diagnostic(
+                    level=DiagnosticLevel.ERROR,
+                    component="config",
+                    code="invalid-tex-provides",
+                    message=f"'{path}.provides' must name at least one TeX entry point.",
+                )
+            )
+        else:
+            seen_provides: set[str] = set()
+            for entry in provides:
+                if not isinstance(entry, str):
+                    _tex_type_mismatch(
+                        path, "provides", "an array of strings", provides, diagnostics
+                    )
+                    break
+                entry_path = Path(entry)
+                if (
+                    not entry
+                    or entry_path.is_absolute()
+                    or ".." in entry_path.parts
+                    or entry in seen_provides
+                ):
+                    diagnostics.append(
+                        Diagnostic(
+                            level=DiagnosticLevel.ERROR,
+                            component="config",
+                            code="invalid-tex-provides",
+                            message=(
+                                f"'{path}.provides' entries must be unique, non-empty, "
+                                "relative TeX paths without parent traversal."
+                            ),
+                        )
+                    )
+                    break
+                seen_provides.add(entry)
+
+
+def _tex_type_mismatch(
+    path: str,
+    key: str,
+    expected: str,
+    value: Any,
+    diagnostics: list[Diagnostic],
+) -> None:
+    diagnostics.append(
+        Diagnostic(
+            level=DiagnosticLevel.ERROR,
+            component="config",
+            code="type-mismatch",
+            message=(f"'{path}.{key}' must be {expected}, got {type(value).__name__}."),
+        )
+    )
 
 
 def _validate_variant_definition(
@@ -588,11 +835,7 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> None:
     - Routes and variants merge by exact key (handled naturally since they are flat dicts).
     """
     for key, value in override.items():
-        if (
-            key in base
-            and isinstance(base[key], dict)
-            and isinstance(value, dict)
-        ):
+        if key in base and isinstance(base[key], dict) and isinstance(value, dict):
             _deep_merge(base[key], value)
         else:
             base[key] = value
@@ -706,6 +949,23 @@ def resolve_config(merged: dict[str, Any], provenance: list[str]) -> ResolvedCon
         },
         provenance=list(provenance),
         placeholders=dict(merged.get("placeholders", {})),
+        tex=TexConfig(
+            dependencies=tuple(
+                sorted(
+                    (
+                        TexDependency(
+                            name=dependency["name"],
+                            repository=dependency["repository"],
+                            commit=dependency["commit"].lower(),
+                            builder=dependency["builder"],
+                            provides=tuple(sorted(dependency["provides"])),
+                        )
+                        for dependency in merged.get("tex", {}).get("dependencies", [])
+                    ),
+                    key=lambda dependency: dependency.name,
+                )
+            )
+        ),
     )
 
 

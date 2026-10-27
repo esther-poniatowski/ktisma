@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Protocol
+from typing import Mapping, Optional, Protocol
 
 from ..domain.config import ConfigLayer
 from ..domain.context import SourceContext, SourceInputs, VariantSpec
@@ -10,9 +10,7 @@ from ..domain.diagnostics import Diagnostic
 
 
 class ConfigLoader(Protocol):
-    def load_layers(
-        self, workspace_root: Path, source_dir: Path
-    ) -> list[ConfigLayer]:
+    def load_layers(self, workspace_root: Path, source_dir: Path) -> list[ConfigLayer]:
         """Load config layers from workspace root to source directory.
 
         Returns layers ordered from lowest to highest precedence
@@ -79,6 +77,7 @@ class BackendRunner(Protocol):
         engine: str,
         synctex: bool,
         extra_args: Optional[list[str]] = None,
+        environment: Optional[Mapping[str, str]] = None,
     ) -> BackendResult:
         """Run the compilation backend and return structured results."""
         ...
@@ -90,8 +89,23 @@ class BackendRunner(Protocol):
         engine: str,
         synctex: bool,
         extra_args: Optional[list[str]] = None,
+        environment: Optional[Mapping[str, str]] = None,
     ) -> WatchSession:
         """Launch the backend in continuous watch mode."""
+        ...
+
+
+@dataclass(frozen=True)
+class TexRuntimeCheck:
+    """Result of validating the selected managed TeX snapshot."""
+
+    texmf_root: Optional[Path] = None
+    diagnostics: list[Diagnostic] = field(default_factory=list)
+
+
+class TexRuntimeVerifier(Protocol):
+    def verify(self, workspace_root: Path) -> TexRuntimeCheck:
+        """Validate the selected snapshot without fetching or installing packages."""
         ...
 
 
@@ -192,3 +206,4 @@ class BuildServices:
     prerequisite_probe: PrerequisiteProbe
     workspace_ops: WorkspaceOps
     post_processor: Optional[PostProcessor] = None
+    tex_runtime_verifier: Optional[TexRuntimeVerifier] = None

@@ -47,7 +47,7 @@ filename_suffix = "_review"
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `schema_version` | integer | `1` | Config schema version. When absent, version 1 is assumed. |
+| `schema_version` | integer | `1` | Config schema version. Version 2 enables managed TeX dependencies. |
 
 ### `[build]`
 
@@ -129,6 +129,37 @@ filename_suffix = "_handout"
 Variant names must match the pattern `^[a-zA-Z][a-zA-Z0-9_-]*$` and be safe for use in
 filenames.
 
+### `[[tex.dependencies]]`
+
+Schema version 2 lets the workspace root declare a reproducible TeX dependency closure. Each
+dependency names an exact Git commit, one registered builder, and the files that TeX must resolve
+after installation.
+
+```toml
+schema_version = 2
+
+[[tex.dependencies]]
+name = "scholia"
+repository = "https://github.com/esther-poniatowski/scholia.git"
+commit = "0123456789abcdef0123456789abcdef01234567"
+builder = "l3build"
+provides = ["scholia.sty"]
+```
+
+| Key | Constraint |
+| --- | --- |
+| `name` | Unique lowercase identifier |
+| `repository` | Nonempty Git repository location |
+| `commit` | Full 40-character Git commit hash |
+| `builder` | Identifier registered by the installed Ktisma adapters |
+| `provides` | Nonempty list of unique relative TeX entry-point paths |
+
+Only the workspace-root `.ktisma.toml` may declare this table. Directory overlays and command-line
+configuration layers cannot replace or extend the closure. Run `ktisma tex install` after changing
+the record. Normal builds verify the selected snapshot without network access and pass its absolute
+path to TeX as `TEXMFHOME`. The `.ktisma/` state directory is machine-local and should be ignored
+by version control.
+
 ## Configuration Precedence
 
 Highest priority first:
@@ -147,6 +178,7 @@ Highest priority first:
 | Routing | `--output` > `--output-dir` > variant `output` > `% !ktisma output` > custom route resolvers > `[routes]` > `[routing]` suffix convention > fallback beside source |
 | Cleanup | CLI > nearest config > workspace config > built-in default |
 | Variants | CLI explicit variant > config-defined variant map |
+| TeX dependencies | Workspace-root declaration only; overlays are rejected |
 
 ## Merge Semantics
 
@@ -248,6 +280,7 @@ Paths in magic comments resolve relative to the source file's directory.
 The top-level `schema_version` key declares which config schema the file targets:
 
 - When absent, schema version 1 is assumed.
+- Version 2 adds `[[tex.dependencies]]`.
 - Keys introduced in a later schema version are errors under an earlier version.
 - Explicit versioning allows config files to opt into new features without breaking older ktisma installations.
 

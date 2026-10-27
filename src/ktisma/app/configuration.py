@@ -31,9 +31,18 @@ def load_resolved_config(
             label="built-in defaults",
         )
     ]
-    layers.extend(config_loader.load_layers(workspace_root, source_dir))
-    if extra_layers:
-        layers.extend(layer for layer in extra_layers if layer.data)
+    file_layers = config_loader.load_layers(workspace_root, source_dir)
+    additional_layers = [layer for layer in extra_layers if layer.data] if extra_layers else []
+    scope_diagnostics = _validate_tex_dependency_scope(
+        workspace_root, [*file_layers, *additional_layers]
+    )
+    if scope_diagnostics:
+        raise ConfigError(
+            "Configuration validation failed with " f"{len(scope_diagnostics)} error(s).",
+            diagnostics=scope_diagnostics,
+        )
+    layers.extend(file_layers)
+    layers.extend(additional_layers)
 
     merged, provenance = merge_config_layers(layers)
 
@@ -48,3 +57,29 @@ def load_resolved_config(
         )
 
     return resolve_config(merged, provenance), diagnostics
+
+
+def _validate_tex_dependency_scope(
+    workspace_root: Path,
+    layers: list[ConfigLayer],
+) -> list[Diagnostic]:
+    """Reject TeX dependency declarations outside the workspace-root config."""
+    root_config = (workspace_root / ".ktisma.toml").resolve()
+    diagnostics: list[Diagnostic] = []
+    for layer in layers:
+        if "tex" not in layer.data:
+            continue
+        if layer.source is not None and layer.source.resolve() == root_config:
+            continue
+        diagnostics.append(
+            Diagnostic(
+                level=DiagnosticLevel.ERROR,
+                component="config",
+                code="tex-dependencies-not-root",
+                message=(
+                    "TeX dependencies may be declared only in the workspace-root "
+                    f".ktisma.toml; found a declaration in {layer.label}."
+                ),
+            )
+        )
+    return diagnostics

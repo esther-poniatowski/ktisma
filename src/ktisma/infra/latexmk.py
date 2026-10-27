@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Mapping, Optional
 
 from ..app.protocols import BackendResult, WatchSession, WatchUpdate
 from ..domain.diagnostics import Diagnostic, DiagnosticLevel
@@ -19,6 +20,7 @@ class LatexmkRunner:
         engine: str,
         synctex: bool,
         extra_args: Optional[list[str]] = None,
+        environment: Optional[Mapping[str, str]] = None,
     ) -> BackendResult:
         """Run latexmk for a one-shot compilation."""
         args = self._build_args(source_file, build_dir, engine, synctex, extra_args)
@@ -30,6 +32,7 @@ class LatexmkRunner:
                 encoding="utf-8",
                 errors="replace",
                 cwd=str(source_file.parent),
+                env=_merged_environment(environment),
                 timeout=600,
             )
         except subprocess.TimeoutExpired:
@@ -101,11 +104,12 @@ class LatexmkRunner:
         engine: str,
         synctex: bool,
         extra_args: Optional[list[str]] = None,
+        environment: Optional[Mapping[str, str]] = None,
     ) -> WatchSession:
         """Launch latexmk in continuous watch mode (latexmk -pvc)."""
         args = self._build_args(source_file, build_dir, engine, synctex, extra_args)
         args.append("-pvc")
-        return LatexmkWatchSession(source_file, build_dir, args)
+        return LatexmkWatchSession(source_file, build_dir, args, environment)
 
     def _build_args(
         self,
@@ -139,11 +143,18 @@ class LatexmkRunner:
 class LatexmkWatchSession:
     """Polling watch session over a live latexmk -pvc subprocess."""
 
-    def __init__(self, source_file: Path, build_dir: Path, args: list[str]) -> None:
+    def __init__(
+        self,
+        source_file: Path,
+        build_dir: Path,
+        args: list[str],
+        environment: Optional[Mapping[str, str]] = None,
+    ) -> None:
         self._source_file = source_file
         self._pdf_path = build_dir / f"{source_file.stem}.pdf"
         self._returned_final = False
         self._last_pdf_mtime = self._pdf_mtime()
+        self._process: Optional[subprocess.Popen[str]]
 
         try:
             self._process = subprocess.Popen(
@@ -152,6 +163,7 @@ class LatexmkWatchSession:
                 stdout=None,
                 stderr=None,
                 text=True,
+                env=_merged_environment(environment),
             )
             self._startup_error: Optional[BackendResult] = None
         except FileNotFoundError:
@@ -251,3 +263,11 @@ def _engine_to_flag(engine: str) -> str:
         "latex": "-pdfdvi",
     }
     return mapping.get(engine, f"-{engine}")
+
+
+def _merged_environment(overrides: Optional[Mapping[str, str]]) -> dict[str, str]:
+    """Return the process environment with explicit build overrides applied."""
+    environment = os.environ.copy()
+    if overrides:
+        environment.update(overrides)
+    return environment
