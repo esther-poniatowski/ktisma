@@ -46,7 +46,8 @@ def load_resolved_config(
 
     merged, provenance = merge_config_layers(layers)
 
-    schema_version = merged.get("schema_version", 1)
+    schema_version = _workspace_schema_version(workspace_root, file_layers)
+    merged["schema_version"] = schema_version
     diagnostics = validate_config(merged, schema_version)
 
     errors = [d for d in diagnostics if d.level == DiagnosticLevel.ERROR]
@@ -57,6 +58,22 @@ def load_resolved_config(
         )
 
     return resolve_config(merged, provenance), diagnostics
+
+
+def _workspace_schema_version(
+    workspace_root: Path,
+    file_layers: list[ConfigLayer],
+) -> int:
+    """Return the schema version selected by the workspace-root config.
+
+    Nested configs declare the syntax of their own layer. They do not downgrade
+    capabilities selected by the workspace root when the layers are resolved.
+    """
+    root_config = (workspace_root / ".ktisma.toml").resolve()
+    for layer in file_layers:
+        if layer.source is not None and layer.source.resolve() == root_config:
+            return int(layer.data.get("schema_version", 1))
+    return 1
 
 
 def _validate_tex_dependency_scope(

@@ -127,3 +127,33 @@ def test_overlay_without_tex_dependencies_remains_valid(tmp_path: Path) -> None:
     assert diagnostics == []
     assert config.build.synctex is False
     assert [dependency.name for dependency in config.tex.dependencies] == ["fixture"]
+
+
+def test_overlay_schema_version_does_not_downgrade_workspace(tmp_path: Path) -> None:
+    source_dir = tmp_path / "documents"
+    source_dir.mkdir()
+    root_config = tmp_path / ".ktisma.toml"
+    overlay = source_dir / ".ktisma.toml"
+    loader = FakeConfigLoader(
+        [
+            ConfigLayer(
+                data=_tex_data(),
+                source=root_config,
+                base_dir=tmp_path,
+                label=str(root_config),
+            ),
+            ConfigLayer(
+                data={"schema_version": 1, "build": {"synctex": False}},
+                source=overlay,
+                base_dir=source_dir,
+                label=str(overlay),
+            ),
+        ]
+    )
+
+    config, diagnostics = load_resolved_config(tmp_path, source_dir, loader)
+
+    assert diagnostics == []
+    assert config.schema_version == 2
+    assert config.build.synctex is False
+    assert [dependency.name for dependency in config.tex.dependencies] == ["fixture"]

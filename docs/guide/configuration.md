@@ -195,6 +195,9 @@ When multiple config layers are present, they merge with these rules:
 - **`[routes]`** merges by exact pattern key. If the same glob pattern appears in multiple
   layers, the higher-precedence layer wins for that pattern.
 - **`[variants]`** merges by exact variant name, same as routes.
+- **`schema_version`** in the workspace-root config governs the resolved workspace. A nested
+  config declares the syntax of its own layer but cannot downgrade capabilities enabled at
+  the root.
 
 ### Example
 
