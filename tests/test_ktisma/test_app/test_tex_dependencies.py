@@ -10,6 +10,7 @@ from ktisma.app.tex_dependencies import (
     execute_tex_check,
     execute_tex_inspect,
     execute_tex_install,
+    execute_tex_resolve,
 )
 from ktisma.domain.config import ConfigLayer, TexDependency
 from ktisma.domain.exit_codes import ExitCode
@@ -171,6 +172,19 @@ def test_global_resolution_is_rejected(tmp_path: Path) -> None:
     assert result.diagnostics[0].code == "tex-entrypoint-outside-snapshot"
 
 
+def test_entrypoint_must_be_owned_by_its_qualified_provider(tmp_path: Path) -> None:
+    first = _dependency("first")
+    second = _dependency("second")
+    first["provides"] = ["shared.palette.yml"]
+    second["provides"] = ["shared.palette.yml"]
+    services = _services([first, second])
+
+    result = execute_tex_install(tmp_path, services)
+
+    assert result.exit_code == ExitCode.CONFIG_ERROR
+    assert result.diagnostics[0].code == "tex-entrypoint-provider-mismatch"
+
+
 def test_symlink_installed_by_builder_is_rejected(tmp_path: Path) -> None:
     services = _services([_dependency()], builder=FixtureBuilder(symlink=True))
 
@@ -187,3 +201,40 @@ def test_inspect_reports_declaration_when_snapshot_is_missing(tmp_path: Path) ->
 
     assert result.exit_code == ExitCode.CONFIG_ERROR
     assert [dependency.name for dependency in result.declared_dependencies] == ["fixture"]
+
+
+def test_resolve_returns_one_declared_entrypoint(tmp_path: Path) -> None:
+    services = _services([_dependency()])
+    execute_tex_install(tmp_path, services)
+
+    result = execute_tex_resolve(tmp_path, "fixture:fixture.sty", services.runtime)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.reference == "fixture:fixture.sty"
+    assert result.path is not None
+    assert result.path.is_file()
+    assert result.record_digest is not None
+
+
+def test_resolve_rejects_an_undeclared_reference(tmp_path: Path) -> None:
+    services = _services([_dependency()])
+    execute_tex_install(tmp_path, services)
+
+    result = execute_tex_resolve(tmp_path, "fixture:missing.yml", services.runtime)
+
+    assert result.exit_code == ExitCode.CONFIG_ERROR
+    assert result.path is None
+    assert result.diagnostics[0].code == "tex-entrypoint-undeclared"
+
+
+def test_resolve_rejects_a_modified_snapshot(tmp_path: Path) -> None:
+    services = _services([_dependency()])
+    installed = execute_tex_install(tmp_path, services)
+    assert installed.texmf_root is not None
+    next(installed.texmf_root.rglob("fixture.sty")).write_text("changed", encoding="utf-8")
+
+    result = execute_tex_resolve(tmp_path, "fixture:fixture.sty", services.runtime)
+
+    assert result.exit_code == ExitCode.CONFIG_ERROR
+    assert result.path is None
+    assert result.diagnostics[0].code == "tex-manifest-mismatch"

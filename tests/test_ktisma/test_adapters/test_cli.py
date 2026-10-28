@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -35,6 +36,8 @@ class _StubResult:
         self.receipt = None
         self.declared_dependencies: tuple = ()
         self.resolved_entrypoints: dict = {}
+        self.reference = "fixture:fixture.sty"
+        self.path = None
 
 
 class _StubDecision:
@@ -180,6 +183,47 @@ def test_tex_subcommands_dispatch(command, bootstrap_name):
 
     assert code == ExitCode.SUCCESS
     assert mock_fn.call_args.args == (Path("/tmp/workspace"),)
+
+
+@patch("ktisma.adapters.bootstrap.tex_resolve")
+def test_tex_resolve_prints_only_the_selected_path(mock_fn, capsys):
+    result = _StubResult()
+    result.path = Path("/tmp/snapshot/fixture.sty")
+    mock_fn.return_value = result
+
+    code = main(
+        [
+            "tex",
+            "resolve",
+            "fixture:fixture.sty",
+            "--workspace-root",
+            "/tmp/workspace",
+        ]
+    )
+
+    assert code == ExitCode.SUCCESS
+    assert capsys.readouterr().out == "/tmp/snapshot/fixture.sty\n"
+    assert mock_fn.call_args.args == ("fixture:fixture.sty", Path("/tmp/workspace"))
+
+
+@patch("ktisma.adapters.bootstrap.tex_resolve")
+def test_tex_resolve_json_reports_the_resolution(mock_fn, capsys):
+    result = _StubResult()
+    result.path = Path("/tmp/snapshot/fixture.sty")
+    result.record_digest = "record-digest"
+    mock_fn.return_value = result
+
+    code = main(["tex", "resolve", "fixture:fixture.sty", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == ExitCode.SUCCESS
+    assert payload == {
+        "diagnostics": [],
+        "exit_code": 0,
+        "path": "/tmp/snapshot/fixture.sty",
+        "record_digest": "record-digest",
+        "reference": "fixture:fixture.sty",
+    }
 
 
 # ---------------------------------------------------------------------------

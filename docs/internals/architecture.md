@@ -119,10 +119,12 @@ The shared build path uses these protocol interfaces:
 | `WorkspaceOps` | `ensure_directory()`, `path_exists()`, `is_directory()`, `list_directory()`, `read_text()`, `write_text()`, `remove_tree()`, `glob_files()` | Filesystem operations |
 | `PrerequisiteProbe` | `check_latexmk()`, `check_engine()`, `check_python_version()`, `check_toml_support()` | System prerequisite checks |
 
-Managed TeX dependencies use narrower protocols. Install commands receive source-fetching and
-package-builder capabilities. Checks and normal builds receive only the snapshot store, TeX path
-resolver, and runtime verifier. Therefore, a document build has no dependency that could access the
-network or modify a snapshot.
+Ktisma injects different interfaces into its managed TeX commands. `tex install` can fetch sources
+and invoke package builders. By contrast, read-only commands can only inspect the current snapshot.
+This group includes `tex check`, `tex resolve`, and normal builds.
+
+`tex resolve` first checks the snapshot and receipt. Then, the command returns the declared path only
+if the receipt assigns the file to the named provider.
 
 Two additional protocols support extension points:
 

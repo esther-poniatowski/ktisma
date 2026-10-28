@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `ktisma tex resolve`: returns the absolute path of a declared entry point only after the selected
+  snapshot and named provider pass their checks.
 - `ktisma check-log`: checks recursively discovered LaTeX logs against a zero baseline and reports
   selected measurement channels.
 - Placeholders in output paths: the output path of a `% !ktisma output` magic comment and the

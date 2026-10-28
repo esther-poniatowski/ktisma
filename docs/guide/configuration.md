@@ -132,8 +132,8 @@ filenames.
 ### `[[tex.dependencies]]`
 
 Schema version 2 lets the workspace root declare a reproducible TeX dependency closure. Each
-dependency names an exact Git commit, one registered builder, and the files that TeX must resolve
-after installation.
+dependency declares an exact Git commit, a registered builder and public package entry points.
+Ktisma resolves every declared entry point from the installed tree.
 
 ```toml
 schema_version = 2
@@ -152,11 +152,16 @@ provides = ["scholia.sty"]
 | `repository` | Nonempty Git repository location |
 | `commit` | Full 40-character Git commit hash |
 | `builder` | Identifier registered by the installed Ktisma adapters |
-| `provides` | Nonempty list of unique relative TeX entry-point paths |
+| `provides` | One or more unique package entry points resolved through the managed TeX tree |
 
 Ktisma registers the `l3build` adapter. This adapter invokes the package's ordinary
 `l3build install --texmfhome <package-tree>` target. Package-specific target names and source-tree
 paths do not enter the dependency record.
+
+A dependency can expose TeX files and companion resources as package entry points. Each exposed
+entry point has a qualified identifier of the form `<dependency-name>:<entrypoint>`. `ktisma tex
+resolve` accepts only identifiers declared by the record. Then, the command verifies that the named
+dependency owns the resolved file.
 
 Only the workspace-root `.ktisma.toml` may declare this table. Directory overlays and command-line
 configuration layers cannot replace or extend the closure. Run `ktisma tex install` after changing

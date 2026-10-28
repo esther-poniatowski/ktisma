@@ -160,6 +160,13 @@ def _build_parser() -> argparse.ArgumentParser:
         command.add_argument("--workspace-root", type=Path)
         command.add_argument("--json", action="store_true")
         command.set_defaults(func=handler)
+    resolve = tex_sub.add_parser(
+        "resolve", help="Resolve one declared entry point from the selected snapshot"
+    )
+    resolve.add_argument("reference", help="qualified entry point, DEPENDENCY:ENTRYPOINT")
+    resolve.add_argument("--workspace-root", type=Path)
+    resolve.add_argument("--json", action="store_true")
+    resolve.set_defaults(func=_cmd_tex_resolve)
 
     return parser
 
@@ -412,6 +419,24 @@ def _cmd_tex_check(args: argparse.Namespace) -> int:
 
 def _cmd_tex_inspect(args: argparse.Namespace) -> int:
     return _render_tex_result(bootstrap.tex_inspect(args.workspace_root), args.json)
+
+
+def _cmd_tex_resolve(args: argparse.Namespace) -> int:
+    result = bootstrap.tex_resolve(args.reference, args.workspace_root)
+    _print_diagnostics(result.diagnostics, args.json)
+    if args.json:
+        _print_json(
+            {
+                "exit_code": int(result.exit_code),
+                "reference": result.reference,
+                "path": str(result.path) if result.path else None,
+                "record_digest": result.record_digest,
+                "diagnostics": [diagnostic.to_dict() for diagnostic in result.diagnostics],
+            }
+        )
+    elif result.path is not None:
+        print(result.path)
+    return result.exit_code
 
 
 def _render_tex_result(result, use_json: bool) -> int:

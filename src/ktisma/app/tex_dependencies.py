@@ -75,6 +75,17 @@ class TexDependencyResult:
 
 
 @dataclass(frozen=True)
+class TexResolutionResult:
+    """One declared entry point selected from a verified TeX snapshot."""
+
+    exit_code: ExitCode
+    reference: str
+    path: Optional[Path] = None
+    record_digest: Optional[str] = None
+    diagnostics: list[Diagnostic] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class ConfiguredTexRuntimeVerifier:
     """Expose snapshot validation to builds without install-time capabilities."""
 
@@ -174,7 +185,7 @@ def _install_new_snapshot(
         receipt = TexReceipt(record_digest=digest, dependencies=tuple(installed))
         runtime.store.write_receipt(staged_snapshot / "receipt.json", receipt)
         resolutions, diagnostics = _resolve_entrypoints(
-            assembled_texmf, dependencies, runtime.resolver
+            assembled_texmf, dependencies, receipt.dependencies, runtime.resolver
         )
         if diagnostics:
             return TexDependencyResult(
@@ -236,6 +247,41 @@ def execute_tex_inspect(workspace_root: Path, services: TexRuntimeServices) -> T
     return replace(result, declared_dependencies=config.tex.dependencies)
 
 
+def execute_tex_resolve(
+    workspace_root: Path,
+    reference: str,
+    services: TexRuntimeServices,
+) -> TexResolutionResult:
+    """Resolve one qualified entry point from the verified active snapshot."""
+    checked = execute_tex_check(workspace_root, services)
+    if checked.exit_code != ExitCode.SUCCESS:
+        return TexResolutionResult(
+            exit_code=checked.exit_code,
+            reference=reference,
+            record_digest=checked.record_digest,
+            diagnostics=checked.diagnostics,
+        )
+    path = checked.resolved_entrypoints.get(reference)
+    if path is None:
+        return TexResolutionResult(
+            exit_code=ExitCode.CONFIG_ERROR,
+            reference=reference,
+            record_digest=checked.record_digest,
+            diagnostics=[
+                _diagnostic(
+                    "tex-entrypoint-undeclared",
+                    f"No declared TeX entry point has the qualified name {reference!r}.",
+                )
+            ],
+        )
+    return TexResolutionResult(
+        exit_code=ExitCode.SUCCESS,
+        reference=reference,
+        path=path,
+        record_digest=checked.record_digest,
+    )
+
+
 def _load_root_config(workspace_root: Path, services: TexRuntimeServices) -> ResolvedConfig:
     config, _ = load_resolved_config(workspace_root, workspace_root, services.config_loader)
     return config
@@ -292,7 +338,9 @@ def _check_snapshot(
             "tex-manifest-mismatch",
             "The active TeX tree differs from its receipt; run 'ktisma tex install'.",
         )
-    resolutions, diagnostics = _resolve_entrypoints(texmf_root, dependencies, services.resolver)
+    resolutions, diagnostics = _resolve_entrypoints(
+        texmf_root, dependencies, receipt.dependencies, services.resolver
+    )
     return TexDependencyResult(
         exit_code=ExitCode.CONFIG_ERROR if diagnostics else ExitCode.SUCCESS,
         record_digest=digest,
@@ -339,9 +387,14 @@ def _compare_receipt(
 def _resolve_entrypoints(
     texmf_root: Path,
     dependencies: tuple[TexDependency, ...],
+    installed_dependencies: tuple[InstalledTexDependency, ...],
     resolver: TexPathResolver,
 ) -> tuple[dict[str, Path], list[Diagnostic]]:
     root = texmf_root.resolve(strict=True)
+    owned_paths = {
+        dependency.name: {file.path for file in dependency.files}
+        for dependency in installed_dependencies
+    }
     resolutions: dict[str, Path] = {}
     diagnostics: list[Diagnostic] = []
     for dependency in sorted(dependencies, key=lambda item: item.name):
@@ -366,13 +419,22 @@ def _resolve_entrypoints(
                 continue
             try:
                 candidate = resolved.expanduser().resolve(strict=True)
-                candidate.relative_to(root)
+                relative = candidate.relative_to(root).as_posix()
             except (FileNotFoundError, ValueError):
                 diagnostics.append(
                     _diagnostic(
                         "tex-entrypoint-outside-snapshot",
                         f"{dependency.name}: {entrypoint} resolves outside the managed TeX tree: "
                         f"{resolved}.",
+                    )
+                )
+                continue
+            if relative not in owned_paths.get(dependency.name, set()):
+                diagnostics.append(
+                    _diagnostic(
+                        "tex-entrypoint-provider-mismatch",
+                        f"{dependency.name}: {entrypoint} resolves to {relative}, which is not "
+                        f"owned by {dependency.name}.",
                     )
                 )
                 continue

@@ -17,10 +17,12 @@ from ..app.tex_dependencies import (
     TexDependencyResult,
     TexInstallServices,
     TexPackageBuilder,
+    TexResolutionResult,
     TexRuntimeServices,
     execute_tex_check,
     execute_tex_inspect,
     execute_tex_install,
+    execute_tex_resolve,
 )
 from ..domain.context import BuildRequest, SourceContext
 from ..domain.engine import EngineDecision
@@ -137,6 +139,14 @@ def tex_inspect(workspace_root: Optional[Path] = None) -> TexDependencyResult:
     services = create_services()
     return execute_tex_inspect(
         _resolve_tex_workspace(workspace_root), _tex_runtime_services(services)
+    )
+
+
+def tex_resolve(reference: str, workspace_root: Optional[Path] = None) -> TexResolutionResult:
+    """Resolve one declared entry point from the selected TeX snapshot."""
+    services = create_services()
+    return execute_tex_resolve(
+        _resolve_tex_workspace(workspace_root), reference, _tex_runtime_services(services)
     )
 
 

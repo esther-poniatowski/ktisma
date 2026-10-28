@@ -251,7 +251,7 @@ that sets `KTISMA_WORKSPACE_ROOT` and delegates to the vendored ktisma entry
 point. If the wrapper already exists, the command skips creation and prints the
 VS Code configuration snippet to stdout only.
 
-### `tex install`, `tex check`, and `tex inspect`
+### `tex`
 
 Manage the dependency closure declared by `[[tex.dependencies]]` in the workspace-root
 `.ktisma.toml`.
@@ -260,6 +260,7 @@ Manage the dependency closure declared by `[[tex.dependencies]]` in the workspac
 ktisma tex install [--workspace-root PATH] [--json]
 ktisma tex check [--workspace-root PATH] [--json]
 ktisma tex inspect [--workspace-root PATH] [--json]
+ktisma tex resolve DEPENDENCY:ENTRYPOINT [--workspace-root PATH] [--json]
 ```
 
 | Command | Result |
@@ -267,11 +268,16 @@ ktisma tex inspect [--workspace-root PATH] [--json]
 | `tex install` | Fetches each exact commit, runs its registered builder, verifies the assembled tree, and selects the immutable snapshot |
 | `tex check` | Verifies the selected snapshot, its receipt, every file digest, and every declared TeX entry point |
 | `tex inspect` | Returns the same validated state with its record digest, snapshot path, receipt, and resolved entry points |
+| `tex resolve` | Verifies the selected snapshot and prints the absolute path of one qualified entry point |
 
-Only `tex install` receives network and package-builder capabilities. The other commands and normal
-document builds can read and verify existing snapshots but cannot fetch dependencies. A normal build
-fails before invoking LaTeX when the declared snapshot is absent, stale, modified, or resolved from
-outside the managed tree.
+Only `tex install` changes dependency state by fetching sources and running package builders. By
+contrast, every other command, and normal document builds, only check the current snapshot.
+Accordingly, a build must stop before LaTeX when the snapshot is absent or stale, or when a file
+digest or resolved path fails its check.
+
+Plain output from `tex resolve` is the selected path alone. Therefore, another installed command can
+consume the path directly. For machine-readable output, `--json` adds the logical identifier and
+record digest.
 
 ## Exit Codes
 
