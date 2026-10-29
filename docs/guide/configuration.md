@@ -169,6 +169,11 @@ the record. Normal builds verify the selected snapshot without network access an
 path to TeX as `TEXMFHOME`. The `.ktisma/` state directory is machine-local and should be ignored
 by version control.
 
+A new snapshot does not invalidate an existing build. latexmk records the absolute path of each TeX
+input. The previous snapshot remains on disk, so these paths still resolve. Therefore, `ktisma
+build` still reports the old output as current. After `ktisma tex install` selects a new snapshot,
+run `ktisma clean` on each source before building it again.
+
 ## Configuration Precedence
 
 Highest priority first:
