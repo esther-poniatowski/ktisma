@@ -39,6 +39,31 @@ _FINDING_PATTERNS: tuple[tuple[str, str], ...] = (
 _ERROR_LINE = re.compile(r"^(?:! |\./.*:[0-9]+: |/?[^ :]+\.(?:tex|sty|cls|def):[0-9]+: )")
 
 
+def decode_build_log(data: bytes) -> str:
+    """Decode the bytes of one LaTeX log, replacing each invalid UTF-8 sequence.
+
+    A LaTeX log is not guaranteed to be valid UTF-8. pdfTeX wraps a log line after a fixed number
+    of bytes, so it can split a multi-byte character across two lines, and it prints the glyphs of
+    an 8-bit font encoding as raw bytes in box displays. Every pattern classified here is ASCII,
+    and the decoder replaces only the maximal invalid subsequence with U+FFFD: every ASCII byte,
+    line breaks included, decodes to itself. Classification and line splitting therefore match
+    those of the raw bytes, and the valid UTF-8 text of a reported line stays readable. A Latin-1
+    fallback would be lossless but would garble the valid text of a failing line, and would turn
+    the byte 0x85 into U+0085, which ``str.splitlines`` treats as a line boundary.
+
+    Parameters
+    ----------
+    data
+        Raw content of one LaTeX log.
+
+    Returns
+    -------
+    str
+        Text of the log, with U+FFFD in place of each invalid UTF-8 sequence.
+    """
+    return data.decode("utf-8", errors="replace")
+
+
 def evaluate_build_log(text: str, channels: tuple[str, ...] = ()) -> BuildLogEvaluation:
     """Evaluate one log and retain the requested measurement-channel lines.
 

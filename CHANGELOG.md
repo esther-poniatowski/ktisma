@@ -12,7 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `ktisma tex resolve`: returns the absolute path of a declared entry point only after the selected
   snapshot and named provider pass their checks.
 - `ktisma check-log`: checks recursively discovered LaTeX logs against a zero baseline and reports
-  selected measurement channels.
+  selected measurement channels. A log that is not valid UTF-8, such as a pdfTeX log splitting a
+  multi-byte character at a line wrap, is read with each invalid byte sequence replaced by `�`.
 - Placeholders in output paths: the output path of a `% !ktisma output` magic comment and the
   targets of `[routes]` expand `{stem}`, `{artifact}` and every key of the new `[placeholders]`
   table. `{artifact}` names the nearest ancestor directory matching `[routing].artifact_dirs`.

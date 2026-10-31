@@ -139,6 +139,10 @@ class WorkspaceOps(Protocol):
         """Read UTF-8 text from a file."""
         ...
 
+    def read_bytes(self, path: Path) -> bytes:
+        """Read the raw content of a file."""
+        ...
+
     def write_text(self, path: Path, content: str) -> None:
         """Write UTF-8 text to a file, creating parents as needed."""
         ...

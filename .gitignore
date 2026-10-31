@@ -40,6 +40,7 @@ docs/_build/
 **/*-pdfs/
 *.aux
 *.log
+!tests/fixtures/*.log
 *.out
 *.fls
 *.fdb_latexmk

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..domain.build_log import BuildLogEvaluation, evaluate_build_log
+from ..domain.build_log import BuildLogEvaluation, decode_build_log, evaluate_build_log
 from ..domain.diagnostics import Diagnostic, DiagnosticLevel
 from ..domain.exit_codes import ExitCode
 from .protocols import WorkspaceOps
@@ -86,7 +86,9 @@ def execute_check_log(
         BuildLogReport(
             path=path,
             relative_path=path.relative_to(build_root),
-            evaluation=evaluate_build_log(workspace_ops.read_text(path), channels),
+            evaluation=evaluate_build_log(
+                decode_build_log(workspace_ops.read_bytes(path)), channels
+            ),
         )
         for path in logs
     ]

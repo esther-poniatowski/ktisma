@@ -65,6 +65,30 @@ def test_planted_warning_fails_and_channel_is_retained(tmp_path: Path) -> None:
     assert result.reports[0].evaluation.channel_lines == ("[layout] width=100",)
 
 
+def test_log_that_is_not_valid_utf8_is_evaluated(tmp_path: Path) -> None:
+    source_dir = tmp_path / "tex"
+    log = source_dir / ".ktisma_build" / "poster.log"
+    log.parent.mkdir(parents=True)
+    log.write_bytes(
+        b"[layout] caf\xc3\n\xa9 width=100\n"
+        b"Overfull \\hbox (1.0pt too wide)\n\\T1/cmr/m/n/10 \xe9t\xe9\n"
+        b"Output written on poster.pdf (1 page).\n"
+    )
+
+    result = execute_check_log(
+        source_dir=source_dir,
+        build_dir_name=".ktisma_build",
+        stem=None,
+        channels=("layout",),
+        workspace_ops=FileWorkspaceOps(),
+    )
+
+    assert result.exit_code == ExitCode.COMPILATION_FAILURE
+    evaluation = result.reports[0].evaluation
+    assert [finding.count for finding in evaluation.findings if finding.count] == [1]
+    assert evaluation.channel_lines == ("[layout] caf�",)
+
+
 def test_missing_source_directory_is_a_contract_error(tmp_path: Path) -> None:
     result = execute_check_log(
         source_dir=tmp_path / "missing",

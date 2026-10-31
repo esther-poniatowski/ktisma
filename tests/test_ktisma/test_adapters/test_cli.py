@@ -352,6 +352,22 @@ def test_check_log_cli_reports_planted_failure(tmp_path, capsys):
     assert "BASELINE VIOLATED." in captured.out
 
 
+def test_check_log_cli_reads_log_that_is_not_valid_utf8(tmp_path, capsys):
+    log = tmp_path / ".ktisma_build" / "poster.log"
+    log.parent.mkdir(parents=True)
+    log.write_bytes(
+        b"Overfull \\hbox (1.0pt too wide)\n\\T1/cmr/m/n/10 \xe9t\xe9\n"
+        b"Output written on caf\xc3\n\xa9.pdf (1 page).\n"
+    )
+
+    code = main(["check-log", str(tmp_path)])
+
+    captured = capsys.readouterr()
+    assert code == ExitCode.COMPILATION_FAILURE
+    assert "FAIL  1 x overfull hbox" in captured.out
+    assert "ok    Output written on caf�" in captured.out
+
+
 def test_check_log_cli_returns_contract_error_for_missing_source(tmp_path, capsys):
     code = main(["check-log", str(tmp_path / "missing")])
 

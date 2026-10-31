@@ -161,6 +161,12 @@ The command searches recursively below the build directory. Each selected log mu
 both supported forms, and overfull or underfull horizontal or vertical boxes. Requested channel
 lines are reported without affecting the exit status.
 
+A log need not be valid UTF-8: pdfTeX wraps log lines after a fixed number of bytes, which can
+split a multi-byte character, and it prints the glyphs of 8-bit font encodings as raw bytes. Each
+invalid byte sequence is read as the replacement character `�`. Every pattern of the baseline is
+ASCII, so the counts are those of the raw bytes, and a reported line shows `�` where its bytes were
+invalid.
+
 ```bash
 ktisma check-log --channel banner,fit,layout posters/tex poster
 ```
