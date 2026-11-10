@@ -78,12 +78,12 @@ Or with a custom ktisma path:
 print(format_latex_workshop_snippet("/absolute/path/to/ktisma/bin/ktisma"))
 ```
 
-### Adapter-Provided Workspace Root
+### Workspace Root from an Editor
 
-When ktisma is invoked from an editor, the adapter can pass the editor's workspace root via the
-`--root` option or through the adapter API when explicit pinning is needed. The option takes
-precedence over the `KTISMA_ROOT` environment variable and `.ktisma.toml` discovery (see
-[Configuration: Workspace Root Resolution](configuration.md#workspace-root-resolution)).
+When ktisma is invoked from an editor, the editor can fix the workspace root with the `--root`
+option, or with the `KTISMA_ROOT` environment variable that the wrapper of `ktisma init` exports.
+The option takes precedence over the variable, and the variable over the search for `ktisma.toml`
+(see [Configuration: Workspace Root Resolution](configuration.md#workspace-root-resolution)).
 
 ## Other Editors
 

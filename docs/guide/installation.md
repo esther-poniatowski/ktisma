@@ -31,7 +31,7 @@ ln -s /path/to/ktisma vendor/ktisma
 
 ## Initial Configuration
 
-Create a `.ktisma.toml` file at the project root:
+Create a `ktisma.toml` file at the project root:
 
 ```toml
 schema_version = 1
@@ -85,5 +85,5 @@ Expected output:
   and entrypoint collapse.
 - [Migration](migration.md) — Replacing an existing `.latexmkrc` and helper
   scripts.
-- [Recipes](recipes.md) — Concrete `.ktisma.toml` examples for common scenarios.
+- [Recipes](recipes.md) — Concrete `ktisma.toml` examples for common scenarios.
 - [Configuration Reference](../configuration.md) — Full schema documentation.

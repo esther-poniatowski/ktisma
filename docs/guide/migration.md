@@ -6,7 +6,7 @@ This guide walks through replacing a manual `.latexmkrc` + helper script setup w
 
 | Before | After | Notes |
 | ------ | ----- | ----- |
-| `.latexmkrc` | `.ktisma.toml` | Typed TOML config instead of Perl |
+| `.latexmkrc` | `ktisma.toml` | Typed TOML config instead of Perl |
 | Helper shell scripts (`latexmk-helper.sh`, `compile.sh`) | ktisma routing + materialization | PDF placement handled automatically |
 | `$success_cmd` post-processing | Built-in cleanup and output routing | No shell glue needed |
 | `.latexmk_build/` | `.ktisma_build/` | Per-job build directories with lockfiles |
@@ -25,7 +25,7 @@ git submodule add https://github.com/esther-poniatowski/ktisma.git vendor/ktisma
 See [Getting Started: Adding ktisma](getting-started.md#adding-ktisma-to-the-project) for
 alternative installation methods.
 
-### 2. Create .ktisma.toml
+### 2. Create ktisma.toml
 
 Start with a minimal config at the project root:
 
@@ -43,7 +43,7 @@ $pdf_mode = 4;  # lualatex
 ```
 
 ```toml
-# New: .ktisma.toml
+# New: ktisma.toml
 [engines]
 default = "lualatex"
 ```
@@ -59,7 +59,7 @@ $pdflatex = 'pdflatex -interaction=nonstopmode -synctex=0 %O %S';
 ```
 
 ```toml
-# New: .ktisma.toml
+# New: ktisma.toml
 [build]
 synctex = false
 ```

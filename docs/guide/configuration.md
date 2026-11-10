@@ -1,6 +1,29 @@
 # Configuration Reference
 
-Ktisma uses a single configuration format: TOML files named `.ktisma.toml`.
+Ktisma uses a single configuration format: TOML files named `ktisma.toml`.
+
+## Settings Files and Their Places
+
+Ktisma stacks one settings file per folder. Every settings file is named `ktisma.toml`, without a
+leading dot. A file named `.ktisma.toml` is not read: the former name is retired without a fallback.
+
+Two kinds of file are distinguished by their place:
+
+- **The workspace-root file** holds the settings of the whole workspace. It sits either in
+  `config/tools/ktisma.toml` below the root or in `ktisma.toml` at the root. When both files exist,
+  Ktisma stops with an error that names both files.
+- **An overlay** holds the settings of its own folder and of the folders below it. An overlay is
+  always the file `ktisma.toml` in that folder.
+
+The place `config/tools/` applies to the workspace-root file only. The reason lies in the definition
+of the root file: it is the file read at the root folder, and the folder `config/tools/` groups the
+settings of every tool of a repository at that level. An overlay, by contrast, is defined by the
+folder that it configures, so it can sit nowhere else than in that folder. Therefore, a file
+`config/tools/ktisma.toml` below the root is an overlay of the folder `config/tools/` itself, which
+applies only to sources inside that folder.
+
+The `.ktisma/` state directory at the root holds the TeX snapshots of `ktisma tex install`. It is
+not a settings file, and it keeps its name.
 
 ## File Format
 
@@ -163,7 +186,7 @@ entry point has a qualified identifier of the form `<dependency-name>:<entrypoin
 resolve` accepts only identifiers declared by the record. Then, the command verifies that the named
 dependency owns the resolved file.
 
-Only the workspace-root `.ktisma.toml` may declare this table. Directory overlays and command-line
+Only the workspace-root `ktisma.toml` may declare this table. Directory overlays and command-line
 configuration layers cannot replace or extend the closure. Run `ktisma tex install` after changing
 the record. Normal builds verify the selected snapshot without network access and pass its absolute
 path to TeX as `TEXMFHOME`. The `.ktisma/` state directory is machine-local and should be ignored
@@ -180,8 +203,8 @@ Highest priority first:
 
 1. **CLI flags** (`--engine`, `--output`, `--output-dir`, `--cleanup`)
 2. **Per-file magic comments** (`% !TeX program = ...`, `% !ktisma output = ...`)
-3. **Project-local `.ktisma.toml` overlays** between the source directory and the workspace root
-4. **Workspace `.ktisma.toml`** at the workspace root
+3. **Overlays `ktisma.toml`** in the folders between the source directory and the workspace root
+4. **Workspace-root `ktisma.toml`**, in `config/tools/` or at the root
 5. **Built-in defaults**
 
 ### Concern-Specific Precedence
@@ -211,7 +234,7 @@ When multiple config layers are present, they merge with these rules:
 
 ### Example
 
-Workspace `.ktisma.toml`:
+Workspace-root `ktisma.toml`:
 
 ```toml
 [engines]
@@ -223,7 +246,7 @@ modern_default = "lualatex"
 "drafts/*.tex" = "output/"
 ```
 
-Subdirectory `.ktisma.toml`:
+Subdirectory `ktisma.toml`:
 
 ```toml
 [engines]
@@ -247,14 +270,27 @@ modern_default = "lualatex"   # preserved from workspace
 
 ## Path Resolution
 
-Path anchoring is deterministic based on where the path was declared:
+The anchor of a relative path is fixed by the place where the path is written:
 
 | Source | Anchor |
 | --- | --- |
-| CLI flags | Current working directory |
+| Command-line paths (the source, `--root`, `--output`, `--output-dir`) | Current working directory |
 | Magic comments (`% !ktisma output = ...`) | Source file directory |
-| `.ktisma.toml` route targets | Directory of the config file that declared the path |
+| Route targets in `[routes]`, in the root file or in an overlay | Workspace root |
+| Route patterns in `[routes]` and `[routing].artifact_dirs` | Workspace root |
 | Variant `output` values | Source file directory |
+
+A path written in a settings file is read from the workspace root, whichever file declares it. The
+root file can therefore move between the root and `config/tools/` without an edit. An overlay
+follows the same rule for two reasons. First, the patterns of `[routes]` already match the source
+path relative to the root, so a target relative to the root reads in the same frame as its pattern.
+Second, one reading for every settings file spares the reader a check of the folder that holds the
+file.
+
+The variant `output` is the one exception. It is a template applied to every source that the layer
+covers, and no placeholder names the folder of the source. A relative `output` therefore resolves
+against the source file directory, so that one declaration places each output beside its own
+source, as `../pdfs/` does.
 
 Processing steps:
 
@@ -264,20 +300,26 @@ Processing steps:
 
 ## Workspace Root Resolution
 
-The workspace root determines where ktisma searches for `.ktisma.toml` files and anchors
-workspace-relative paths. Resolution order:
+The workspace root determines where ktisma searches for its settings files and anchors
+workspace-relative paths. Resolution stops at the first answer:
 
-1. `--root` CLI option
+1. `--root` (`-r`) command-line option, relative to the current folder
 2. `KTISMA_ROOT` environment variable
-3. Adapter-provided workspace root (e.g., from VS Code)
-4. Outermost ancestor directory containing `.ktisma.toml`
-5. Current working directory
+3. Outermost ancestor folder that holds `ktisma.toml` or `config/tools/ktisma.toml`
+4. Current working directory
 
-Step 4 takes the *outermost* ancestor, not the nearest one. Ktisma stacks one `.ktisma.toml` per
+Step 3 takes the *outermost* ancestor, not the nearest one. Ktisma stacks one `ktisma.toml` per
 folder: the file at the workspace root holds the settings of the whole workspace, and each file
 below it overlays the settings of its own folder (see
-[Configuration Precedence](#configuration-precedence)). Therefore, a nested `.ktisma.toml` never
-starts a workspace of its own when the root is resolved from the source path. The workspace root is never inferred from `.git` or other unrelated files.
+[Configuration Precedence](#configuration-precedence)). Therefore, a nested `ktisma.toml` never
+starts a workspace of its own when the root is resolved from the source path. The workspace root
+is never inferred from `.git` or other unrelated files.
+
+The search of step 3 starts at the folder of the source when the command names one (`build`,
+`inspect`, `clean`, `variants`, and the source folder of `batch`), and at the current folder
+otherwise (`doctor`, `init`, `tex`). A build of a source given by its full path thus finds the
+workspace of that source from any current folder, as pytest determines its root from the paths
+given on its command line.
 
 ## Magic Comments
 

@@ -14,7 +14,7 @@ A typical project looks like the following:
 
 ```text
 my-project/
-  .ktisma.toml
+  ktisma.toml
   vendor/ktisma/
   lectures-tex/
     week1.tex
@@ -100,7 +100,7 @@ ktisma still works -- it just uses different routing methods.
 
 ### Explicit Route Rules
 
-Define explicit mappings in `.ktisma.toml`:
+Define explicit mappings in `ktisma.toml`:
 
 ```toml
 [routes]
@@ -108,7 +108,8 @@ Define explicit mappings in `.ktisma.toml`:
 "thesis/main.tex" = "thesis/thesis.pdf"
 ```
 
-Glob patterns match against the path relative to the workspace root. See
+Glob patterns match against the path relative to the workspace root, and relative targets resolve
+from the workspace root too, in an overlay as in the root file. See
 [Routing: Explicit Route Rules](routing.md#explicit-route-rules) for specificity scoring and
 pattern syntax.
 
@@ -119,21 +120,43 @@ fallback ensures a successful PDF is never lost.
 
 ## Where ktisma Looks for Configuration
 
-ktisma loads `.ktisma.toml` files from the workspace root toward the source directory, with nearer
-files taking higher precedence:
+ktisma loads the `ktisma.toml` files from the workspace root toward the source directory, with
+nearer files taking higher precedence:
 
 ```text
 my-project/
-  .ktisma.toml              (workspace-level config -- lowest precedence)
+  ktisma.toml               (workspace-root file -- lowest precedence)
   lectures-tex/
-    .ktisma.toml            (overlay -- higher precedence for files in this subtree)
+    ktisma.toml             (overlay -- higher precedence for files in this subtree)
     advanced/
-      .ktisma.toml          (overlay -- highest precedence for files in this subtree)
+      ktisma.toml           (overlay -- highest precedence for files in this subtree)
       topic.tex
 ```
 
 The layered approach allows setting project-wide defaults at the root and overriding specific
 settings for subdirectories (e.g., a different engine for one subtree).
+
+### The Workspace-Root File in `config/tools/`
+
+A repository that groups the settings of its tools in `config/tools/` may hold the workspace-root
+file there, as `config/tools/ktisma.toml`:
+
+```text
+my-project/
+  config/tools/
+    ktisma.toml             (workspace-root file -- lowest precedence)
+  lectures-tex/
+    ktisma.toml             (overlay -- higher precedence for files in this subtree)
+    week1.tex
+```
+
+The folder `my-project/` is then the workspace root, because it holds `config/tools/ktisma.toml`.
+The paths written in the file stay relative to `my-project/`, so the file moves between the two
+places without an edit. Only the workspace-root file has this second place. An overlay stays
+`ktisma.toml` in the folder that it configures, because that folder defines the scope of the
+overlay. A root that holds both `ktisma.toml` and `config/tools/ktisma.toml` is an error that
+names both files (see
+[Settings Files and Their Places](configuration.md#settings-files-and-their-places)).
 
 See [Configuration: Precedence](configuration.md#configuration-precedence) and
 [Merge Semantics](configuration.md#merge-semantics) for how layers combine.
@@ -141,12 +164,12 @@ See [Configuration: Precedence](configuration.md#configuration-precedence) and
 ### Workspace Configuration Below the Repository Root
 
 A repository whose LaTeX sources all sit in one folder, such as `artifacts/`, may hold its workspace
-configuration in that folder, as `artifacts/.ktisma.toml`. The root of the repository then keeps only
-the files that its readers navigate. Ktisma takes the outermost ancestor holding a `.ktisma.toml` as
+configuration in that folder, as `artifacts/ktisma.toml`. The root of the repository then keeps only
+the files that its readers navigate. Ktisma takes the outermost ancestor holding a `ktisma.toml` as
 its workspace root (see [Workspace Root Resolution](configuration.md#workspace-root-resolution)), so
 `artifacts/` becomes the workspace root of every source below it. Four consequences follow:
 
-- `artifacts/.ktisma.toml` is the workspace-root file, so it may declare `[[tex.dependencies]]`.
+- `artifacts/ktisma.toml` is the workspace-root file, so it may declare `[[tex.dependencies]]`.
 - Workspace-relative paths are relative to `artifacts/`. A pattern of `[routing].artifact_dirs` that
   named `artifacts/*` from the repository root becomes `*`, and selects the same folders.
 - The state directory `.ktisma/` of `ktisma tex install` is created in `artifacts/`. An ignore rule
@@ -155,9 +178,9 @@ its workspace root (see [Workspace Root Resolution](configuration.md#workspace-r
   `KTISMA_ROOT`, must pass `artifacts/` instead. Otherwise, the file becomes an overlay, and Ktisma rejects its TeX
   dependencies with the diagnostic `tex-dependencies-not-root`.
 
-A repository may sit inside a larger workspace with its own `.ktisma.toml`, such as a vault that
+A repository may sit inside a larger workspace with its own `ktisma.toml`, such as a vault that
 includes the repository as a submodule. The file of that workspace is then the outermost, so it stays
-the workspace root, and `artifacts/.ktisma.toml` becomes an overlay whose TeX dependencies Ktisma
+the workspace root, and `artifacts/ktisma.toml` becomes an overlay whose TeX dependencies Ktisma
 rejects. A build of such a source that needs those dependencies passes the `artifacts/` folder of the
 repository as `--root`.
 

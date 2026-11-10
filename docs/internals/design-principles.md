@@ -208,7 +208,8 @@ Do not introduce special cases in code that are not documented in the roadmap.
 
 Preserve provenance for any config or magic-comment path until it has been anchored correctly.
 
-- config-relative paths anchor to the declaring config file
+- paths written in a settings file anchor to the workspace root, whichever file declares them,
+  except the variant `output`, which anchors to the source file directory
 - magic-comment paths anchor to the source file directory
 - CLI paths anchor to the current working directory
 

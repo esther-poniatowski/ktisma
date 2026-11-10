@@ -4,7 +4,7 @@ Ktisma builds LaTeX documents through a single CLI that handles engine
 detection, output routing, build directories, and cleanup. Every command that
 reads the workspace configuration accepts `--root` to pin the workspace
 explicitly; without the option or the `KTISMA_ROOT` environment variable,
-ktisma takes the outermost ancestor folder holding a `.ktisma.toml` (see
+ktisma takes the outermost ancestor folder holding a `ktisma.toml` (see
 [Workspace Root Resolution](configuration.md#workspace-root-resolution)).
 
 Ktisma requires Python 3.12 or later.
@@ -68,7 +68,7 @@ Compile configured variants (e.g., review markup) alongside the default output:
 ktisma variants slides-tex/week1.tex
 ```
 
-Variant definitions live in the `[variants]` table of `.ktisma.toml` and inject
+Variant definitions live in the `[variants]` table of `ktisma.toml` and inject
 LaTeX preamble content via `latexmk -usepretex`. See
 [Build Lifecycle](build-lifecycle.md) for the full reference.
 
@@ -141,5 +141,5 @@ and advanced configuration.
 
 - [Project Layout](project-layout.md) — `-tex`/`-pdfs` directory conventions.
 - [Migration](migration.md) — Replacing an existing latexmk setup.
-- [Recipes](recipes.md) — Concrete `.ktisma.toml` examples.
+- [Recipes](recipes.md) — Concrete `ktisma.toml` examples.
 - [Configuration Reference](configuration.md) — Full schema documentation.

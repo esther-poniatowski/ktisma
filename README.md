@@ -57,7 +57,7 @@ contributor relies on different configuration fragments.
 - [x] **Batch**: Build all entrypoint `.tex` files in a directory tree.
 - [x] **Variants**: Build configured variants (e.g., review markup) alongside
   the default output.
-- [x] **Layered configuration**: Workspace, project, and per-file `.ktisma.toml`
+- [x] **Layered configuration**: Workspace, project, and per-file `ktisma.toml`
   overlays with deterministic merge semantics.
 - [x] **Editor integration**: VS Code / LaTeX Workshop recipes, latexmkrc
   migration.
@@ -87,15 +87,15 @@ python3 vendor/ktisma/bin/ktisma build slides-tex/week1.tex
 | [Installation](docs/guide/installation.md) | Prerequisites, submodule/symlink setup |
 | [Project Layout](docs/guide/project-layout.md) | `-tex`/`-pdfs` directory conventions, entrypoint collapse |
 | [Migration](docs/guide/migration.md) | Replacing an existing latexmk setup |
-| [Recipes](docs/guide/recipes.md) | Concrete `.ktisma.toml` examples |
-| [CLI Reference](docs/cli-reference.md) | Commands, flags, output modes, exit codes |
-| [Configuration](docs/configuration.md) | `.ktisma.toml` schema, precedence, merge rules |
-| [Architecture](docs/architecture.md) | Layers, protocols, data flow |
-| [Build Lifecycle](docs/build-lifecycle.md) | Pipeline, watch mode, cleanup, locks, variants |
-| [Engine Detection](docs/engine-detection.md) | Detection steps, markers, ambiguity handling |
-| [Routing](docs/routing.md) | Resolution chain, suffix conventions, route rules |
-| [Editor Integration](docs/editor-integration.md) | VS Code, LaTeX Workshop, latexmkrc migration |
-| [Design Principles](docs/design-principles.md) | Coding standards and implementation patterns |
+| [Recipes](docs/guide/recipes.md) | Concrete `ktisma.toml` examples |
+| [CLI Reference](docs/guide/cli-reference.md) | Commands, flags, output modes, exit codes |
+| [Configuration](docs/guide/configuration.md) | `ktisma.toml` schema, precedence, merge rules |
+| [Architecture](docs/internals/architecture.md) | Layers, protocols, data flow |
+| [Build Lifecycle](docs/guide/build-lifecycle.md) | Pipeline, watch mode, cleanup, locks, variants |
+| [Engine Detection](docs/guide/engine-detection.md) | Detection steps, markers, ambiguity handling |
+| [Routing](docs/guide/routing.md) | Resolution chain, suffix conventions, route rules |
+| [Editor Integration](docs/guide/editor-integration.md) | VS Code, LaTeX Workshop, latexmkrc migration |
+| [Design Principles](docs/internals/design-principles.md) | Coding standards and implementation patterns |
 
 ---
 
@@ -103,7 +103,7 @@ python3 vendor/ktisma/bin/ktisma build slides-tex/week1.tex
 
 Open a pull request or issue against the plan documents first when changing the
 public contract. For implementation work, follow
-[docs/design-principles.md](docs/design-principles.md).
+[docs/design-principles.md](docs/internals/design-principles.md).
 
 ---
 

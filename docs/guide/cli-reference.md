@@ -13,7 +13,8 @@ python3 /path/to/ktisma/bin/ktisma <command> [options]
 
 | Flag | Description |
 | --- | --- |
-| `--verbose`, `-v` | Enable debug-level logging to stderr |
+| `-v`, `--version` | Print the version of ktisma and exit |
+| `--verbose` | Enable debug-level logging to stderr; it has no short form |
 
 ## Commands
 
@@ -28,9 +29,9 @@ ktisma build <source.tex> [options]
 | Option | Description |
 | --- | --- |
 | `source` | Path to the `.tex` source file (required) |
-| `--root PATH` | Set the workspace root folder; takes precedence over `KTISMA_ROOT` |
+| `-r`, `--root PATH` | Set the workspace root folder, relative to the current folder; takes precedence over `KTISMA_ROOT` |
 | `--engine ENGINE` | Override engine selection (`pdflatex`, `lualatex`, `xelatex`, `latex`) |
-| `--output PATH` | Override the exact output PDF path |
+| `-o`, `--output PATH` | Override the exact output PDF path, relative to the current folder |
 | `--output-dir PATH` | Override output directory for the compiled PDF |
 | `--watch` | Enable continuous watch mode (wraps `latexmk -pvc`) |
 | `--dry-run` | Show the build plan without compiling |
@@ -72,7 +73,7 @@ ktisma inspect engine <source.tex> [options]
 | Option | Description |
 | --- | --- |
 | `source` | Path to the `.tex` source file (required) |
-| `--root PATH` | Set the workspace root folder; takes precedence over `KTISMA_ROOT` |
+| `-r`, `--root PATH` | Set the workspace root folder, relative to the current folder; takes precedence over `KTISMA_ROOT` |
 | `--engine ENGINE` | Override engine selection (shows what the override would be) |
 | `--format FORMAT` | Output format: `text` (default) or `json` |
 
@@ -99,8 +100,8 @@ ktisma inspect route <source.tex> [options]
 | Option | Description |
 | --- | --- |
 | `source` | Path to the `.tex` source file (required) |
-| `--root PATH` | Set the workspace root folder; takes precedence over `KTISMA_ROOT` |
-| `--output PATH` | Override the exact output PDF path |
+| `-r`, `--root PATH` | Set the workspace root folder, relative to the current folder; takes precedence over `KTISMA_ROOT` |
+| `-o`, `--output PATH` | Override the exact output PDF path, relative to the current folder |
 | `--output-dir PATH` | Override output directory |
 | `--format FORMAT` | Output format: `text` (default) or `json` |
 
@@ -127,11 +128,14 @@ ktisma clean <target> [options]
 | Option | Description |
 | --- | --- |
 | `target` | Path to a `.tex` source file or a build directory (required) |
-| `--root PATH` | Set the workspace root folder; takes precedence over `KTISMA_ROOT` |
+| `-r`, `--root PATH` | Set the workspace root folder, relative to the current folder; takes precedence over `KTISMA_ROOT` |
 
-When given a `.tex` file, ktisma removes the corresponding build directory and any variant build
-directories. When given a directory, ktisma verifies it is a ktisma build directory (by checking
-for `.ktisma.lock` or a `.ktisma*` parent) before removing it.
+When given a `.tex` file, ktisma resolves the workspace root as `build` does, reads the same
+configuration, and removes the corresponding build directory and any variant build directories.
+When given a directory, ktisma verifies it is a ktisma build directory (by checking for
+`.ktisma.lock` or a `.ktisma*` parent other than the state directory `.ktisma/`) before removing
+it. `clean` removes only build directories, which the next build recreates, so it asks for no
+confirmation.
 
 ```bash
 # Clean build artifacts for a source file
@@ -184,7 +188,7 @@ ktisma doctor [options]
 
 | Option | Description |
 | --- | --- |
-| `--root PATH` | Set the workspace root folder; takes precedence over `KTISMA_ROOT` |
+| `-r`, `--root PATH` | Set the workspace root folder, relative to the current folder; takes precedence over `KTISMA_ROOT` |
 | `--format FORMAT` | Output format: `text` (default) or `json` |
 
 Checks performed:
@@ -192,8 +196,8 @@ Checks performed:
 1. `latexmk` is on `PATH`
 2. Configured default engines are available
 3. Python meets the minimum version (3.12+)
-4. Workspace root resolution works (if `--root` is provided)
-5. Any present `.ktisma.toml` validates successfully
+4. The workspace root resolves (from `--root`, `KTISMA_ROOT`, or the search from the current folder)
+5. The settings files of that workspace root validate successfully
 
 Human-readable output displays a status table with `[ok]` or `[MISSING]` for each check.
 
@@ -208,7 +212,7 @@ ktisma batch <source-dir> [options]
 | Option | Description |
 | --- | --- |
 | `source_dir` | Directory containing `.tex` entrypoints or nested entrypoint directories (required) |
-| `--root PATH` | Set the workspace root folder; takes precedence over `KTISMA_ROOT` |
+| `-r`, `--root PATH` | Set the workspace root folder, relative to the current folder; takes precedence over `KTISMA_ROOT` |
 | `--engine ENGINE` | Override engine for all builds |
 | `--watch` | **Rejected** in v1 (batch watch mode is not supported) |
 | `--format FORMAT` | Output format: `text` (default) or `json` |
@@ -229,7 +233,7 @@ ktisma variants <source.tex> [options]
 | Option | Description |
 | --- | --- |
 | `source` | Path to the `.tex` source file (required) |
-| `--root PATH` | Set the workspace root folder; takes precedence over `KTISMA_ROOT` |
+| `-r`, `--root PATH` | Set the workspace root folder, relative to the current folder; takes precedence over `KTISMA_ROOT` |
 | `--engine ENGINE` | Override engine for all variants |
 | `--include-default` | Build the non-variant output in addition to configured variants |
 | `--format FORMAT` | Output format: `text` (default) or `json` |
@@ -250,17 +254,20 @@ ktisma init [options]
 
 | Option | Description |
 | --- | --- |
-| `--root PATH` | Set the workspace root folder; takes precedence over `KTISMA_ROOT` |
+| `-r`, `--root PATH` | Set the workspace root folder, relative to the current folder; takes precedence over `KTISMA_ROOT` |
+| `--force` | Overwrite an existing wrapper script |
 
 The command creates `scripts/ktisma` in the workspace root -- a shell wrapper
 that sets `KTISMA_ROOT` and delegates to the vendored ktisma entry
-point. If the wrapper already exists, the command skips creation and prints the
-VS Code configuration snippet to stdout only.
+point -- and prints the VS Code configuration snippet to stdout. The wrapper may hold edits of the
+researcher, so an existing wrapper is overwritten only with `--force`. Without `--force`, the
+command stops with exit code `2` and an error that names the wrapper, and writes nothing. The
+command writes no settings file.
 
 ### `tex`
 
 Manage the dependency closure declared by `[[tex.dependencies]]` in the workspace-root
-`.ktisma.toml`.
+`ktisma.toml`.
 
 ```bash
 ktisma tex install [--root PATH] [--format FORMAT]

@@ -1,6 +1,6 @@
 # Configuration Recipes
 
-Each recipe below is a self-contained `.ktisma.toml` snippet for a common use case. For the full
+Each recipe below is a self-contained `ktisma.toml` snippet for a common use case. For the full
 schema, see the [configuration reference](../configuration.md).
 
 ## Minimal Configuration (Zero-Config Defaults)
@@ -115,19 +115,19 @@ with a file extension is treated as the exact output path.
 
 **Use case**: most documents use `pdflatex`, but one subdirectory requires `lualatex`.
 
-Place a `.ktisma.toml` overlay in the subdirectory:
+Place a `ktisma.toml` overlay in the subdirectory:
 
 ```text
 my-project/
-  .ktisma.toml           # [engines] default = "pdflatex"
+  ktisma.toml           # [engines] default = "pdflatex"
   lectures-tex/
     week1.tex            # -> pdflatex
   special-tex/
-    .ktisma.toml         # [engines] default = "lualatex"
+    ktisma.toml         # [engines] default = "lualatex"
     document.tex         # -> lualatex
 ```
 
-Contents of `special-tex/.ktisma.toml`:
+Contents of `special-tex/ktisma.toml`:
 
 ```toml
 [engines]

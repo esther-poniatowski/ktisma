@@ -79,7 +79,7 @@ directory nested inside one of them. A placeholder that cannot be resolved stops
 
 ## Explicit Route Rules
 
-Route rules are defined in the `[routes]` section of `.ktisma.toml`:
+Route rules are defined in the `[routes]` section of `ktisma.toml`:
 
 ```toml
 [routes]
@@ -109,7 +109,8 @@ specificity scoring to choose:
   is placed inside.
 - Targets with a file extension are treated as explicit file paths.
 - `~` is expanded before resolution.
-- Relative targets resolve against the declaring config file's directory.
+- Relative targets resolve against the workspace root, in an overlay as in the workspace-root file
+  (see [Path Resolution](configuration.md#path-resolution)).
 
 ## Suffix Convention
 

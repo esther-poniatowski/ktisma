@@ -161,7 +161,7 @@ override engine selection, output naming, and routed destination.
 
 ### Definition
 
-Variants are defined in `.ktisma.toml`:
+Variants are defined in `ktisma.toml`:
 
 ```toml
 [variants.review]
