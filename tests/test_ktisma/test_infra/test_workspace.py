@@ -7,7 +7,14 @@ from pathlib import Path
 
 import pytest
 
-from ktisma.infra.workspace import resolve_workspace_root
+from ktisma.infra.workspace import legacy_root_variable_in_use, resolve_workspace_root
+
+
+@pytest.fixture(autouse=True)
+def _clear_root_variables(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the root variables of the calling shell out of every test."""
+    monkeypatch.delenv("KTISMA_ROOT", raising=False)
+    monkeypatch.delenv("KTISMA_WORKSPACE_ROOT", raising=False)
 
 
 # ---------------------------------------------------------------------------
@@ -29,7 +36,7 @@ class TestCliFlag:
         ws_cli.mkdir()
         ws_env = tmp_path / "env_ws"
         ws_env.mkdir()
-        monkeypatch.setenv("KTISMA_WORKSPACE_ROOT", str(ws_env))
+        monkeypatch.setenv("KTISMA_ROOT", str(ws_env))
         result = resolve_workspace_root(cli_workspace_root=ws_cli)
         assert result == ws_cli.resolve()
 
@@ -63,7 +70,7 @@ class TestEnvVar:
     ) -> None:
         ws = tmp_path / "env_ws"
         ws.mkdir()
-        monkeypatch.setenv("KTISMA_WORKSPACE_ROOT", str(ws))
+        monkeypatch.setenv("KTISMA_ROOT", str(ws))
         result = resolve_workspace_root()
         assert result == ws.resolve()
 
@@ -74,7 +81,7 @@ class TestEnvVar:
         ws_env.mkdir()
         ws_adapter = tmp_path / "adapter_ws"
         ws_adapter.mkdir()
-        monkeypatch.setenv("KTISMA_WORKSPACE_ROOT", str(ws_env))
+        monkeypatch.setenv("KTISMA_ROOT", str(ws_env))
         result = resolve_workspace_root(adapter_workspace_root=ws_adapter)
         assert result == ws_env.resolve()
 
@@ -82,7 +89,7 @@ class TestEnvVar:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """An empty string in the env var should be treated as unset."""
-        monkeypatch.setenv("KTISMA_WORKSPACE_ROOT", "")
+        monkeypatch.setenv("KTISMA_ROOT", "")
         ws_adapter = tmp_path / "adapter_ws"
         ws_adapter.mkdir()
         result = resolve_workspace_root(adapter_workspace_root=ws_adapter)
@@ -92,11 +99,49 @@ class TestEnvVar:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """When env var is explicitly deleted, we should not use it."""
-        monkeypatch.delenv("KTISMA_WORKSPACE_ROOT", raising=False)
+        monkeypatch.delenv("KTISMA_ROOT", raising=False)
         ws_adapter = tmp_path / "adapter_ws"
         ws_adapter.mkdir()
         result = resolve_workspace_root(adapter_workspace_root=ws_adapter)
         assert result == ws_adapter.resolve()
+
+
+class TestLegacyEnvVar:
+    """The former variable KTISMA_WORKSPACE_ROOT is read for one release."""
+
+    def test_legacy_variable_alone_is_used(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        ws = tmp_path / "legacy_ws"
+        ws.mkdir()
+        monkeypatch.setenv("KTISMA_WORKSPACE_ROOT", str(ws))
+        assert resolve_workspace_root() == ws.resolve()
+        assert legacy_root_variable_in_use()
+
+    def test_new_variable_wins_over_legacy_variable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        ws_new = tmp_path / "new_ws"
+        ws_new.mkdir()
+        ws_legacy = tmp_path / "legacy_ws"
+        ws_legacy.mkdir()
+        monkeypatch.setenv("KTISMA_ROOT", str(ws_new))
+        monkeypatch.setenv("KTISMA_WORKSPACE_ROOT", str(ws_legacy))
+        assert resolve_workspace_root() == ws_new.resolve()
+        assert not legacy_root_variable_in_use()
+
+    def test_empty_new_variable_falls_back_to_legacy_variable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        ws_legacy = tmp_path / "legacy_ws"
+        ws_legacy.mkdir()
+        monkeypatch.setenv("KTISMA_ROOT", "")
+        monkeypatch.setenv("KTISMA_WORKSPACE_ROOT", str(ws_legacy))
+        assert resolve_workspace_root() == ws_legacy.resolve()
+        assert legacy_root_variable_in_use()
+
+    def test_legacy_variable_not_in_use_when_unset(self) -> None:
+        assert not legacy_root_variable_in_use()
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +153,7 @@ class TestAdapterProvided:
     def test_adapter_used_when_no_cli_or_env(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.delenv("KTISMA_WORKSPACE_ROOT", raising=False)
+        monkeypatch.delenv("KTISMA_ROOT", raising=False)
         ws = tmp_path / "adapter_ws"
         ws.mkdir()
         result = resolve_workspace_root(adapter_workspace_root=ws)
@@ -117,7 +162,7 @@ class TestAdapterProvided:
     def test_adapter_overrides_config_ancestor(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.delenv("KTISMA_WORKSPACE_ROOT", raising=False)
+        monkeypatch.delenv("KTISMA_ROOT", raising=False)
         ws_adapter = tmp_path / "adapter_ws"
         ws_adapter.mkdir()
 
@@ -133,7 +178,7 @@ class TestAdapterProvided:
 
 
 # ---------------------------------------------------------------------------
-# 4. Nearest .ktisma.toml ancestor
+# 4. Outermost .ktisma.toml ancestor
 # ---------------------------------------------------------------------------
 
 
@@ -141,7 +186,7 @@ class TestConfigAncestor:
     def test_finds_config_in_source_dir(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.delenv("KTISMA_WORKSPACE_ROOT", raising=False)
+        monkeypatch.delenv("KTISMA_ROOT", raising=False)
         source_dir = tmp_path / "project"
         source_dir.mkdir()
         (source_dir / ".ktisma.toml").write_text("[build]\n")
@@ -151,7 +196,7 @@ class TestConfigAncestor:
     def test_finds_config_in_ancestor_dir(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.delenv("KTISMA_WORKSPACE_ROOT", raising=False)
+        monkeypatch.delenv("KTISMA_ROOT", raising=False)
         root_dir = tmp_path / "project"
         root_dir.mkdir()
         (root_dir / ".ktisma.toml").write_text("[build]\n")
@@ -164,7 +209,7 @@ class TestConfigAncestor:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """When multiple ancestors have .ktisma.toml, the outermost one wins."""
-        monkeypatch.delenv("KTISMA_WORKSPACE_ROOT", raising=False)
+        monkeypatch.delenv("KTISMA_ROOT", raising=False)
         outer = tmp_path / "outer"
         inner = outer / "inner"
         deep = inner / "deep"
@@ -178,7 +223,7 @@ class TestConfigAncestor:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """If no ancestor has .ktisma.toml, fall through to cwd."""
-        monkeypatch.delenv("KTISMA_WORKSPACE_ROOT", raising=False)
+        monkeypatch.delenv("KTISMA_ROOT", raising=False)
         source_dir = tmp_path / "project" / "src"
         source_dir.mkdir(parents=True)
         monkeypatch.chdir(tmp_path)
@@ -195,7 +240,7 @@ class TestCwdFallback:
     def test_cwd_when_nothing_provided(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.delenv("KTISMA_WORKSPACE_ROOT", raising=False)
+        monkeypatch.delenv("KTISMA_ROOT", raising=False)
         monkeypatch.chdir(tmp_path)
         result = resolve_workspace_root()
         assert result == tmp_path.resolve()
@@ -203,7 +248,7 @@ class TestCwdFallback:
     def test_cwd_when_source_dir_has_no_config(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.delenv("KTISMA_WORKSPACE_ROOT", raising=False)
+        monkeypatch.delenv("KTISMA_ROOT", raising=False)
         monkeypatch.chdir(tmp_path)
         source_dir = tmp_path / "no_config"
         source_dir.mkdir()
@@ -229,7 +274,7 @@ class TestEdgeCases:
         source_dir = tmp_path / "src"
         source_dir.mkdir()
         (source_dir / ".ktisma.toml").write_text("[build]\n")
-        monkeypatch.setenv("KTISMA_WORKSPACE_ROOT", str(env_ws))
+        monkeypatch.setenv("KTISMA_ROOT", str(env_ws))
 
         result = resolve_workspace_root(
             cli_workspace_root=cli_ws,
@@ -241,7 +286,7 @@ class TestEdgeCases:
     def test_source_dir_none_skips_ancestor_search(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.delenv("KTISMA_WORKSPACE_ROOT", raising=False)
+        monkeypatch.delenv("KTISMA_ROOT", raising=False)
         monkeypatch.chdir(tmp_path)
         result = resolve_workspace_root(source_dir=None)
         assert result == tmp_path.resolve()
@@ -249,7 +294,7 @@ class TestEdgeCases:
     def test_result_is_always_absolute(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.delenv("KTISMA_WORKSPACE_ROOT", raising=False)
+        monkeypatch.delenv("KTISMA_ROOT", raising=False)
         monkeypatch.chdir(tmp_path)
         result = resolve_workspace_root()
         assert result.is_absolute()
@@ -258,7 +303,7 @@ class TestEdgeCases:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Symlinks should be resolved to their real path."""
-        monkeypatch.delenv("KTISMA_WORKSPACE_ROOT", raising=False)
+        monkeypatch.delenv("KTISMA_ROOT", raising=False)
         real_dir = tmp_path / "real_project"
         real_dir.mkdir()
         (real_dir / ".ktisma.toml").write_text("[build]\n")

@@ -5,6 +5,27 @@ import shutil
 from pathlib import Path
 from typing import Optional
 
+ROOT_ENV_VAR = "KTISMA_ROOT"
+# Former name of ROOT_ENV_VAR, read for one release when ROOT_ENV_VAR is unset.
+LEGACY_ROOT_ENV_VAR = "KTISMA_WORKSPACE_ROOT"
+
+
+def root_from_environment() -> Optional[str]:
+    """Return the workspace root set in the environment, or ``None``.
+
+    ``KTISMA_ROOT`` takes precedence. The former variable ``KTISMA_WORKSPACE_ROOT`` is
+    read only when ``KTISMA_ROOT`` is unset or empty. An empty value counts as unset.
+    """
+    return os.environ.get(ROOT_ENV_VAR) or os.environ.get(LEGACY_ROOT_ENV_VAR) or None
+
+
+def legacy_root_variable_in_use() -> bool:
+    """Return whether the root is taken from the former variable ``KTISMA_WORKSPACE_ROOT``.
+
+    Adapters call this to warn that the variable is deprecated in favor of ``KTISMA_ROOT``.
+    """
+    return not os.environ.get(ROOT_ENV_VAR) and bool(os.environ.get(LEGACY_ROOT_ENV_VAR))
+
 
 def resolve_workspace_root(
     cli_workspace_root: Optional[Path] = None,
@@ -14,18 +35,18 @@ def resolve_workspace_root(
     """Resolve the workspace root per roadmap precedence.
 
     Resolution order:
-    1. --workspace-root (CLI flag)
-    2. KTISMA_WORKSPACE_ROOT environment variable
+    1. ``--root`` (CLI option)
+    2. ``KTISMA_ROOT`` environment variable (then the deprecated ``KTISMA_WORKSPACE_ROOT``)
     3. Adapter-provided workspace root
-    4. Nearest ancestor of source_dir containing .ktisma.toml
+    4. Outermost ancestor of ``source_dir`` containing ``.ktisma.toml``
     5. Current working directory
     """
-    # Step 1: CLI flag
+    # Step 1: CLI option
     if cli_workspace_root is not None:
         return cli_workspace_root.expanduser().resolve()
 
     # Step 2: Environment variable
-    env_root = os.environ.get("KTISMA_WORKSPACE_ROOT")
+    env_root = root_from_environment()
     if env_root:
         return Path(env_root).expanduser().resolve()
 

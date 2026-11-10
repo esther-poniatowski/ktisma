@@ -56,6 +56,7 @@ class TestGenerateLatexWorkshopConfig:
     def test_tool_args_do_not_force_workspace_root(self):
         config = generate_latex_workshop_config()
         tool = config["latex-workshop.latex.tools"][0]
+        assert "--root" not in tool["args"]
         assert "--workspace-root" not in tool["args"]
 
     def test_tool_args_contain_doc_placeholder(self):

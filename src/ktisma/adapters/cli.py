@@ -7,16 +7,22 @@ from pathlib import Path
 from typing import Optional
 
 from ..domain.context import BuildRequest
-from ..domain.diagnostics import DiagnosticLevel
+from ..domain.diagnostics import Diagnostic, DiagnosticLevel
 from ..domain.exit_codes import ExitCode
+from ..infra.workspace import LEGACY_ROOT_ENV_VAR, ROOT_ENV_VAR, legacy_root_variable_in_use
 from . import bootstrap
 from .log import format_diagnostics, setup_logging
+
+# Namespace attribute collecting the deprecation diagnostics recorded while parsing.
+_DEPRECATIONS = "_deprecations"
 
 
 def main(argv: Optional[list[str]] = None) -> int:
     """Main CLI entry point."""
     parser = _build_parser()
     args = parser.parse_args(argv)
+
+    _print_deprecations(args)
 
     if not hasattr(args, "func"):
         parser.print_help(sys.stderr)
@@ -32,10 +38,102 @@ def main(argv: Optional[list[str]] = None) -> int:
         from ..domain.errors import KtismaError
 
         if isinstance(exc, KtismaError):
-            _print_diagnostics(exc.diagnostics, getattr(args, "json", False))
+            _print_diagnostics(exc.diagnostics, _json_mode(args))
             return exc.exit_code
         print(f"error: {exc}", file=sys.stderr)
         return ExitCode.INTERNAL_ERROR
+
+
+class _DeprecatedAlias(argparse.Action):
+    """Accept the former name of a renamed option and record a deprecation diagnostic.
+
+    The alias stores its value (or ``const`` when it takes no argument) in the destination of
+    the new option, and is hidden from the help.
+    """
+
+    def __init__(self, option_strings, dest, *, replacement: str, **kwargs) -> None:
+        self.replacement = replacement
+        kwargs.setdefault("default", argparse.SUPPRESS)
+        kwargs.setdefault("help", argparse.SUPPRESS)
+        super().__init__(option_strings, dest, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None) -> None:
+        setattr(namespace, self.dest, self.const if self.nargs == 0 else values)
+        _record_deprecation(
+            namespace,
+            "deprecated-option",
+            f"{option_string} is deprecated and will be removed in the next release; "
+            f"use {self.replacement}.",
+        )
+
+
+def _record_deprecation(namespace: argparse.Namespace, code: str, message: str) -> None:
+    deprecations = list(getattr(namespace, _DEPRECATIONS, None) or [])
+    deprecations.append(
+        Diagnostic(level=DiagnosticLevel.WARNING, component="cli", code=code, message=message)
+    )
+    setattr(namespace, _DEPRECATIONS, deprecations)
+
+
+def _add_root_option(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--root",
+        dest="workspace_root",
+        type=Path,
+        metavar="PATH",
+        help=f"Workspace root folder; takes precedence over {ROOT_ENV_VAR}",
+    )
+    parser.add_argument(
+        "--workspace-root",
+        dest="workspace_root",
+        type=Path,
+        action=_DeprecatedAlias,
+        replacement="--root",
+    )
+
+
+def _add_format_option(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format; json writes machine-readable output to stdout (default: text)",
+    )
+    parser.add_argument(
+        "--json",
+        dest="format",
+        nargs=0,
+        const="json",
+        action=_DeprecatedAlias,
+        replacement="--format json",
+    )
+
+
+def _json_mode(args: argparse.Namespace) -> bool:
+    return getattr(args, "format", "text") == "json"
+
+
+def _print_deprecations(args: argparse.Namespace) -> None:
+    """Print deprecation warnings to stderr, in every output format.
+
+    Stdout is left untouched, so the JSON output of a deprecated invocation is identical to the
+    output of its replacement.
+    """
+    deprecations = list(getattr(args, _DEPRECATIONS, None) or [])
+    if legacy_root_variable_in_use():
+        deprecations.append(
+            Diagnostic(
+                level=DiagnosticLevel.WARNING,
+                component="cli",
+                code="deprecated-variable",
+                message=(
+                    f"{LEGACY_ROOT_ENV_VAR} is deprecated and will be removed in the next "
+                    f"release; set {ROOT_ENV_VAR} instead."
+                ),
+            )
+        )
+    if deprecations:
+        print(format_diagnostics(deprecations, use_color=sys.stderr.isatty()), file=sys.stderr)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -50,7 +148,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # --- build ---
     build_parser = subparsers.add_parser("build", help="Build a LaTeX document")
     build_parser.add_argument("source", type=Path, help="Source .tex file")
-    build_parser.add_argument("--workspace-root", type=Path, help="Workspace root directory")
+    _add_root_option(build_parser)
     build_parser.add_argument("--engine", help="Override engine selection")
     build_parser.add_argument("--output", type=Path, help="Override output PDF path")
     build_parser.add_argument("--output-dir", type=Path, help="Override output directory")
@@ -61,7 +159,7 @@ def _build_parser() -> argparse.ArgumentParser:
     build_parser.add_argument(
         "--cleanup", choices=["never", "on_success", "on_output_success", "always"]
     )
-    build_parser.add_argument("--json", action="store_true", help="JSON output")
+    _add_format_option(build_parser)
     build_parser.set_defaults(func=_cmd_build)
 
     # --- inspect ---
@@ -70,23 +168,23 @@ def _build_parser() -> argparse.ArgumentParser:
 
     inspect_engine = inspect_sub.add_parser("engine", help="Inspect engine selection")
     inspect_engine.add_argument("source", type=Path, help="Source .tex file")
-    inspect_engine.add_argument("--workspace-root", type=Path)
+    _add_root_option(inspect_engine)
     inspect_engine.add_argument("--engine", help="Override engine")
-    inspect_engine.add_argument("--json", action="store_true")
+    _add_format_option(inspect_engine)
     inspect_engine.set_defaults(func=_cmd_inspect_engine)
 
     inspect_route = inspect_sub.add_parser("route", help="Inspect output routing")
     inspect_route.add_argument("source", type=Path, help="Source .tex file")
-    inspect_route.add_argument("--workspace-root", type=Path)
+    _add_root_option(inspect_route)
     inspect_route.add_argument("--output", type=Path)
     inspect_route.add_argument("--output-dir", type=Path)
-    inspect_route.add_argument("--json", action="store_true")
+    _add_format_option(inspect_route)
     inspect_route.set_defaults(func=_cmd_inspect_route)
 
     # --- clean ---
     clean_parser = subparsers.add_parser("clean", help="Clean build directories")
     clean_parser.add_argument("target", type=Path, help="Source .tex file or build directory")
-    clean_parser.add_argument("--workspace-root", type=Path)
+    _add_root_option(clean_parser)
     clean_parser.set_defaults(func=_cmd_clean)
 
     # --- check-log ---
@@ -111,37 +209,37 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # --- doctor ---
     doctor_parser = subparsers.add_parser("doctor", help="Check prerequisites")
-    doctor_parser.add_argument("--workspace-root", type=Path)
-    doctor_parser.add_argument("--json", action="store_true")
+    _add_root_option(doctor_parser)
+    _add_format_option(doctor_parser)
     doctor_parser.set_defaults(func=_cmd_doctor)
 
     # --- batch ---
     batch_parser = subparsers.add_parser("batch", help="Build all .tex files in a directory")
     batch_parser.add_argument("source_dir", type=Path, help="Directory containing .tex files")
-    batch_parser.add_argument("--workspace-root", type=Path)
+    _add_root_option(batch_parser)
     batch_parser.add_argument("--engine", help="Override engine")
     batch_parser.add_argument("--watch", action="store_true")
-    batch_parser.add_argument("--json", action="store_true")
+    _add_format_option(batch_parser)
     batch_parser.set_defaults(func=_cmd_batch)
 
     # --- variants ---
     variants_parser = subparsers.add_parser("variants", help="Build all configured variants")
     variants_parser.add_argument("source", type=Path, help="Source .tex file")
-    variants_parser.add_argument("--workspace-root", type=Path)
+    _add_root_option(variants_parser)
     variants_parser.add_argument("--engine", help="Override engine")
     variants_parser.add_argument(
         "--include-default",
         action="store_true",
         help="Also build the non-variant output alongside configured variants",
     )
-    variants_parser.add_argument("--json", action="store_true")
+    _add_format_option(variants_parser)
     variants_parser.set_defaults(func=_cmd_variants)
 
     # --- init ---
     init_parser = subparsers.add_parser(
         "init", help="Generate wrapper script and editor configuration"
     )
-    init_parser.add_argument("--workspace-root", type=Path, help="Workspace root directory")
+    _add_root_option(init_parser)
     init_parser.set_defaults(func=_cmd_init)
 
     # --- tex ---
@@ -157,15 +255,15 @@ def _build_parser() -> argparse.ArgumentParser:
         ("inspect", "Inspect the selected dependency snapshot", _cmd_tex_inspect),
     ):
         command = tex_sub.add_parser(name, help=help_text)
-        command.add_argument("--workspace-root", type=Path)
-        command.add_argument("--json", action="store_true")
+        _add_root_option(command)
+        _add_format_option(command)
         command.set_defaults(func=handler)
     resolve = tex_sub.add_parser(
         "resolve", help="Resolve one declared entry point from the selected snapshot"
     )
     resolve.add_argument("reference", help="qualified entry point, DEPENDENCY:ENTRYPOINT")
-    resolve.add_argument("--workspace-root", type=Path)
-    resolve.add_argument("--json", action="store_true")
+    _add_root_option(resolve)
+    _add_format_option(resolve)
     resolve.set_defaults(func=_cmd_tex_resolve)
 
     return parser
@@ -180,7 +278,7 @@ def _cmd_build(args: argparse.Namespace) -> int:
         output_dir_override=(args.output_dir.expanduser().resolve() if args.output_dir else None),
         variant=args.variant,
         variant_payload=(args.variant_payload if hasattr(args, "variant_payload") else None),
-        json_output=args.json,
+        json_output=_json_mode(args),
         cleanup_override=args.cleanup,
     )
 
@@ -190,9 +288,9 @@ def _cmd_build(args: argparse.Namespace) -> int:
         workspace_root=args.workspace_root,
     )
 
-    _print_diagnostics(result.diagnostics, args.json)
+    _print_diagnostics(result.diagnostics, _json_mode(args))
 
-    if args.json:
+    if _json_mode(args):
         source_file = args.source.expanduser().resolve()
         _print_json(_build_result_to_dict(result, source_file))
     elif result.exit_code == ExitCode.SUCCESS and result.produced_paths:
@@ -205,7 +303,7 @@ def _cmd_build(args: argparse.Namespace) -> int:
 
 
 def _cmd_inspect_engine(args: argparse.Namespace) -> int:
-    request = BuildRequest(engine_override=args.engine, json_output=args.json)
+    request = BuildRequest(engine_override=args.engine, json_output=_json_mode(args))
 
     decision = bootstrap.inspect_engine_cmd(
         source_file=args.source,
@@ -213,7 +311,7 @@ def _cmd_inspect_engine(args: argparse.Namespace) -> int:
         workspace_root=args.workspace_root,
     )
 
-    if args.json:
+    if _json_mode(args):
         _print_json(decision.to_dict())
     else:
         _print_diagnostics(decision.diagnostics, False)
@@ -233,7 +331,7 @@ def _cmd_inspect_route(args: argparse.Namespace) -> int:
     request = BuildRequest(
         output_path_override=(args.output.expanduser().resolve() if args.output else None),
         output_dir_override=(args.output_dir.expanduser().resolve() if args.output_dir else None),
-        json_output=args.json,
+        json_output=_json_mode(args),
     )
 
     decision = bootstrap.inspect_route_cmd(
@@ -242,7 +340,7 @@ def _cmd_inspect_route(args: argparse.Namespace) -> int:
         workspace_root=args.workspace_root,
     )
 
-    if args.json:
+    if _json_mode(args):
         _print_json(decision.to_dict(args.source))
     else:
         _print_diagnostics(decision.diagnostics, False)
@@ -309,7 +407,7 @@ def _cmd_check_log(args: argparse.Namespace) -> int:
 def _cmd_doctor(args: argparse.Namespace) -> int:
     result = bootstrap.doctor(workspace_root=args.workspace_root)
 
-    if args.json:
+    if _json_mode(args):
         _print_json(
             {
                 "exit_code": int(result.exit_code),
@@ -338,7 +436,7 @@ def _cmd_batch(args: argparse.Namespace) -> int:
     request = BuildRequest(
         watch=args.watch,
         engine_override=args.engine,
-        json_output=args.json,
+        json_output=_json_mode(args),
     )
 
     result = bootstrap.batch(
@@ -347,9 +445,9 @@ def _cmd_batch(args: argparse.Namespace) -> int:
         workspace_root=args.workspace_root,
     )
 
-    _print_diagnostics(result.diagnostics, args.json)
+    _print_diagnostics(result.diagnostics, _json_mode(args))
 
-    if args.json:
+    if _json_mode(args):
         _print_json(
             {
                 "exit_code": int(result.exit_code),
@@ -380,7 +478,7 @@ def _cmd_variants(args: argparse.Namespace) -> int:
     request = BuildRequest(
         engine_override=args.engine,
         include_default=args.include_default,
-        json_output=args.json,
+        json_output=_json_mode(args),
     )
 
     result = bootstrap.variants(
@@ -389,9 +487,9 @@ def _cmd_variants(args: argparse.Namespace) -> int:
         workspace_root=args.workspace_root,
     )
 
-    _print_diagnostics(result.diagnostics, args.json)
+    _print_diagnostics(result.diagnostics, _json_mode(args))
 
-    if args.json:
+    if _json_mode(args):
         _print_json(
             {
                 "exit_code": int(result.exit_code),
@@ -410,21 +508,21 @@ def _cmd_variants(args: argparse.Namespace) -> int:
 
 
 def _cmd_tex_install(args: argparse.Namespace) -> int:
-    return _render_tex_result(bootstrap.tex_install(args.workspace_root), args.json)
+    return _render_tex_result(bootstrap.tex_install(args.workspace_root), _json_mode(args))
 
 
 def _cmd_tex_check(args: argparse.Namespace) -> int:
-    return _render_tex_result(bootstrap.tex_check(args.workspace_root), args.json)
+    return _render_tex_result(bootstrap.tex_check(args.workspace_root), _json_mode(args))
 
 
 def _cmd_tex_inspect(args: argparse.Namespace) -> int:
-    return _render_tex_result(bootstrap.tex_inspect(args.workspace_root), args.json)
+    return _render_tex_result(bootstrap.tex_inspect(args.workspace_root), _json_mode(args))
 
 
 def _cmd_tex_resolve(args: argparse.Namespace) -> int:
     result = bootstrap.tex_resolve(args.reference, args.workspace_root)
-    _print_diagnostics(result.diagnostics, args.json)
-    if args.json:
+    _print_diagnostics(result.diagnostics, _json_mode(args))
+    if _json_mode(args):
         _print_json(
             {
                 "exit_code": int(result.exit_code),

@@ -30,7 +30,7 @@ if [[ ! -f "$ktisma" ]]; then
   exit 1
 fi
 
-export KTISMA_WORKSPACE_ROOT="$repo_root"
+export KTISMA_ROOT="$repo_root"
 exec python3 "$ktisma" "$@"
 """
 
