@@ -33,9 +33,7 @@ def load_resolved_config(
     ]
     file_layers = config_loader.load_layers(workspace_root, source_dir)
     additional_layers = [layer for layer in extra_layers if layer.data] if extra_layers else []
-    scope_diagnostics = _validate_tex_dependency_scope(
-        workspace_root, [*file_layers, *additional_layers]
-    )
+    scope_diagnostics = _validate_tex_dependency_scope([*file_layers, *additional_layers])
     if scope_diagnostics:
         raise ConfigError(
             "Configuration validation failed with " f"{len(scope_diagnostics)} error(s).",
@@ -46,7 +44,7 @@ def load_resolved_config(
 
     merged, provenance = merge_config_layers(layers)
 
-    schema_version = _workspace_schema_version(workspace_root, file_layers)
+    schema_version = _workspace_schema_version(file_layers)
     merged["schema_version"] = schema_version
     diagnostics = validate_config(merged, schema_version)
 
@@ -60,33 +58,23 @@ def load_resolved_config(
     return resolve_config(merged, provenance), diagnostics
 
 
-def _workspace_schema_version(
-    workspace_root: Path,
-    file_layers: list[ConfigLayer],
-) -> int:
+def _workspace_schema_version(file_layers: list[ConfigLayer]) -> int:
     """Return the schema version selected by the workspace-root config.
 
     Nested configs declare the syntax of their own layer. They do not downgrade
     capabilities selected by the workspace root when the layers are resolved.
     """
-    root_config = (workspace_root / ".ktisma.toml").resolve()
     for layer in file_layers:
-        if layer.source is not None and layer.source.resolve() == root_config:
+        if layer.is_workspace_root:
             return int(layer.data.get("schema_version", 1))
     return 1
 
 
-def _validate_tex_dependency_scope(
-    workspace_root: Path,
-    layers: list[ConfigLayer],
-) -> list[Diagnostic]:
+def _validate_tex_dependency_scope(layers: list[ConfigLayer]) -> list[Diagnostic]:
     """Reject TeX dependency declarations outside the workspace-root config."""
-    root_config = (workspace_root / ".ktisma.toml").resolve()
     diagnostics: list[Diagnostic] = []
     for layer in layers:
-        if "tex" not in layer.data:
-            continue
-        if layer.source is not None and layer.source.resolve() == root_config:
+        if "tex" not in layer.data or layer.is_workspace_root:
             continue
         diagnostics.append(
             Diagnostic(
@@ -94,8 +82,8 @@ def _validate_tex_dependency_scope(
                 component="config",
                 code="tex-dependencies-not-root",
                 message=(
-                    "TeX dependencies may be declared only in the workspace-root "
-                    f".ktisma.toml; found a declaration in {layer.label}."
+                    "TeX dependencies may be declared only in the settings file of the "
+                    f"workspace root; found a declaration in {layer.label}."
                 ),
             )
         )

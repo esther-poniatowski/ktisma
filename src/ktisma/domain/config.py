@@ -24,6 +24,9 @@ class ConfigLayer:
     source: Optional[Path]  # Declaring config file path; None for built-in defaults and CLI
     label: str  # human-readable provenance description
     base_dir: Optional[Path] = None  # Directory to anchor relative paths against; set by infra
+    # True for the settings file of the workspace root, which alone may declare TeX dependencies
+    # and select the schema version of the workspace; set by infra.
+    is_workspace_root: bool = False
 
 
 @dataclass(frozen=True)

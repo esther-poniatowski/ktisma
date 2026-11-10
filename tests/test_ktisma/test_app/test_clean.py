@@ -19,7 +19,7 @@ def test_clean_uses_metadata_to_avoid_prefix_collisions(tmp_path: Path) -> None:
     other_source.write_text("\\documentclass{article}\n", encoding="utf-8")
 
     config_loader = FakeConfigLoader(
-        layers=[ConfigLayer(data={}, source=tmp_path / ".ktisma.toml", label="test")]
+        layers=[ConfigLayer(data={}, source=tmp_path / "ktisma.toml", label="test")]
     )
     workspace_ops = FakeWorkspaceOps()
 
@@ -48,3 +48,42 @@ def test_clean_uses_metadata_to_avoid_prefix_collisions(tmp_path: Path) -> None:
     assert own_variant_dir in result.removed_dirs
     assert not own_variant_dir.exists()
     assert other_base_dir.exists()
+
+
+def test_clean_refuses_a_folder_of_the_state_directory(tmp_path: Path) -> None:
+    """The TeX snapshots under .ktisma/ are managed by `ktisma tex install`, not by clean."""
+    snapshots = tmp_path / ".ktisma" / "tex-snapshots"
+    snapshots.mkdir(parents=True)
+
+    result = execute_clean(
+        target=snapshots,
+        workspace_root=None,
+        config_loader=FakeConfigLoader(layers=[]),
+        workspace_ops=FakeWorkspaceOps(),
+    )
+
+    assert result.exit_code == ExitCode.CONFIG_ERROR
+    assert [d.code for d in result.diagnostics] == ["not-build-dir"]
+    assert snapshots.is_dir()
+
+
+def test_clean_without_root_reads_the_configuration_resolved_as_build_does(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Without --root, clean resolves the workspace root from the source, like build."""
+    from ktisma.adapters import bootstrap
+
+    monkeypatch.delenv("KTISMA_ROOT", raising=False)
+    (tmp_path / "ktisma.toml").write_text('[build]\nout_dir_name = "_out"\n', encoding="utf-8")
+    source_dir = tmp_path / "chapter"
+    source_dir.mkdir()
+    source = source_dir / "paper.tex"
+    source.write_text("\\documentclass{article}\n", encoding="utf-8")
+    build_dir = source_dir / "_out" / "paper"
+    build_dir.mkdir(parents=True)
+
+    result = bootstrap.clean(target=source)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.removed_dirs == [build_dir]
+    assert not build_dir.exists()

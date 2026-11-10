@@ -472,19 +472,37 @@ def test_variants_with_engine_and_json(mock_fn):
 
 
 # ---------------------------------------------------------------------------
-# verbose flag is accepted globally
+# Reserved short options: -v is --version, --verbose has no short form
 # ---------------------------------------------------------------------------
 
 
 @patch("ktisma.adapters.bootstrap.build")
 def test_verbose_flag_accepted(mock_build):
     mock_build.return_value = _StubResult()
-    code = main(["-v", "build", "main.tex"])
+    code = main(["--verbose", "build", "main.tex"])
     assert code == ExitCode.SUCCESS
 
 
+@pytest.mark.parametrize("flag", ["-v", "--version"])
+def test_version_flag_prints_the_version(flag, capsys):
+    from ktisma import __version__
+
+    with pytest.raises(SystemExit) as exc_info:
+        main([flag])
+    assert exc_info.value.code == 0
+    assert capsys.readouterr().out.strip() == f"ktisma {__version__}"
+
+
+@patch("ktisma.adapters.bootstrap.build")
+def test_short_output_option(mock_build):
+    mock_build.return_value = _StubResult()
+    main(["build", "main.tex", "-o", "/tmp/out/doc.pdf"])
+    request = mock_build.call_args[1]["request"]
+    assert request.output_path_override == Path("/tmp/out/doc.pdf").resolve()
+
+
 # ---------------------------------------------------------------------------
-# Renamed options and their deprecated aliases
+# Root and format options; the retired names are rejected
 # ---------------------------------------------------------------------------
 
 # Every command taking --root, as the arguments that precede the option.
@@ -503,116 +521,100 @@ _ROOT_COMMANDS = [
     ["tex", "resolve", "fixture:fixture.sty"],
 ]
 
-# Every command taking --format, with the bootstrap entry and the stub it returns.
+# Every command taking --format.
 _FORMAT_COMMANDS = [
-    (["build", "main.tex"], "build", _StubResult),
-    (["inspect", "engine", "main.tex"], "inspect_engine_cmd", _StubDecision),
-    (["inspect", "route", "main.tex"], "inspect_route_cmd", _StubDecision),
-    (["doctor"], "doctor", _StubResult),
-    (["batch", "/tmp/texfiles"], "batch", _StubResult),
-    (["variants", "main.tex"], "variants", _StubResult),
-    (["tex", "install"], "tex_install", _StubResult),
-    (["tex", "check"], "tex_check", _StubResult),
-    (["tex", "inspect"], "tex_inspect", _StubResult),
-    (["tex", "resolve", "fixture:fixture.sty"], "tex_resolve", _StubResult),
+    ["build", "main.tex"],
+    ["inspect", "engine", "main.tex"],
+    ["inspect", "route", "main.tex"],
+    ["doctor"],
+    ["batch", "/tmp/texfiles"],
+    ["variants", "main.tex"],
+    ["tex", "install"],
+    ["tex", "check"],
+    ["tex", "inspect"],
+    ["tex", "resolve", "fixture:fixture.sty"],
 ]
 
 
-@pytest.fixture
-def clean_root_environment(monkeypatch):
-    monkeypatch.delenv("KTISMA_ROOT", raising=False)
-    monkeypatch.delenv("KTISMA_WORKSPACE_ROOT", raising=False)
-
-
 @pytest.mark.parametrize("command", _ROOT_COMMANDS, ids=" ".join)
-def test_root_option_sets_the_workspace_root(command):
-    args = _build_parser().parse_args([*command, "--root", "/tmp/workspace"])
+@pytest.mark.parametrize("flag", ["-r", "--root"])
+def test_root_option_sets_the_workspace_root(command, flag):
+    args = _build_parser().parse_args([*command, flag, "/tmp/workspace"])
     assert args.workspace_root == Path("/tmp/workspace")
-    assert not getattr(args, "_deprecations", None)
 
 
-@pytest.mark.parametrize("command", _ROOT_COMMANDS, ids=" ".join)
-def test_workspace_root_alias_still_works_and_records_a_warning(command):
-    args = _build_parser().parse_args([*command, "--workspace-root", "/tmp/workspace"])
-    assert args.workspace_root == Path("/tmp/workspace")
-    assert [d.code for d in args._deprecations] == ["deprecated-option"]
-    assert "--root" in args._deprecations[0].message
-
-
-@pytest.mark.parametrize("command", [c for c, _, _ in _FORMAT_COMMANDS], ids=" ".join)
-def test_format_defaults_to_text_and_json_alias_selects_json(command):
+@pytest.mark.parametrize("command", _FORMAT_COMMANDS, ids=" ".join)
+def test_format_defaults_to_text_and_selects_json(command):
     parser = _build_parser()
     assert parser.parse_args(command).format == "text"
     assert parser.parse_args([*command, "--format", "json"]).format == "json"
-    legacy = parser.parse_args([*command, "--json"])
-    assert legacy.format == "json"
-    assert "--format json" in legacy._deprecations[0].message
+
+
+@pytest.mark.parametrize("command", _ROOT_COMMANDS, ids=" ".join)
+def test_retired_workspace_root_option_is_rejected(command, capsys):
+    with pytest.raises(SystemExit) as exc_info:
+        main([*command, "--workspace-root", "/tmp/workspace"])
+    assert exc_info.value.code == ExitCode.CONFIG_ERROR
+    assert "unrecognized arguments: --workspace-root" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("command", _FORMAT_COMMANDS, ids=" ".join)
+def test_retired_json_option_is_rejected(command, capsys):
+    with pytest.raises(SystemExit) as exc_info:
+        main([*command, "--json"])
+    assert exc_info.value.code == ExitCode.CONFIG_ERROR
+    assert "unrecognized arguments: --json" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("command", [["build", "--help"], ["tex", "check", "--help"]])
-def test_help_lists_only_the_new_names(command, capsys):
+def test_help_lists_only_the_current_names(command, capsys):
     with pytest.raises(SystemExit):
         main(command)
     out = capsys.readouterr().out
-    assert "--root PATH" in out
+    assert "-r PATH, --root PATH" in out
     assert "--format {text,json}" in out
     assert "--workspace-root" not in out
     assert "--json" not in out
 
 
 @patch("ktisma.adapters.bootstrap.build")
-def test_workspace_root_alias_warns_on_stderr(mock_build, capsys, clean_root_environment):
-    mock_build.return_value = _StubResult()
-    main(["build", "main.tex", "--workspace-root", "/tmp/workspace"])
-    err = capsys.readouterr().err
-    assert "[deprecated-option] --workspace-root is deprecated" in err
-    assert "use --root." in err
-    assert mock_build.call_args[1]["workspace_root"] == Path("/tmp/workspace")
-
-
-@patch("ktisma.adapters.bootstrap.build")
-def test_new_names_do_not_warn(mock_build, capsys, clean_root_environment):
-    mock_build.return_value = _StubResult()
-    main(["build", "main.tex", "--root", "/tmp/workspace", "--format", "json"])
-    assert "deprecated" not in capsys.readouterr().err
-
-
-@pytest.mark.parametrize(
-    ("command", "bootstrap_name", "stub"), _FORMAT_COMMANDS, ids=lambda v: str(v)
-)
-def test_format_json_output_equals_legacy_json_output(
-    command, bootstrap_name, stub, capsys, clean_root_environment
-):
-    outputs = []
-    errors = []
-    for flags in (["--format", "json"], ["--json"]):
-        with patch(f"ktisma.adapters.bootstrap.{bootstrap_name}") as mock_fn:
-            mock_fn.return_value = stub()
-            main([*command, *flags])
-        captured = capsys.readouterr()
-        outputs.append(captured.out)
-        errors.append(captured.err)
-    assert outputs[0] == outputs[1]
-    json.loads(outputs[0])
-    assert "deprecated" not in errors[0]
-    assert "[deprecated-option] --json is deprecated" in errors[1]
-
-
-@patch("ktisma.adapters.bootstrap.build")
-def test_legacy_root_variable_warns_on_stderr(mock_build, capsys, monkeypatch):
+def test_former_root_variable_is_ignored_without_warning(mock_build, capsys, monkeypatch):
     monkeypatch.delenv("KTISMA_ROOT", raising=False)
     monkeypatch.setenv("KTISMA_WORKSPACE_ROOT", "/tmp/workspace")
     mock_build.return_value = _StubResult()
     main(["build", "main.tex"])
+    assert mock_build.call_args[1]["workspace_root"] is None
+    assert "KTISMA_WORKSPACE_ROOT" not in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# init: the wrapper script is overwritten only with --force
+# ---------------------------------------------------------------------------
+
+
+def test_init_creates_the_wrapper(tmp_path, capsys):
+    code = main(["init", "--root", str(tmp_path)])
+    assert code == ExitCode.SUCCESS
+    assert (tmp_path / "scripts" / "ktisma").is_file()
+    assert "KTISMA_ROOT" in (tmp_path / "scripts" / "ktisma").read_text()
+
+
+def test_init_refuses_to_overwrite_an_existing_wrapper(tmp_path, capsys):
+    wrapper = tmp_path / "scripts" / "ktisma"
+    wrapper.parent.mkdir()
+    wrapper.write_text("edited by the researcher\n")
+    code = main(["init", "--root", str(tmp_path)])
+    assert code == ExitCode.CONFIG_ERROR
     err = capsys.readouterr().err
-    assert "[deprecated-variable] KTISMA_WORKSPACE_ROOT is deprecated" in err
-    assert "set KTISMA_ROOT instead." in err
+    assert str(wrapper) in err
+    assert "--force" in err
+    assert wrapper.read_text() == "edited by the researcher\n"
 
 
-@patch("ktisma.adapters.bootstrap.build")
-def test_new_root_variable_silences_the_legacy_warning(mock_build, capsys, monkeypatch):
-    monkeypatch.setenv("KTISMA_ROOT", "/tmp/new")
-    monkeypatch.setenv("KTISMA_WORKSPACE_ROOT", "/tmp/legacy")
-    mock_build.return_value = _StubResult()
-    main(["build", "main.tex"])
-    assert "deprecated" not in capsys.readouterr().err
+def test_init_force_overwrites_an_existing_wrapper(tmp_path, capsys):
+    wrapper = tmp_path / "scripts" / "ktisma"
+    wrapper.parent.mkdir()
+    wrapper.write_text("edited by the researcher\n")
+    code = main(["init", "--root", str(tmp_path), "--force"])
+    assert code == ExitCode.SUCCESS
+    assert "KTISMA_ROOT" in wrapper.read_text()

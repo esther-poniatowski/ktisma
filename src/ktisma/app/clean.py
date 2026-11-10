@@ -13,6 +13,9 @@ from .configuration import load_resolved_config
 from .protocols import ConfigLoader, WorkspaceOps
 
 
+_STATE_DIR_NAME = ".ktisma"
+
+
 @dataclass(frozen=True)
 class CleanResult:
     exit_code: ExitCode
@@ -28,8 +31,10 @@ def execute_clean(
 ) -> CleanResult:
     """Clean build directories for a source file or a specific build directory.
 
-    If target is a .tex file, removes its build directory.
-    If target is a directory, removes it directly (if it looks like a ktisma build dir).
+    If target is a .tex file, removes its build directory; ``workspace_root`` must then be the root
+    resolved for that source, as for ``build``, so that the same configuration applies.
+    If target is a directory, removes it directly (if it looks like a ktisma build dir). Only
+    build directories are removed: they are derived and the next build recreates them.
     """
     diagnostics: list[Diagnostic] = []
     removed: list[Path] = []
@@ -37,7 +42,7 @@ def execute_clean(
     if target.suffix == ".tex":
         target = target.expanduser().resolve()
         if workspace_root is None:
-            workspace_root = target.parent
+            raise ValueError("Cleaning a source requires the workspace root resolved for it.")
 
         ctx = SourceContext(
             source_file=target,
@@ -103,7 +108,10 @@ def execute_clean(
     elif workspace_ops.is_directory(target):
         lock_marker = target / ".ktisma.lock"
         parent_name = target.parent.name if target.parent else ""
-        if workspace_ops.path_exists(lock_marker) or parent_name.startswith(".ktisma"):
+        # The state directory `.ktisma/` holds the TeX snapshots that `ktisma tex install`
+        # manages; it is not a build directory, so `clean` never removes a folder inside it.
+        in_build_parent = parent_name.startswith(".ktisma") and parent_name != _STATE_DIR_NAME
+        if workspace_ops.path_exists(lock_marker) or in_build_parent:
             try:
                 workspace_ops.remove_tree(target)
                 removed.append(target)

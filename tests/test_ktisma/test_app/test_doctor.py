@@ -361,11 +361,11 @@ class TestMultipleFailures:
 
 class TestConfigValidation:
     def test_valid_config_produces_info_diagnostic(self, tmp_path: Path) -> None:
-        (tmp_path / ".ktisma.toml").write_text("schema_version = 1\n")
+        (tmp_path / "ktisma.toml").write_text("schema_version = 1\n")
         config_layer = ConfigLayer(
             data={"schema_version": 1},
             source=tmp_path,
-            label=str(tmp_path / ".ktisma.toml"),
+            label=str(tmp_path / "ktisma.toml"),
         )
         result = execute_doctor(
             workspace_root=tmp_path,

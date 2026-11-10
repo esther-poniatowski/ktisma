@@ -46,7 +46,7 @@ def test_execute_variants_preserves_structured_variant_metadata(monkeypatch, tmp
                 }
             }
         },
-        source=tmp_path / ".ktisma.toml",
+        source=tmp_path / "ktisma.toml",
         label="test config",
     )
     captured_requests: list[BuildRequest] = []
@@ -90,7 +90,7 @@ def test_clean_matches_canonical_source_identity(monkeypatch, tmp_path: Path) ->
     result = execute_clean(
         target=Path("paper.tex"),
         workspace_root=tmp_path,
-        config_loader=FakeConfigLoader(layers=[ConfigLayer(data={}, source=tmp_path / ".ktisma.toml", label="test")]),
+        config_loader=FakeConfigLoader(layers=[ConfigLayer(data={}, source=tmp_path / "ktisma.toml", label="test")]),
         workspace_ops=workspace_ops,
     )
 

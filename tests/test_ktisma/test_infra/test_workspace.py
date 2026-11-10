@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
 
-from ktisma.infra.workspace import legacy_root_variable_in_use, resolve_workspace_root
+from ktisma.infra.workspace import resolve_workspace_root
 
 
 @pytest.fixture(autouse=True)
@@ -40,15 +39,14 @@ class TestCliFlag:
         result = resolve_workspace_root(cli_workspace_root=ws_cli)
         assert result == ws_cli.resolve()
 
-    def test_cli_flag_overrides_adapter(self, tmp_path: Path) -> None:
-        ws_cli = tmp_path / "cli_ws"
-        ws_cli.mkdir()
-        ws_adapter = tmp_path / "adapter_ws"
-        ws_adapter.mkdir()
-        result = resolve_workspace_root(
-            cli_workspace_root=ws_cli, adapter_workspace_root=ws_adapter
-        )
-        assert result == ws_cli.resolve()
+    def test_relative_cli_flag_is_read_from_the_current_folder(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        ws = tmp_path / "ws"
+        ws.mkdir()
+        monkeypatch.chdir(tmp_path)
+        result = resolve_workspace_root(cli_workspace_root=Path("ws"))
+        assert result == ws.resolve()
 
     def test_cli_flag_expands_user(self, tmp_path: Path) -> None:
         """Tilde paths are expanded."""
@@ -74,15 +72,16 @@ class TestEnvVar:
         result = resolve_workspace_root()
         assert result == ws.resolve()
 
-    def test_env_var_overrides_adapter(
+    def test_env_var_overrides_config_ancestor(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         ws_env = tmp_path / "env_ws"
         ws_env.mkdir()
-        ws_adapter = tmp_path / "adapter_ws"
-        ws_adapter.mkdir()
+        source_dir = tmp_path / "project" / "src"
+        source_dir.mkdir(parents=True)
+        (tmp_path / "project" / "ktisma.toml").write_text("[build]\n")
         monkeypatch.setenv("KTISMA_ROOT", str(ws_env))
-        result = resolve_workspace_root(adapter_workspace_root=ws_adapter)
+        result = resolve_workspace_root(source_dir=source_dir)
         assert result == ws_env.resolve()
 
     def test_empty_env_var_is_ignored(
@@ -90,149 +89,120 @@ class TestEnvVar:
     ) -> None:
         """An empty string in the env var should be treated as unset."""
         monkeypatch.setenv("KTISMA_ROOT", "")
-        ws_adapter = tmp_path / "adapter_ws"
-        ws_adapter.mkdir()
-        result = resolve_workspace_root(adapter_workspace_root=ws_adapter)
-        assert result == ws_adapter.resolve()
+        monkeypatch.chdir(tmp_path)
+        result = resolve_workspace_root()
+        assert result == tmp_path.resolve()
 
-    def test_env_var_cleared_falls_through(
+
+class TestRetiredEnvVar:
+    """The former variable KTISMA_WORKSPACE_ROOT is retired without a fallback."""
+
+    def test_former_variable_is_ignored(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """When env var is explicitly deleted, we should not use it."""
-        monkeypatch.delenv("KTISMA_ROOT", raising=False)
-        ws_adapter = tmp_path / "adapter_ws"
-        ws_adapter.mkdir()
-        result = resolve_workspace_root(adapter_workspace_root=ws_adapter)
-        assert result == ws_adapter.resolve()
+        former = tmp_path / "former_ws"
+        former.mkdir()
+        monkeypatch.setenv("KTISMA_WORKSPACE_ROOT", str(former))
+        monkeypatch.chdir(tmp_path)
+        assert resolve_workspace_root() == tmp_path.resolve()
 
-
-class TestLegacyEnvVar:
-    """The former variable KTISMA_WORKSPACE_ROOT is read for one release."""
-
-    def test_legacy_variable_alone_is_used(
+    def test_former_variable_is_ignored_when_new_variable_is_empty(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        ws = tmp_path / "legacy_ws"
-        ws.mkdir()
-        monkeypatch.setenv("KTISMA_WORKSPACE_ROOT", str(ws))
-        assert resolve_workspace_root() == ws.resolve()
-        assert legacy_root_variable_in_use()
-
-    def test_new_variable_wins_over_legacy_variable(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        ws_new = tmp_path / "new_ws"
-        ws_new.mkdir()
-        ws_legacy = tmp_path / "legacy_ws"
-        ws_legacy.mkdir()
-        monkeypatch.setenv("KTISMA_ROOT", str(ws_new))
-        monkeypatch.setenv("KTISMA_WORKSPACE_ROOT", str(ws_legacy))
-        assert resolve_workspace_root() == ws_new.resolve()
-        assert not legacy_root_variable_in_use()
-
-    def test_empty_new_variable_falls_back_to_legacy_variable(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        ws_legacy = tmp_path / "legacy_ws"
-        ws_legacy.mkdir()
+        former = tmp_path / "former_ws"
+        former.mkdir()
         monkeypatch.setenv("KTISMA_ROOT", "")
-        monkeypatch.setenv("KTISMA_WORKSPACE_ROOT", str(ws_legacy))
-        assert resolve_workspace_root() == ws_legacy.resolve()
-        assert legacy_root_variable_in_use()
-
-    def test_legacy_variable_not_in_use_when_unset(self) -> None:
-        assert not legacy_root_variable_in_use()
+        monkeypatch.setenv("KTISMA_WORKSPACE_ROOT", str(former))
+        monkeypatch.chdir(tmp_path)
+        assert resolve_workspace_root() == tmp_path.resolve()
 
 
 # ---------------------------------------------------------------------------
-# 3. Adapter-provided workspace root
-# ---------------------------------------------------------------------------
-
-
-class TestAdapterProvided:
-    def test_adapter_used_when_no_cli_or_env(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.delenv("KTISMA_ROOT", raising=False)
-        ws = tmp_path / "adapter_ws"
-        ws.mkdir()
-        result = resolve_workspace_root(adapter_workspace_root=ws)
-        assert result == ws.resolve()
-
-    def test_adapter_overrides_config_ancestor(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.delenv("KTISMA_ROOT", raising=False)
-        ws_adapter = tmp_path / "adapter_ws"
-        ws_adapter.mkdir()
-
-        # Create a .ktisma.toml in a parent so ancestor search would find it
-        source_dir = tmp_path / "project" / "src"
-        source_dir.mkdir(parents=True)
-        (tmp_path / "project" / ".ktisma.toml").write_text("[build]\n")
-
-        result = resolve_workspace_root(
-            adapter_workspace_root=ws_adapter, source_dir=source_dir
-        )
-        assert result == ws_adapter.resolve()
-
-
-# ---------------------------------------------------------------------------
-# 4. Outermost .ktisma.toml ancestor
+# 3. Outermost ancestor holding a settings file
 # ---------------------------------------------------------------------------
 
 
 class TestConfigAncestor:
-    def test_finds_config_in_source_dir(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.delenv("KTISMA_ROOT", raising=False)
+    def test_finds_config_in_source_dir(self, tmp_path: Path) -> None:
         source_dir = tmp_path / "project"
         source_dir.mkdir()
-        (source_dir / ".ktisma.toml").write_text("[build]\n")
+        (source_dir / "ktisma.toml").write_text("[build]\n")
         result = resolve_workspace_root(source_dir=source_dir)
         assert result == source_dir.resolve()
 
-    def test_finds_config_in_ancestor_dir(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.delenv("KTISMA_ROOT", raising=False)
+    def test_finds_config_in_ancestor_dir(self, tmp_path: Path) -> None:
         root_dir = tmp_path / "project"
         root_dir.mkdir()
-        (root_dir / ".ktisma.toml").write_text("[build]\n")
+        (root_dir / "ktisma.toml").write_text("[build]\n")
         source_dir = root_dir / "chapters" / "ch1"
         source_dir.mkdir(parents=True)
         result = resolve_workspace_root(source_dir=source_dir)
         assert result == root_dir.resolve()
 
-    def test_outermost_ancestor_wins(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """When multiple ancestors have .ktisma.toml, the outermost one wins."""
-        monkeypatch.delenv("KTISMA_ROOT", raising=False)
+    def test_finds_config_in_config_tools(self, tmp_path: Path) -> None:
+        root_dir = tmp_path / "project"
+        (root_dir / "config" / "tools").mkdir(parents=True)
+        (root_dir / "config" / "tools" / "ktisma.toml").write_text("[build]\n")
+        source_dir = root_dir / "chapters"
+        source_dir.mkdir()
+        result = resolve_workspace_root(source_dir=source_dir)
+        assert result == root_dir.resolve()
+
+    def test_outermost_ancestor_wins(self, tmp_path: Path) -> None:
+        """When multiple ancestors hold ktisma.toml, the outermost one wins."""
         outer = tmp_path / "outer"
         inner = outer / "inner"
         deep = inner / "deep"
         deep.mkdir(parents=True)
-        (outer / ".ktisma.toml").write_text("[build]\n")
-        (inner / ".ktisma.toml").write_text("[build]\n")
+        (outer / "ktisma.toml").write_text("[build]\n")
+        (inner / "ktisma.toml").write_text("[build]\n")
         result = resolve_workspace_root(source_dir=deep)
         assert result == outer.resolve()
+
+    def test_outermost_ancestor_wins_across_both_places(self, tmp_path: Path) -> None:
+        outer = tmp_path / "outer"
+        inner = outer / "inner"
+        (outer / "config" / "tools").mkdir(parents=True)
+        (outer / "config" / "tools" / "ktisma.toml").write_text("[build]\n")
+        inner.mkdir()
+        (inner / "ktisma.toml").write_text("[build]\n")
+        result = resolve_workspace_root(source_dir=inner)
+        assert result == outer.resolve()
+
+    def test_former_settings_name_is_not_recognized(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A file still named .ktisma.toml does not mark a workspace root."""
+        source_dir = tmp_path / "project"
+        source_dir.mkdir()
+        (source_dir / ".ktisma.toml").write_text("[build]\n")
+        monkeypatch.chdir(tmp_path)
+        result = resolve_workspace_root(source_dir=source_dir)
+        assert result == tmp_path.resolve()
 
     def test_no_config_ancestor_falls_through(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """If no ancestor has .ktisma.toml, fall through to cwd."""
-        monkeypatch.delenv("KTISMA_ROOT", raising=False)
+        """If no ancestor holds ktisma.toml, fall through to cwd."""
         source_dir = tmp_path / "project" / "src"
         source_dir.mkdir(parents=True)
         monkeypatch.chdir(tmp_path)
         result = resolve_workspace_root(source_dir=source_dir)
         assert result == tmp_path.resolve()
 
+    def test_search_starts_at_the_current_folder_without_a_source(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root_dir = tmp_path / "project"
+        sub = root_dir / "sub"
+        sub.mkdir(parents=True)
+        (root_dir / "ktisma.toml").write_text("[build]\n")
+        monkeypatch.chdir(sub)
+        assert resolve_workspace_root() == root_dir.resolve()
+
 
 # ---------------------------------------------------------------------------
-# 5. CWD fallback
+# 4. CWD fallback
 # ---------------------------------------------------------------------------
 
 
@@ -240,7 +210,6 @@ class TestCwdFallback:
     def test_cwd_when_nothing_provided(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.delenv("KTISMA_ROOT", raising=False)
         monkeypatch.chdir(tmp_path)
         result = resolve_workspace_root()
         assert result == tmp_path.resolve()
@@ -248,7 +217,6 @@ class TestCwdFallback:
     def test_cwd_when_source_dir_has_no_config(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.delenv("KTISMA_ROOT", raising=False)
         monkeypatch.chdir(tmp_path)
         source_dir = tmp_path / "no_config"
         source_dir.mkdir()
@@ -269,44 +237,26 @@ class TestEdgeCases:
         cli_ws.mkdir()
         env_ws = tmp_path / "env"
         env_ws.mkdir()
-        adapter_ws = tmp_path / "adapter"
-        adapter_ws.mkdir()
         source_dir = tmp_path / "src"
         source_dir.mkdir()
-        (source_dir / ".ktisma.toml").write_text("[build]\n")
+        (source_dir / "ktisma.toml").write_text("[build]\n")
         monkeypatch.setenv("KTISMA_ROOT", str(env_ws))
 
-        result = resolve_workspace_root(
-            cli_workspace_root=cli_ws,
-            adapter_workspace_root=adapter_ws,
-            source_dir=source_dir,
-        )
+        result = resolve_workspace_root(cli_workspace_root=cli_ws, source_dir=source_dir)
         assert result == cli_ws.resolve()
-
-    def test_source_dir_none_skips_ancestor_search(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.delenv("KTISMA_ROOT", raising=False)
-        monkeypatch.chdir(tmp_path)
-        result = resolve_workspace_root(source_dir=None)
-        assert result == tmp_path.resolve()
 
     def test_result_is_always_absolute(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.delenv("KTISMA_ROOT", raising=False)
         monkeypatch.chdir(tmp_path)
         result = resolve_workspace_root()
         assert result.is_absolute()
 
-    def test_symlinked_source_dir_resolved(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_symlinked_source_dir_resolved(self, tmp_path: Path) -> None:
         """Symlinks should be resolved to their real path."""
-        monkeypatch.delenv("KTISMA_ROOT", raising=False)
         real_dir = tmp_path / "real_project"
         real_dir.mkdir()
-        (real_dir / ".ktisma.toml").write_text("[build]\n")
+        (real_dir / "ktisma.toml").write_text("[build]\n")
         link = tmp_path / "link_project"
         link.symlink_to(real_dir)
         result = resolve_workspace_root(source_dir=link)

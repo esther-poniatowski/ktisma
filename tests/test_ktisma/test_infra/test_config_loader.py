@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from ktisma.domain.errors import ConfigLoadError
+from ktisma.domain.errors import ConfigError, ConfigLoadError
 from ktisma.infra.config_loader import TomlConfigLoader, CONFIG_FILENAME
 
 
@@ -300,3 +300,65 @@ class TestOverlayChain:
         layers = loader.load_layers(workspace_root=tmp_path, source_dir=current)
         assert len(layers) == 2
         assert layers[1].data["build"]["synctex"] is False
+
+
+# ---------------------------------------------------------------------------
+# Places of the settings file and anchoring of paths
+# ---------------------------------------------------------------------------
+
+
+class TestSettingsFilePlaces:
+    def test_root_file_may_sit_in_config_tools(
+        self, tmp_path: Path, loader: TomlConfigLoader
+    ) -> None:
+        config = tmp_path / "config" / "tools" / CONFIG_FILENAME
+        config.parent.mkdir(parents=True)
+        config.write_text('[engines]\ndefault = "lualatex"\n')
+        layers = loader.load_layers(workspace_root=tmp_path, source_dir=tmp_path)
+        assert [layer.source for layer in layers] == [config]
+        assert layers[0].is_workspace_root
+        assert layers[0].base_dir == tmp_path.resolve()
+
+    def test_both_places_are_an_error_naming_both(
+        self, tmp_path: Path, loader: TomlConfigLoader
+    ) -> None:
+        nested = tmp_path / "config" / "tools" / CONFIG_FILENAME
+        nested.parent.mkdir(parents=True)
+        nested.write_text("schema_version = 1\n")
+        top = tmp_path / CONFIG_FILENAME
+        top.write_text("schema_version = 1\n")
+        with pytest.raises(ConfigError) as exc_info:
+            loader.load_layers(workspace_root=tmp_path, source_dir=tmp_path)
+        [diagnostic] = exc_info.value.diagnostics
+        assert diagnostic.code == "competing-config-files"
+        assert str(nested) in diagnostic.message
+        assert str(top) in diagnostic.message
+
+    def test_overlay_is_read_only_at_its_own_level(
+        self, tmp_path: Path, loader: TomlConfigLoader
+    ) -> None:
+        """Below the root, config/tools/ktisma.toml is not the overlay of its grandparent."""
+        (tmp_path / CONFIG_FILENAME).write_text("schema_version = 1\n")
+        sub = tmp_path / "papers"
+        (sub / "config" / "tools").mkdir(parents=True)
+        (sub / "config" / "tools" / CONFIG_FILENAME).write_text("schema_version = 1\n")
+        layers = loader.load_layers(workspace_root=tmp_path, source_dir=sub)
+        assert [layer.source for layer in layers] == [tmp_path / CONFIG_FILENAME]
+
+    def test_former_settings_name_is_ignored(
+        self, tmp_path: Path, loader: TomlConfigLoader
+    ) -> None:
+        (tmp_path / ".ktisma.toml").write_text('[engines]\ndefault = "lualatex"\n')
+        layers = loader.load_layers(workspace_root=tmp_path, source_dir=tmp_path)
+        assert layers == []
+
+    def test_every_layer_anchors_its_paths_at_the_root(
+        self, tmp_path: Path, loader: TomlConfigLoader
+    ) -> None:
+        (tmp_path / CONFIG_FILENAME).write_text("schema_version = 1\n")
+        sub = tmp_path / "papers"
+        sub.mkdir()
+        (sub / CONFIG_FILENAME).write_text('[routes]\n"papers/*.tex" = "out/"\n')
+        layers = loader.load_layers(workspace_root=tmp_path, source_dir=sub)
+        assert [layer.base_dir for layer in layers] == [tmp_path.resolve()] * 2
+        assert [layer.is_workspace_root for layer in layers] == [True, False]

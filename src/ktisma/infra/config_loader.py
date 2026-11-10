@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Optional
 
 from ..domain.config import ConfigLayer
-from ..domain.errors import ConfigLoadError
+from ..domain.diagnostics import Diagnostic, DiagnosticLevel
+from ..domain.errors import ConfigError, ConfigLoadError
 
 try:
     import tomllib as toml_module
@@ -11,11 +13,53 @@ except ImportError:  # pragma: no cover - exercised on Python < 3.11
     import tomli as toml_module
 
 
-CONFIG_FILENAME = ".ktisma.toml"
+# Name of every settings file of Ktisma: the file of the workspace root and each overlay below it.
+CONFIG_FILENAME = "ktisma.toml"
+# Folder, below the workspace root, that may hold the settings file of the root instead of the root.
+CONFIG_SUBDIR = Path("config") / "tools"
+
+
+def root_config_candidates(folder: Path) -> tuple[Path, Path]:
+    """Return the two places of the settings file of a workspace root held by ``folder``.
+
+    The file sits either in ``config/tools/ktisma.toml`` below the folder or in ``ktisma.toml`` at
+    its level. An overlay below the root has only the second place.
+    """
+    return (folder / CONFIG_SUBDIR / CONFIG_FILENAME, folder / CONFIG_FILENAME)
+
+
+def holds_root_config(folder: Path) -> bool:
+    """Return whether ``folder`` holds a settings file in one of the two places of a root."""
+    return any(candidate.is_file() for candidate in root_config_candidates(folder))
+
+
+def find_root_config(workspace_root: Path) -> Optional[Path]:
+    """Return the settings file of the workspace root, or ``None`` when the root has none.
+
+    Raises:
+        ConfigError: Both places hold a settings file; the error names both files.
+    """
+    present = [candidate for candidate in root_config_candidates(workspace_root) if candidate.is_file()]
+    if len(present) > 1:
+        raise ConfigError(
+            "Two settings files compete for the workspace root.",
+            diagnostics=[
+                Diagnostic(
+                    level=DiagnosticLevel.ERROR,
+                    component="config",
+                    code="competing-config-files",
+                    message=(
+                        f"Both {present[0]} and {present[1]} exist; keep one of them as the "
+                        "settings file of the workspace root."
+                    ),
+                )
+            ],
+        )
+    return present[0] if present else None
 
 
 class TomlConfigLoader:
-    """Concrete ConfigLoader: loads .ktisma.toml files from disk."""
+    """Concrete ConfigLoader: loads the ``ktisma.toml`` files from disk."""
 
     def load_layers(
         self, workspace_root: Path, source_dir: Path
@@ -23,9 +67,12 @@ class TomlConfigLoader:
         """Load config layers from workspace root toward the source directory.
 
         Returns layers ordered from lowest to highest precedence:
-        1. Workspace .ktisma.toml (lowest)
-        2. Intermediate overlay .ktisma.toml files
-        3. Source-dir .ktisma.toml (highest file-based precedence)
+        1. The settings file of the workspace root, in ``config/tools/ktisma.toml`` or
+           ``ktisma.toml`` (lowest)
+        2. The overlay ``ktisma.toml`` of each intermediate folder
+        3. The overlay ``ktisma.toml`` of the source directory (highest file-based precedence)
+
+        Every layer anchors its relative paths at the workspace root, whatever folder holds it.
         """
         layers: list[ConfigLayer] = []
         seen: set[Path] = set()
@@ -33,16 +80,12 @@ class TomlConfigLoader:
         workspace_root = workspace_root.resolve()
         source_dir = source_dir.resolve()
 
-        # Collect config file paths from workspace root to source directory
-        config_paths: list[Path] = []
+        root_config = find_root_config(workspace_root)
+        if root_config is not None:
+            seen.add(root_config.resolve())
+            layers.append(_load_layer(root_config, workspace_root, is_workspace_root=True))
 
-        # Workspace root config
-        ws_config = workspace_root / CONFIG_FILENAME
-        if ws_config.is_file():
-            config_paths.append(ws_config)
-            seen.add(ws_config.resolve())
-
-        # Walk from workspace root to source directory, collecting overlays
+        # Walk from the workspace root to the source directory, collecting overlays
         try:
             rel = source_dir.relative_to(workspace_root)
         except ValueError:
@@ -55,22 +98,20 @@ class TomlConfigLoader:
                 candidate = current / CONFIG_FILENAME
                 resolved = candidate.resolve()
                 if candidate.is_file() and resolved not in seen:
-                    config_paths.append(candidate)
                     seen.add(resolved)
-
-        # Load each config file
-        for config_path in config_paths:
-            data = _load_toml(config_path)
-            layers.append(
-                ConfigLayer(
-                    data=data,
-                    source=config_path,
-                    base_dir=config_path.parent,
-                    label=str(config_path),
-                )
-            )
+                    layers.append(_load_layer(candidate, workspace_root, is_workspace_root=False))
 
         return layers
+
+
+def _load_layer(path: Path, workspace_root: Path, *, is_workspace_root: bool) -> ConfigLayer:
+    return ConfigLayer(
+        data=_load_toml(path),
+        source=path,
+        base_dir=workspace_root,
+        label=str(path),
+        is_workspace_root=is_workspace_root,
+    )
 
 
 def _load_toml(path: Path) -> dict:

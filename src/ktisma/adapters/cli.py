@@ -6,23 +6,19 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from .. import __version__
 from ..domain.context import BuildRequest
-from ..domain.diagnostics import Diagnostic, DiagnosticLevel
+from ..domain.diagnostics import DiagnosticLevel
 from ..domain.exit_codes import ExitCode
-from ..infra.workspace import LEGACY_ROOT_ENV_VAR, ROOT_ENV_VAR, legacy_root_variable_in_use
+from ..infra.workspace import ROOT_ENV_VAR
 from . import bootstrap
 from .log import format_diagnostics, setup_logging
-
-# Namespace attribute collecting the deprecation diagnostics recorded while parsing.
-_DEPRECATIONS = "_deprecations"
 
 
 def main(argv: Optional[list[str]] = None) -> int:
     """Main CLI entry point."""
     parser = _build_parser()
     args = parser.parse_args(argv)
-
-    _print_deprecations(args)
 
     if not hasattr(args, "func"):
         parser.print_help(sys.stderr)
@@ -44,51 +40,14 @@ def main(argv: Optional[list[str]] = None) -> int:
         return ExitCode.INTERNAL_ERROR
 
 
-class _DeprecatedAlias(argparse.Action):
-    """Accept the former name of a renamed option and record a deprecation diagnostic.
-
-    The alias stores its value (or ``const`` when it takes no argument) in the destination of
-    the new option, and is hidden from the help.
-    """
-
-    def __init__(self, option_strings, dest, *, replacement: str, **kwargs) -> None:
-        self.replacement = replacement
-        kwargs.setdefault("default", argparse.SUPPRESS)
-        kwargs.setdefault("help", argparse.SUPPRESS)
-        super().__init__(option_strings, dest, **kwargs)
-
-    def __call__(self, parser, namespace, values, option_string=None) -> None:
-        setattr(namespace, self.dest, self.const if self.nargs == 0 else values)
-        _record_deprecation(
-            namespace,
-            "deprecated-option",
-            f"{option_string} is deprecated and will be removed in the next release; "
-            f"use {self.replacement}.",
-        )
-
-
-def _record_deprecation(namespace: argparse.Namespace, code: str, message: str) -> None:
-    deprecations = list(getattr(namespace, _DEPRECATIONS, None) or [])
-    deprecations.append(
-        Diagnostic(level=DiagnosticLevel.WARNING, component="cli", code=code, message=message)
-    )
-    setattr(namespace, _DEPRECATIONS, deprecations)
-
-
 def _add_root_option(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
+        "-r",
         "--root",
         dest="workspace_root",
         type=Path,
         metavar="PATH",
         help=f"Workspace root folder; takes precedence over {ROOT_ENV_VAR}",
-    )
-    parser.add_argument(
-        "--workspace-root",
-        dest="workspace_root",
-        type=Path,
-        action=_DeprecatedAlias,
-        replacement="--root",
     )
 
 
@@ -99,41 +58,10 @@ def _add_format_option(parser: argparse.ArgumentParser) -> None:
         default="text",
         help="Output format; json writes machine-readable output to stdout (default: text)",
     )
-    parser.add_argument(
-        "--json",
-        dest="format",
-        nargs=0,
-        const="json",
-        action=_DeprecatedAlias,
-        replacement="--format json",
-    )
 
 
 def _json_mode(args: argparse.Namespace) -> bool:
     return getattr(args, "format", "text") == "json"
-
-
-def _print_deprecations(args: argparse.Namespace) -> None:
-    """Print deprecation warnings to stderr, in every output format.
-
-    Stdout is left untouched, so the JSON output of a deprecated invocation is identical to the
-    output of its replacement.
-    """
-    deprecations = list(getattr(args, _DEPRECATIONS, None) or [])
-    if legacy_root_variable_in_use():
-        deprecations.append(
-            Diagnostic(
-                level=DiagnosticLevel.WARNING,
-                component="cli",
-                code="deprecated-variable",
-                message=(
-                    f"{LEGACY_ROOT_ENV_VAR} is deprecated and will be removed in the next "
-                    f"release; set {ROOT_ENV_VAR} instead."
-                ),
-            )
-        )
-    if deprecations:
-        print(format_diagnostics(deprecations, use_color=sys.stderr.isatty()), file=sys.stderr)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -141,7 +69,10 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="ktisma",
         description="Portable LaTeX build toolkit.",
     )
-    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose output")
+    parser.add_argument(
+        "-v", "--version", action="version", version=f"ktisma {__version__}"
+    )
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
 
     subparsers = parser.add_subparsers(dest="command")
 
@@ -150,7 +81,7 @@ def _build_parser() -> argparse.ArgumentParser:
     build_parser.add_argument("source", type=Path, help="Source .tex file")
     _add_root_option(build_parser)
     build_parser.add_argument("--engine", help="Override engine selection")
-    build_parser.add_argument("--output", type=Path, help="Override output PDF path")
+    build_parser.add_argument("-o", "--output", type=Path, help="Override output PDF path")
     build_parser.add_argument("--output-dir", type=Path, help="Override output directory")
     build_parser.add_argument("--watch", action="store_true", help="Enable watch mode")
     build_parser.add_argument("--dry-run", action="store_true", help="Show plan without building")
@@ -176,7 +107,7 @@ def _build_parser() -> argparse.ArgumentParser:
     inspect_route = inspect_sub.add_parser("route", help="Inspect output routing")
     inspect_route.add_argument("source", type=Path, help="Source .tex file")
     _add_root_option(inspect_route)
-    inspect_route.add_argument("--output", type=Path)
+    inspect_route.add_argument("-o", "--output", type=Path)
     inspect_route.add_argument("--output-dir", type=Path)
     _add_format_option(inspect_route)
     inspect_route.set_defaults(func=_cmd_inspect_route)
@@ -240,6 +171,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "init", help="Generate wrapper script and editor configuration"
     )
     _add_root_option(init_parser)
+    init_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite an existing wrapper script, which may hold edits of the researcher",
+    )
     init_parser.set_defaults(func=_cmd_init)
 
     # --- tex ---
@@ -466,12 +402,8 @@ def _cmd_init(args: argparse.Namespace) -> int:
     from .init import execute_init
     from ..infra.workspace import resolve_workspace_root
 
-    workspace_root = resolve_workspace_root(
-        cli_workspace_root=args.workspace_root,
-        adapter_workspace_root=None,
-        source_dir=Path.cwd(),
-    )
-    return execute_init(workspace_root)
+    workspace_root = resolve_workspace_root(cli_workspace_root=args.workspace_root)
+    return execute_init(workspace_root, force=args.force)
 
 
 def _cmd_variants(args: argparse.Namespace) -> int:

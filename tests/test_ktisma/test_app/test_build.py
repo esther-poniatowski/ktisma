@@ -305,7 +305,8 @@ def _tex_layer(workspace_root: Path) -> ConfigLayer:
                 ]
             },
         },
-        source=workspace_root / ".ktisma.toml",
+        source=workspace_root / "ktisma.toml",
+        is_workspace_root=True,
         label="root config",
     )
 
@@ -999,7 +1000,7 @@ class TestVariantBuilds:
     def test_default_filename_suffix_applies_to_default_build(self, tmp_path: Path) -> None:
         config_layer = ConfigLayer(
             data={"routing": {"default_filename_suffix": "_student"}},
-            source=tmp_path / ".ktisma.toml",
+            source=tmp_path / "ktisma.toml",
             label="test config",
         )
         ctx = _make_ctx(tmp_path)

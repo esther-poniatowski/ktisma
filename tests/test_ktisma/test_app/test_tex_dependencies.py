@@ -31,7 +31,8 @@ class FakeConfigLoader:
                     "schema_version": 2,
                     "tex": {"dependencies": self.dependencies},
                 },
-                source=workspace_root / ".ktisma.toml",
+                source=workspace_root / "ktisma.toml",
+                is_workspace_root=True,
                 label="root config",
             )
         ]

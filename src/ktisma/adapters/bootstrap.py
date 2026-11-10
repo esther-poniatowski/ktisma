@@ -154,14 +154,13 @@ def build(
     source_file: Path,
     request: BuildRequest,
     workspace_root: Optional[Path] = None,
-    adapter_workspace_root: Optional[Path] = None,
     post_processor: Optional["PostProcessor"] = None,
     route_resolvers: Optional[list[RouteResolver]] = None,
     engine_rules: Optional[list[EngineRule]] = None,
 ) -> BuildResult:
     """Composition root entry for the build use-case."""
     infra = create_services()
-    ctx = _make_context(source_file, workspace_root, adapter_workspace_root)
+    ctx = _make_context(source_file, workspace_root)
     return execute_build(
         ctx=ctx,
         request=request,
@@ -175,12 +174,11 @@ def inspect_engine_cmd(
     source_file: Path,
     request: BuildRequest,
     workspace_root: Optional[Path] = None,
-    adapter_workspace_root: Optional[Path] = None,
     engine_rules: Optional[list[EngineRule]] = None,
 ) -> EngineDecision:
     """Composition root entry for inspect engine."""
     services = create_services()
-    ctx = _make_context(source_file, workspace_root, adapter_workspace_root)
+    ctx = _make_context(source_file, workspace_root)
     return inspect_engine(
         ctx,
         request,
@@ -194,12 +192,11 @@ def inspect_route_cmd(
     source_file: Path,
     request: BuildRequest,
     workspace_root: Optional[Path] = None,
-    adapter_workspace_root: Optional[Path] = None,
     route_resolvers: Optional[list[RouteResolver]] = None,
 ) -> RouteDecision:
     """Composition root entry for inspect route."""
     services = create_services()
-    ctx = _make_context(source_file, workspace_root, adapter_workspace_root)
+    ctx = _make_context(source_file, workspace_root)
     return inspect_route(
         ctx,
         request,
@@ -213,9 +210,19 @@ def clean(
     target: Path,
     workspace_root: Optional[Path] = None,
 ) -> CleanResult:
-    """Composition root entry for the clean use-case."""
+    """Composition root entry for the clean use-case.
+
+    A source target resolves its workspace root as ``build`` does, so that ``clean`` reads the same
+    configuration layers and removes the build directory that ``build`` created.
+    """
     services = create_services()
-    return execute_clean(target, workspace_root, services.config_loader, services.workspace_ops)
+    root: Optional[Path] = None
+    if target.suffix == ".tex":
+        root = resolve_workspace_root(
+            cli_workspace_root=workspace_root,
+            source_dir=target.expanduser().resolve().parent,
+        )
+    return execute_clean(target, root, services.config_loader, services.workspace_ops)
 
 
 def check_log(
@@ -240,7 +247,9 @@ def doctor(
 ) -> DoctorResult:
     """Composition root entry for the doctor use-case."""
     services = create_services()
-    return execute_doctor(workspace_root, services.config_loader, services.probe)
+    return execute_doctor(
+        _resolve_tex_workspace(workspace_root), services.config_loader, services.probe
+    )
 
 
 def batch(
@@ -253,7 +262,9 @@ def batch(
 ) -> BatchResult:
     """Composition root entry for the batch use-case."""
     infra = create_services()
-    ws = workspace_root or resolve_workspace_root(source_dir=source_dir)
+    ws = resolve_workspace_root(
+        cli_workspace_root=workspace_root, source_dir=source_dir.expanduser().resolve()
+    )
     return execute_batch(
         source_dir=source_dir,
         workspace_root=ws,
@@ -268,14 +279,13 @@ def variants(
     source_file: Path,
     request: BuildRequest,
     workspace_root: Optional[Path] = None,
-    adapter_workspace_root: Optional[Path] = None,
     post_processor: Optional["PostProcessor"] = None,
     route_resolvers: Optional[list[RouteResolver]] = None,
     engine_rules: Optional[list[EngineRule]] = None,
 ) -> VariantsResult:
     """Composition root entry for the variants use-case."""
     infra = create_services()
-    ctx = _make_context(source_file, workspace_root, adapter_workspace_root)
+    ctx = _make_context(source_file, workspace_root)
     return execute_variants(
         ctx=ctx,
         request=request,
@@ -288,7 +298,6 @@ def variants(
 def _make_context(
     source_file: Path,
     cli_workspace_root: Optional[Path],
-    adapter_workspace_root: Optional[Path] = None,
 ) -> SourceContext:
     """Construct a SourceContext with resolved workspace root."""
     source_file = source_file.expanduser().resolve()
@@ -296,7 +305,6 @@ def _make_context(
 
     workspace_root = resolve_workspace_root(
         cli_workspace_root=cli_workspace_root,
-        adapter_workspace_root=adapter_workspace_root,
         source_dir=source_dir,
     )
 
@@ -308,8 +316,5 @@ def _make_context(
 
 
 def _resolve_tex_workspace(workspace_root: Optional[Path]) -> Path:
-    return resolve_workspace_root(
-        cli_workspace_root=workspace_root,
-        adapter_workspace_root=None,
-        source_dir=Path.cwd(),
-    )
+    """Resolve the root of a command that names no source: the search starts at the current folder."""
+    return resolve_workspace_root(cli_workspace_root=workspace_root)

@@ -117,7 +117,7 @@ def execute_tex_install(workspace_root: Path, services: TexInstallServices) -> T
         )
 
     lock_path = workspace_root / ".ktisma" / "tex-install.lock"
-    services.lock_manager.acquire(lock_path, workspace_root / ".ktisma.toml", "tex-install")
+    services.lock_manager.acquire(lock_path, workspace_root, "tex-install")
     try:
         existing = runtime.store.snapshot_path(workspace_root, digest)
         if existing.is_dir():
@@ -300,7 +300,8 @@ def _check_snapshot(
         return _failure(
             digest,
             "tex-snapshot-stale",
-            "The active TeX snapshot does not match .ktisma.toml; run 'ktisma tex install'.",
+            "The active TeX snapshot does not match the settings file of the workspace root; "
+            "run 'ktisma tex install'.",
         )
     snapshot = services.store.snapshot_path(workspace_root, digest)
     texmf_root = snapshot / "texmf"
@@ -377,7 +378,7 @@ def _compare_receipt(
         for dependency in receipt.dependencies
     }
     if installed != declared:
-        return "The dependencies in the receipt differ from .ktisma.toml."
+        return "The dependencies in the receipt differ from the settings file of the workspace root."
     for dependency in receipt.dependencies:
         if dependency.installed_commit != dependency.declared_commit:
             return f"{dependency.name}: the installed commit differs from the declared commit."

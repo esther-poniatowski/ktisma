@@ -23,23 +23,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- The option `--workspace-root` is renamed `--root`, on every command that takes it: `build`,
-  `inspect engine`, `inspect route`, `clean`, `doctor`, `batch`, `variants`, `init`, `tex install`,
-  `tex check`, `tex inspect` and `tex resolve`.
-- The environment variable `KTISMA_WORKSPACE_ROOT` is renamed `KTISMA_ROOT`. When both are set,
-  `KTISMA_ROOT` takes precedence.
+The command line follows the shared command-line conventions of the workspace. Every renamed name
+below loses its former name in this release, without an alias, a fallback or a warning.
+
+- **Settings file renamed.** Every settings file is now named `ktisma.toml`, without the leading
+  dot: the workspace-root file and every overlay. A file named `.ktisma.toml` is no longer read and
+  no longer marks a workspace root, and Ktisma then runs on its built-in defaults without a
+  warning. Consumers must rename each `.ktisma.toml` file to `ktisma.toml`, for instance with
+  `git mv .ktisma.toml ktisma.toml`.
+- The workspace-root file may also sit in `config/tools/ktisma.toml`. A root that holds both
+  `ktisma.toml` and `config/tools/ktisma.toml` is an error that names both files. Overlays below
+  the root stay `ktisma.toml` in their own folder.
+- The option `--workspace-root` is renamed `--root`, with the short form `-r`, on every command that
+  takes it: `build`, `inspect engine`, `inspect route`, `clean`, `doctor`, `batch`, `variants`,
+  `init`, `tex install`, `tex check`, `tex inspect` and `tex resolve`. `--workspace-root` is
+  rejected as an unknown option, with exit code `2`.
+- The environment variable `KTISMA_WORKSPACE_ROOT` is renamed `KTISMA_ROOT`. The former variable is
+  ignored.
 - The flag `--json` is replaced by `--format {text,json}`, with `text` as the default, on every
   command that took `--json`: `build`, `inspect engine`, `inspect route`, `doctor`, `batch`,
   `variants`, `tex install`, `tex check`, `tex inspect` and `tex resolve`. The output of
-  `--format json` is identical to the former output of `--json`.
-- The wrapper script written by `ktisma init` sets `KTISMA_ROOT`. A wrapper written by an earlier
-  release still sets `KTISMA_WORKSPACE_ROOT`, and `ktisma init` does not overwrite it; replace the
-  variable in that script by hand.
-
-### Deprecated
-
-- `--workspace-root`, `--json` and `KTISMA_WORKSPACE_ROOT` remain accepted for one release, and are
-  hidden from the help. Ktisma prints a warning to stderr that names the replacement for each
-  deprecated option used, and for `KTISMA_WORKSPACE_ROOT` whenever it is set while `KTISMA_ROOT` is
-  unset or empty. The standard output is unchanged. `KTISMA_WORKSPACE_ROOT` is read only when
-  `KTISMA_ROOT` is unset or empty.
+  `--format json` is identical to the former output of `--json`. `--json` is rejected as an unknown
+  option, with exit code `2`.
+- `-v` now prints the version, as `--version` does. `--verbose` keeps no short form.
+- `--output` takes the short form `-o` on `build` and `inspect route`.
+- A route target written in an overlay is now relative to the workspace root, as in the
+  workspace-root file; it was relative to the folder of the overlay. A target written in the
+  workspace-root file is unchanged.
+- The workspace root no longer takes an adapter-provided root between `KTISMA_ROOT` and the
+  search for a settings file: the Python entry points of `ktisma.adapters.bootstrap` lose their
+  `adapter_workspace_root` parameter, and an adapter passes the root as `workspace_root`.
+- Without `--root`, `clean` resolves the workspace root of a source as `build` does; it took the
+  folder of the source, and so missed the settings of the root, such as `[build].out_dir_name`.
+  `clean` refuses a folder of the state directory `.ktisma/`.
+- Without `--root`, `doctor` validates the settings of the workspace root found from the current
+  folder; it validated no settings file.
+- `ktisma init` stops with exit code `2` and an error that names the existing wrapper script, unless
+  `--force` is given; it skipped the wrapper silently. The wrapper sets `KTISMA_ROOT`. A wrapper
+  written by an earlier release sets `KTISMA_WORKSPACE_ROOT`, which Ktisma now ignores: rerun
+  `ktisma init --force`, or replace the variable in that script by hand.

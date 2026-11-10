@@ -5,41 +5,29 @@ import shutil
 from pathlib import Path
 from typing import Optional
 
+from .config_loader import holds_root_config
+
 ROOT_ENV_VAR = "KTISMA_ROOT"
-# Former name of ROOT_ENV_VAR, read for one release when ROOT_ENV_VAR is unset.
-LEGACY_ROOT_ENV_VAR = "KTISMA_WORKSPACE_ROOT"
 
 
 def root_from_environment() -> Optional[str]:
-    """Return the workspace root set in the environment, or ``None``.
-
-    ``KTISMA_ROOT`` takes precedence. The former variable ``KTISMA_WORKSPACE_ROOT`` is
-    read only when ``KTISMA_ROOT`` is unset or empty. An empty value counts as unset.
-    """
-    return os.environ.get(ROOT_ENV_VAR) or os.environ.get(LEGACY_ROOT_ENV_VAR) or None
-
-
-def legacy_root_variable_in_use() -> bool:
-    """Return whether the root is taken from the former variable ``KTISMA_WORKSPACE_ROOT``.
-
-    Adapters call this to warn that the variable is deprecated in favor of ``KTISMA_ROOT``.
-    """
-    return not os.environ.get(ROOT_ENV_VAR) and bool(os.environ.get(LEGACY_ROOT_ENV_VAR))
+    """Return the workspace root set in ``KTISMA_ROOT``, or ``None``; an empty value counts as unset."""
+    return os.environ.get(ROOT_ENV_VAR) or None
 
 
 def resolve_workspace_root(
     cli_workspace_root: Optional[Path] = None,
-    adapter_workspace_root: Optional[Path] = None,
     source_dir: Optional[Path] = None,
 ) -> Path:
-    """Resolve the workspace root per roadmap precedence.
+    """Resolve the workspace root, stopping at the first answer.
 
     Resolution order:
-    1. ``--root`` (CLI option)
-    2. ``KTISMA_ROOT`` environment variable (then the deprecated ``KTISMA_WORKSPACE_ROOT``)
-    3. Adapter-provided workspace root
-    4. Outermost ancestor of ``source_dir`` containing ``.ktisma.toml``
-    5. Current working directory
+    1. ``--root`` (CLI option), relative to the current folder
+    2. ``KTISMA_ROOT`` environment variable
+    3. Outermost ancestor of the start folder that holds ``ktisma.toml`` or
+       ``config/tools/ktisma.toml``; the start folder is ``source_dir`` when the command names a
+       source, and the current folder otherwise
+    4. Current working directory
     """
     # Step 1: CLI option
     if cli_workspace_root is not None:
@@ -50,27 +38,28 @@ def resolve_workspace_root(
     if env_root:
         return Path(env_root).expanduser().resolve()
 
-    # Step 3: Adapter-provided
-    if adapter_workspace_root is not None:
-        return adapter_workspace_root.expanduser().resolve()
+    # Step 3: Outermost ancestor holding a settings file
+    start = source_dir if source_dir is not None else Path.cwd()
+    found = _find_config_ancestor(start.resolve())
+    if found is not None:
+        return found
 
-    # Step 4: Outermost ancestor with .ktisma.toml
-    if source_dir is not None:
-        found = _find_config_ancestor(source_dir.resolve())
-        if found is not None:
-            return found
-
-    # Step 5: Current working directory
+    # Step 4: Current working directory
     return Path.cwd()
 
 
 def _find_config_ancestor(start: Path) -> Optional[Path]:
-    """Walk up from start and return the outermost directory containing .ktisma.toml."""
+    """Walk up from start and return the outermost folder that holds a settings file.
+
+    A folder holds a settings file when it has ``ktisma.toml`` or ``config/tools/ktisma.toml``.
+    The outermost folder wins because Ktisma stacks one settings file per folder: the files below
+    the root overlay the settings of their own folder and never start a workspace of their own.
+    """
     current = start
     root = Path(current.anchor)
     found: Optional[Path] = None
     while True:
-        if (current / ".ktisma.toml").is_file():
+        if holds_root_config(current):
             found = current
         if current == root:
             break

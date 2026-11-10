@@ -41,37 +41,50 @@ _INIT_VSCODE_EXTRA_SETTINGS: dict[str, object] = {
 }
 
 
-def execute_init(workspace_root: Path) -> int:
+def execute_init(workspace_root: Path, force: bool = False) -> int:
     """Initialize ktisma integration files in the workspace.
 
     Creates a wrapper script at ``scripts/ktisma`` and prints the VS Code
     LaTeX Workshop configuration snippet to stdout.
+
+    The wrapper is a scaffolded file that the researcher may edit, so an existing wrapper is
+    overwritten only with ``force``; without it, the command stops with an error naming the file
+    and writes nothing.
     """
     diagnostics: list[Diagnostic] = []
     wrapper_path = workspace_root / "scripts" / "ktisma"
+    existed = wrapper_path.exists()
 
     # --- Wrapper script ---
-    if wrapper_path.exists():
+    if existed and not force:
         diagnostics.append(
             Diagnostic(
-                level=DiagnosticLevel.INFO,
+                level=DiagnosticLevel.ERROR,
                 component="init",
                 code="wrapper-exists",
-                message=f"Wrapper script already exists at {wrapper_path.relative_to(workspace_root)}, skipping.",
+                message=(
+                    f"The wrapper script {wrapper_path} already exists; "
+                    "rerun with --force to overwrite it."
+                ),
             )
         )
-    else:
-        wrapper_path.parent.mkdir(parents=True, exist_ok=True)
-        wrapper_path.write_text(_WRAPPER_SCRIPT)
-        wrapper_path.chmod(wrapper_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-        diagnostics.append(
-            Diagnostic(
-                level=DiagnosticLevel.INFO,
-                component="init",
-                code="wrapper-created",
-                message=f"Created {wrapper_path.relative_to(workspace_root)}",
-            )
+        print(format_diagnostics(diagnostics, use_color=sys.stderr.isatty()), file=sys.stderr)
+        return ExitCode.CONFIG_ERROR
+
+    wrapper_path.parent.mkdir(parents=True, exist_ok=True)
+    wrapper_path.write_text(_WRAPPER_SCRIPT)
+    wrapper_path.chmod(wrapper_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    diagnostics.append(
+        Diagnostic(
+            level=DiagnosticLevel.INFO,
+            component="init",
+            code="wrapper-overwritten" if existed else "wrapper-created",
+            message=(
+                f"{'Overwrote' if existed else 'Created'} "
+                f"{wrapper_path.relative_to(workspace_root)}"
+            ),
         )
+    )
 
     # --- Diagnostics ---
     output = format_diagnostics(diagnostics, use_color=sys.stderr.isatty())
