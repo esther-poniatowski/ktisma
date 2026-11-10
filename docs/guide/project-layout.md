@@ -138,6 +138,29 @@ settings for subdirectories (e.g., a different engine for one subtree).
 See [Configuration: Precedence](../configuration.md#configuration-precedence) and
 [Merge Semantics](../configuration.md#merge-semantics) for how layers combine.
 
+### Workspace Configuration Below the Repository Root
+
+A repository whose LaTeX sources all sit in one folder, such as `artifacts/`, may hold its workspace
+configuration in that folder, as `artifacts/.ktisma.toml`. The root of the repository then keeps only
+the files that its readers navigate. Ktisma takes the outermost ancestor holding a `.ktisma.toml` as
+its workspace root (see [Workspace Root Resolution](configuration.md#workspace-root-resolution)), so
+`artifacts/` becomes the workspace root of every source below it. Four consequences follow:
+
+- `artifacts/.ktisma.toml` is the workspace-root file, so it may declare `[[tex.dependencies]]`.
+- Workspace-relative paths are relative to `artifacts/`. A pattern of `[routing].artifact_dirs` that
+  named `artifacts/*` from the repository root becomes `*`, and selects the same folders.
+- The state directory `.ktisma/` of `ktisma tex install` is created in `artifacts/`. An ignore rule
+  written without a leading slash, `.ktisma/`, covers it.
+- A command or an editor adapter that passes the repository root as `--workspace-root` must pass
+  `artifacts/` instead. Otherwise, the file becomes an overlay, and Ktisma rejects its TeX
+  dependencies with the diagnostic `tex-dependencies-not-root`.
+
+A repository may sit inside a larger workspace with its own `.ktisma.toml`, such as a vault that
+includes the repository as a submodule. The file of that workspace is then the outermost, so it stays
+the workspace root, and `artifacts/.ktisma.toml` becomes an overlay whose TeX dependencies Ktisma
+rejects. A build of such a source that needs those dependencies passes the `artifacts/` folder of the
+repository as `--workspace-root`.
+
 ## The vendor/ Directory
 
 ktisma itself lives in `vendor/ktisma/` as a git submodule (or symlink). The vendor directory
