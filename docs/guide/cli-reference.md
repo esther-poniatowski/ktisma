@@ -28,7 +28,7 @@ ktisma build <source.tex> [options]
 | Option | Description |
 | --- | --- |
 | `source` | Path to the `.tex` source file (required) |
-| `--workspace-root PATH` | Set workspace root directory |
+| `--root PATH` | Set the workspace root folder; takes precedence over `KTISMA_ROOT` |
 | `--engine ENGINE` | Override engine selection (`pdflatex`, `lualatex`, `xelatex`, `latex`) |
 | `--output PATH` | Override the exact output PDF path |
 | `--output-dir PATH` | Override output directory for the compiled PDF |
@@ -37,7 +37,7 @@ ktisma build <source.tex> [options]
 | `--variant NAME` | Build a specific named variant |
 | `--variant-payload PAYLOAD` | Explicit TeX preamble payload for a variant |
 | `--cleanup POLICY` | Override cleanup policy (`never`, `on_success`, `on_output_success`, `always`) |
-| `--json` | Emit machine-readable JSON to stdout |
+| `--format FORMAT` | Output format: `text` (default) or `json` |
 
 Examples:
 
@@ -52,7 +52,7 @@ ktisma build paper.tex --engine lualatex
 ktisma build slides-tex/main.tex --watch
 
 # Dry run to inspect the plan
-ktisma build slides-tex/main.tex --dry-run --json
+ktisma build slides-tex/main.tex --dry-run --format json
 
 # Build a specific variant
 ktisma build exercises.tex --variant corrected
@@ -72,9 +72,9 @@ ktisma inspect engine <source.tex> [options]
 | Option | Description |
 | --- | --- |
 | `source` | Path to the `.tex` source file (required) |
-| `--workspace-root PATH` | Set workspace root directory |
+| `--root PATH` | Set the workspace root folder; takes precedence over `KTISMA_ROOT` |
 | `--engine ENGINE` | Override engine selection (shows what the override would be) |
-| `--json` | Emit JSON output |
+| `--format FORMAT` | Output format: `text` (default) or `json` |
 
 Human-readable output shows the engine name, detection evidence, and ambiguity status. JSON
 output follows this shape:
@@ -99,10 +99,10 @@ ktisma inspect route <source.tex> [options]
 | Option | Description |
 | --- | --- |
 | `source` | Path to the `.tex` source file (required) |
-| `--workspace-root PATH` | Set workspace root directory |
+| `--root PATH` | Set the workspace root folder; takes precedence over `KTISMA_ROOT` |
 | `--output PATH` | Override the exact output PDF path |
 | `--output-dir PATH` | Override output directory |
-| `--json` | Emit JSON output |
+| `--format FORMAT` | Output format: `text` (default) or `json` |
 
 JSON output shape:
 
@@ -127,7 +127,7 @@ ktisma clean <target> [options]
 | Option | Description |
 | --- | --- |
 | `target` | Path to a `.tex` source file or a build directory (required) |
-| `--workspace-root PATH` | Set workspace root directory |
+| `--root PATH` | Set the workspace root folder; takes precedence over `KTISMA_ROOT` |
 
 When given a `.tex` file, ktisma removes the corresponding build directory and any variant build
 directories. When given a directory, ktisma verifies it is a ktisma build directory (by checking
@@ -184,15 +184,15 @@ ktisma doctor [options]
 
 | Option | Description |
 | --- | --- |
-| `--workspace-root PATH` | Set workspace root directory |
-| `--json` | Emit JSON output |
+| `--root PATH` | Set the workspace root folder; takes precedence over `KTISMA_ROOT` |
+| `--format FORMAT` | Output format: `text` (default) or `json` |
 
 Checks performed:
 
 1. `latexmk` is on `PATH`
 2. Configured default engines are available
 3. Python meets the minimum version (3.12+)
-4. Workspace root resolution works (if `--workspace-root` is provided)
+4. Workspace root resolution works (if `--root` is provided)
 5. Any present `.ktisma.toml` validates successfully
 
 Human-readable output displays a status table with `[ok]` or `[MISSING]` for each check.
@@ -208,10 +208,10 @@ ktisma batch <source-dir> [options]
 | Option | Description |
 | --- | --- |
 | `source_dir` | Directory containing `.tex` entrypoints or nested entrypoint directories (required) |
-| `--workspace-root PATH` | Set workspace root directory |
+| `--root PATH` | Set the workspace root folder; takes precedence over `KTISMA_ROOT` |
 | `--engine ENGINE` | Override engine for all builds |
 | `--watch` | **Rejected** in v1 (batch watch mode is not supported) |
-| `--json` | Emit JSON output |
+| `--format FORMAT` | Output format: `text` (default) or `json` |
 
 Ktisma searches recursively, collecting `.tex` files directly inside `source_dir` plus nested
 entrypoints (`main.tex`, `index.tex`, or files containing a document preamble). Fragment files
@@ -229,10 +229,10 @@ ktisma variants <source.tex> [options]
 | Option | Description |
 | --- | --- |
 | `source` | Path to the `.tex` source file (required) |
-| `--workspace-root PATH` | Set workspace root directory |
+| `--root PATH` | Set the workspace root folder; takes precedence over `KTISMA_ROOT` |
 | `--engine ENGINE` | Override engine for all variants |
 | `--include-default` | Build the non-variant output in addition to configured variants |
-| `--json` | Emit JSON output |
+| `--format FORMAT` | Output format: `text` (default) or `json` |
 
 Ktisma reads variant definitions from the `[variants]` section of the resolved configuration and
 builds each one in a separate build directory. Output naming defaults to
@@ -250,10 +250,10 @@ ktisma init [options]
 
 | Option | Description |
 | --- | --- |
-| `--workspace-root PATH` | Set workspace root directory |
+| `--root PATH` | Set the workspace root folder; takes precedence over `KTISMA_ROOT` |
 
 The command creates `scripts/ktisma` in the workspace root -- a shell wrapper
-that sets `KTISMA_WORKSPACE_ROOT` and delegates to the vendored ktisma entry
+that sets `KTISMA_ROOT` and delegates to the vendored ktisma entry
 point. If the wrapper already exists, the command skips creation and prints the
 VS Code configuration snippet to stdout only.
 
@@ -263,10 +263,10 @@ Manage the dependency closure declared by `[[tex.dependencies]]` in the workspac
 `.ktisma.toml`.
 
 ```bash
-ktisma tex install [--workspace-root PATH] [--json]
-ktisma tex check [--workspace-root PATH] [--json]
-ktisma tex inspect [--workspace-root PATH] [--json]
-ktisma tex resolve DEPENDENCY:ENTRYPOINT [--workspace-root PATH] [--json]
+ktisma tex install [--root PATH] [--format FORMAT]
+ktisma tex check [--root PATH] [--format FORMAT]
+ktisma tex inspect [--root PATH] [--format FORMAT]
+ktisma tex resolve DEPENDENCY:ENTRYPOINT [--root PATH] [--format FORMAT]
 ```
 
 | Command | Result |
@@ -282,8 +282,8 @@ Accordingly, a build must stop before LaTeX when the snapshot is absent or stale
 digest or resolved path fails its check.
 
 Plain output from `tex resolve` is the selected path alone. Therefore, another installed command can
-consume the path directly. For machine-readable output, `--json` adds the logical identifier and
-record digest.
+consume the path directly. For machine-readable output, `--format json` adds the logical identifier
+and record digest.
 
 ## Exit Codes
 
@@ -303,7 +303,7 @@ Safe routing fallback does not change a successful exit status.
 **Human mode** (default): diagnostics are printed to stderr with color when connected to a
 terminal. Success messages and file paths go to stdout.
 
-**JSON mode** (`--json`): structured JSON is written to stdout. Diagnostics are not printed to
+**JSON mode** (`--format json`): structured JSON is written to stdout. Diagnostics are not printed to
 stderr separately — they are included in the JSON output. Human formatting is never mixed into
 JSON output.
 

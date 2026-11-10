@@ -1,14 +1,16 @@
 # Usage
 
 Ktisma builds LaTeX documents through a single CLI that handles engine
-detection, output routing, build directories, and cleanup. All commands accept
-`--workspace-root` to pin the workspace explicitly; without the flag, ktisma
-infers the workspace root from the nearest `.ktisma.toml`.
+detection, output routing, build directories, and cleanup. Every command that
+reads the workspace configuration accepts `--root` to pin the workspace
+explicitly; without the option or the `KTISMA_ROOT` environment variable,
+ktisma takes the outermost ancestor folder holding a `.ktisma.toml` (see
+[Workspace Root Resolution](configuration.md#workspace-root-resolution)).
 
 Ktisma requires Python 3.12 or later.
 
-Full command reference: [CLI Reference](../cli-reference.md).
-Configuration options: [Configuration](../configuration.md).
+Full command reference: [CLI Reference](cli-reference.md).
+Configuration options: [Configuration](configuration.md).
 
 ## Building a Document
 
@@ -36,7 +38,7 @@ ktisma inspect engine slides-tex/week1.tex
 ktisma inspect route slides-tex/week1.tex
 ```
 
-Both inspect subcommands accept `--json` for machine-readable output.
+Both inspect subcommands accept `--format json` for machine-readable output.
 
 ## Cleaning Build Artifacts
 
@@ -68,7 +70,7 @@ ktisma variants slides-tex/week1.tex
 
 Variant definitions live in the `[variants]` table of `.ktisma.toml` and inject
 LaTeX preamble content via `latexmk -usepretex`. See
-[Build Lifecycle](../build-lifecycle.md) for the full reference.
+[Build Lifecycle](build-lifecycle.md) for the full reference.
 
 ## Verifying Prerequisites
 
@@ -94,14 +96,14 @@ configuration snippet:
 ktisma init
 ```
 
-The wrapper script sets `KTISMA_WORKSPACE_ROOT` automatically and delegates to
+The wrapper script sets `KTISMA_ROOT` automatically and delegates to
 the vendored ktisma entry point. If `scripts/ktisma` already exists, the
 command skips creation and prints the VS Code configuration only.
 
-Pass `--workspace-root` to target a specific directory:
+Pass `--root` to target a specific directory:
 
 ```sh
-ktisma init --workspace-root /path/to/workspace
+ktisma init --root /path/to/workspace
 ```
 
 ## Setting Up VS Code Integration
@@ -132,7 +134,7 @@ manual setup, add the following to `.code-workspace` or
 ```
 
 `autoClean` must be `"never"` because ktisma manages cleanup through its own
-policies. See [Editor Integration](../editor-integration.md) for other editors
+policies. See [Editor Integration](editor-integration.md) for other editors
 and advanced configuration.
 
 ## Next Steps
@@ -140,4 +142,4 @@ and advanced configuration.
 - [Project Layout](project-layout.md) — `-tex`/`-pdfs` directory conventions.
 - [Migration](migration.md) — Replacing an existing latexmk setup.
 - [Recipes](recipes.md) — Concrete `.ktisma.toml` examples.
-- [Configuration Reference](../configuration.md) — Full schema documentation.
+- [Configuration Reference](configuration.md) — Full schema documentation.

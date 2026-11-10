@@ -212,7 +212,7 @@ Use `inspect route` to see where a file would be routed without building:
 ktisma inspect route slides-tex/week1.tex
 ```
 
-Add `--json` for machine-readable output:
+Add `--format json` for machine-readable output:
 
 ```json
 {

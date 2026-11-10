@@ -189,7 +189,7 @@ Domain/Application/Infrastructure
 Adapter formatter
   │
   ├──→ stderr (human-readable, color-aware)
-  └──→ stdout (JSON, when --json is passed)
+  └──→ stdout (JSON, when --format json is passed)
 ```
 
 Diagnostics are structured data throughout the stack. Only adapters render them for display.

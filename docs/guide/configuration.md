@@ -267,13 +267,17 @@ Processing steps:
 The workspace root determines where ktisma searches for `.ktisma.toml` files and anchors
 workspace-relative paths. Resolution order:
 
-1. `--workspace-root` CLI flag
-2. `KTISMA_WORKSPACE_ROOT` environment variable
+1. `--root` CLI option
+2. `KTISMA_ROOT` environment variable
 3. Adapter-provided workspace root (e.g., from VS Code)
 4. Outermost ancestor directory containing `.ktisma.toml`
 5. Current working directory
 
-The workspace root is never inferred from `.git` or other unrelated files.
+Step 4 takes the *outermost* ancestor, not the nearest one. Ktisma stacks one `.ktisma.toml` per
+folder: the file at the workspace root holds the settings of the whole workspace, and each file
+below it overlays the settings of its own folder (see
+[Configuration Precedence](#configuration-precedence)). Therefore, a nested `.ktisma.toml` never
+starts a workspace of its own when the root is resolved from the source path. The workspace root is never inferred from `.git` or other unrelated files.
 
 ## Magic Comments
 

@@ -38,8 +38,8 @@ Key points:
 - `autoClean` is set to `"never"` because ktisma manages cleanup through its own policies.
 - Use the placeholder that expands to the resolved root document including its `.tex` extension.
   In LaTeX Workshop that is typically `%DOC_EXT%`.
-- Add `--workspace-root %WORKSPACE_FOLDER%` only when pinning the workspace root explicitly in
-  the editor recipe, instead of relying on ktisma's config discovery.
+- Add `--root %WORKSPACE_FOLDER%` only when pinning the workspace root explicitly in the editor
+  recipe, instead of relying on ktisma's config discovery.
 
 ### Viewing a Renamed Output
 
@@ -81,8 +81,8 @@ print(format_latex_workshop_snippet("/absolute/path/to/ktisma/bin/ktisma"))
 ### Adapter-Provided Workspace Root
 
 When ktisma is invoked from an editor, the adapter can pass the editor's workspace root via the
-`--workspace-root` flag or through the adapter API when explicit pinning is needed. The flag takes
-precedence over environment variables and `.ktisma.toml` discovery (see
+`--root` option or through the adapter API when explicit pinning is needed. The option takes
+precedence over the `KTISMA_ROOT` environment variable and `.ktisma.toml` discovery (see
 [Configuration: Workspace Root Resolution](configuration.md#workspace-root-resolution)).
 
 ## Other Editors
@@ -91,16 +91,16 @@ Any editor that supports running external build commands can use ktisma. The int
 is the same:
 
 1. Configure the editor to run `python3 /path/to/ktisma/bin/ktisma build <source.tex>
-   [--workspace-root <root>]`.
+   [--root <root>]`.
 2. Disable the editor's own cleanup if ktisma manages it.
-3. Optionally use `--json` for machine-readable output that the editor can parse.
+3. Optionally use `--format json` for machine-readable output that the editor can parse.
 
 ### Vim/Neovim
 
 Example `:make` integration:
 
 ```vim
-set makeprg=python3\ vendor/ktisma/bin/ktisma\ build\ %\ --workspace-root\ .
+set makeprg=python3\ vendor/ktisma/bin/ktisma\ build\ %\ --root\ .
 ```
 
 ### Emacs
@@ -154,8 +154,8 @@ If ktisma is installed globally or in a known location, reference it directly:
 
 ## Diagnostics in Editors
 
-Ktisma writes diagnostics to stderr in human-readable format by default. With `--json`, it
-writes structured output to stdout that editors can parse for integration with problem matchers
+Ktisma writes diagnostics to stderr in human-readable format by default. With `--format json`,
+it writes structured output to stdout that editors can parse for integration with problem matchers
 or diagnostic panels.
 
 The JSON output includes diagnostic records with `level`, `code`, and `message` fields that map

@@ -49,7 +49,7 @@ default = "lualatex"
 ```
 
 ktisma also auto-detects engines from source preambles (e.g., `\RequireLuaTeX`, `fontspec`),
-so the explicit setting may be unnecessary. See [Engine Detection](../engine-detection.md).
+so the explicit setting may be unnecessary. See [Engine Detection](engine-detection.md).
 
 **SyncTeX** — if the `.latexmkrc` disabled it:
 
@@ -74,7 +74,7 @@ default `-tex` to `-pdfs` suffix convention likely handles it. If not, use expli
 "lectures/*.tex" = "output/lectures/"
 ```
 
-See [Configuration Reference](../configuration.md) for the full schema.
+See [Configuration Reference](configuration.md) for the full schema.
 
 ### 3. Update the Editor
 
@@ -111,9 +111,9 @@ Replace the old latexmk tool and recipe in the VS Code workspace or settings fil
 "latex-workshop.latex.autoClean.run": "never"
 ```
 
-Add `--workspace-root %WORKSPACE_FOLDER%` only to pin the workspace root explicitly.
+Add `--root %WORKSPACE_FOLDER%` only to pin the workspace root explicitly.
 
-See [Editor Integration](../editor-integration.md) for other editors.
+See [Editor Integration](editor-integration.md) for other editors.
 
 ### 4. Update .gitignore
 
@@ -166,7 +166,7 @@ write_latexmkrc(workspace_root=Path("."))
 
 This produces a `.latexmkrc` that uses the same build directory layout as ktisma. Remove it once
 the project has fully migrated to calling ktisma directly. See
-[Editor Integration: Transitional .latexmkrc](../editor-integration.md#transitional-latexmkrc-generation).
+[Editor Integration: Transitional .latexmkrc](editor-integration.md#transitional-latexmkrc-generation).
 
 ## Common Migration Scenarios
 
@@ -197,7 +197,7 @@ See [Project Layout: Entrypoint Collapse](project-layout.md#entrypoint-collapse)
 ### Project with Dual Outputs
 
 If a shell script compiled documents twice — once normally and once with a TeX macro
-injected — replace it with the [variants](../build-lifecycle.md#variants) feature:
+injected — replace it with the [variants](build-lifecycle.md#variants) feature:
 
 ```toml
 schema_version = 1
@@ -229,7 +229,7 @@ python3 vendor/ktisma/bin/ktisma variants exercises-tex/algebra.tex --include-de
 ### Batch Compilation
 
 If a script compiled every entrypoint `.tex` file in a directory tree, use
-[`ktisma batch`](../cli-reference.md#batch):
+[`ktisma batch`](cli-reference.md#batch):
 
 ```bash
 python3 vendor/ktisma/bin/ktisma batch exercises-tex/

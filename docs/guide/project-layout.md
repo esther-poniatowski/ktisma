@@ -49,7 +49,7 @@ source_suffix = "-src"
 output_suffix = "-out"
 ```
 
-See [Routing: Suffix Convention](../routing.md#suffix-convention) for the full resolution rules.
+See [Routing: Suffix Convention](routing.md#suffix-convention) for the full resolution rules.
 
 ## Entrypoint Collapse
 
@@ -91,7 +91,7 @@ collapse_entrypoint_names = true
 entrypoint_names = ["main", "index", "document"]
 ```
 
-See [Routing: Entrypoint Collapse](../routing.md#entrypoint-collapse) for details.
+See [Routing: Entrypoint Collapse](routing.md#entrypoint-collapse) for details.
 
 ## Projects Without the Suffix Convention
 
@@ -109,7 +109,7 @@ Define explicit mappings in `.ktisma.toml`:
 ```
 
 Glob patterns match against the path relative to the workspace root. See
-[Routing: Explicit Route Rules](../routing.md#explicit-route-rules) for specificity scoring and
+[Routing: Explicit Route Rules](routing.md#explicit-route-rules) for specificity scoring and
 pattern syntax.
 
 ### Fallback Routing
@@ -135,8 +135,8 @@ my-project/
 The layered approach allows setting project-wide defaults at the root and overriding specific
 settings for subdirectories (e.g., a different engine for one subtree).
 
-See [Configuration: Precedence](../configuration.md#configuration-precedence) and
-[Merge Semantics](../configuration.md#merge-semantics) for how layers combine.
+See [Configuration: Precedence](configuration.md#configuration-precedence) and
+[Merge Semantics](configuration.md#merge-semantics) for how layers combine.
 
 ### Workspace Configuration Below the Repository Root
 
@@ -151,15 +151,15 @@ its workspace root (see [Workspace Root Resolution](configuration.md#workspace-r
   named `artifacts/*` from the repository root becomes `*`, and selects the same folders.
 - The state directory `.ktisma/` of `ktisma tex install` is created in `artifacts/`. An ignore rule
   written without a leading slash, `.ktisma/`, covers it.
-- A command or an editor adapter that passes the repository root as `--workspace-root` must pass
-  `artifacts/` instead. Otherwise, the file becomes an overlay, and Ktisma rejects its TeX
+- A command or an editor adapter that passes the repository root as `--root`, or sets it in
+  `KTISMA_ROOT`, must pass `artifacts/` instead. Otherwise, the file becomes an overlay, and Ktisma rejects its TeX
   dependencies with the diagnostic `tex-dependencies-not-root`.
 
 A repository may sit inside a larger workspace with its own `.ktisma.toml`, such as a vault that
 includes the repository as a submodule. The file of that workspace is then the outermost, so it stays
 the workspace root, and `artifacts/.ktisma.toml` becomes an overlay whose TeX dependencies Ktisma
 rejects. A build of such a source that needs those dependencies passes the `artifacts/` folder of the
-repository as `--workspace-root`.
+repository as `--root`.
 
 ## The vendor/ Directory
 
