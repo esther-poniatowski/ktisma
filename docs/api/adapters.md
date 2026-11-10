@@ -25,7 +25,7 @@ Main CLI entry point.
 
 <a id="ktisma.adapters.bootstrap.Services"></a>
 
-### *class* ktisma.adapters.bootstrap.Services(config_loader, source_reader, lock_manager, backend_runner, materializer, probe, workspace_ops, tex_store, tex_source_fetcher, tex_resolver, tex_builders)
+### *class* ktisma.adapters.bootstrap.Services(config_loader, source_reader, lock_manager, backend_runner, materializer, probe, workspace_ops)
 
 Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
@@ -62,51 +62,11 @@ happens here in the composition root.
 
 #### workspace_ops *: [FileWorkspaceOps](infra.md#ktisma.infra.workspace.FileWorkspaceOps)*
 
-<a id="ktisma.adapters.bootstrap.Services.tex_store"></a>
-
-#### tex_store *: FileTexSnapshotStore*
-
-<a id="ktisma.adapters.bootstrap.Services.tex_source_fetcher"></a>
-
-#### tex_source_fetcher *: GitTexSourceFetcher*
-
-<a id="ktisma.adapters.bootstrap.Services.tex_resolver"></a>
-
-#### tex_resolver *: KpsewhichTexPathResolver*
-
-<a id="ktisma.adapters.bootstrap.Services.tex_builders"></a>
-
-#### tex_builders *: [Mapping](https://docs.python.org/3/library/typing.html#typing.Mapping)[[str](https://docs.python.org/3/builtins/stdtypes.html#str), TexPackageBuilder]*
-
 <a id="ktisma.adapters.bootstrap.create_services"></a>
 
 ### ktisma.adapters.bootstrap.create_services()
 
 Construct concrete infrastructure implementations.
-
-<a id="ktisma.adapters.bootstrap.tex_install"></a>
-
-### ktisma.adapters.bootstrap.tex_install(workspace_root=None)
-
-Install the declared TeX dependency closure.
-
-<a id="ktisma.adapters.bootstrap.tex_check"></a>
-
-### ktisma.adapters.bootstrap.tex_check(workspace_root=None)
-
-Validate the selected TeX dependency snapshot.
-
-<a id="ktisma.adapters.bootstrap.tex_inspect"></a>
-
-### ktisma.adapters.bootstrap.tex_inspect(workspace_root=None)
-
-Inspect the selected TeX dependency snapshot.
-
-<a id="ktisma.adapters.bootstrap.tex_resolve"></a>
-
-### ktisma.adapters.bootstrap.tex_resolve(reference, workspace_root=None)
-
-Resolve one declared entry point from the selected TeX snapshot.
 
 <a id="ktisma.adapters.bootstrap.build"></a>
 

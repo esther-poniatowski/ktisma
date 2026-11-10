@@ -56,19 +56,19 @@ Concrete BackendRunner: invokes latexmk for compilation.
 
 <a id="ktisma.infra.latexmk.LatexmkRunner.compile"></a>
 
-#### compile(source_file, build_dir, engine, synctex, extra_args=None, environment=None)
+#### compile(source_file, build_dir, engine, synctex, extra_args=None)
 
 Run latexmk for a one-shot compilation.
 
 <a id="ktisma.infra.latexmk.LatexmkRunner.start_watch"></a>
 
-#### start_watch(source_file, build_dir, engine, synctex, extra_args=None, environment=None)
+#### start_watch(source_file, build_dir, engine, synctex, extra_args=None)
 
 Launch latexmk in continuous watch mode (latexmk -pvc).
 
 <a id="ktisma.infra.latexmk.LatexmkWatchSession"></a>
 
-### *class* ktisma.infra.latexmk.LatexmkWatchSession(source_file, build_dir, args, environment=None)
+### *class* ktisma.infra.latexmk.LatexmkWatchSession(source_file, build_dir, args)
 
 Bases: [`object`](https://docs.python.org/3/builtins/functions.html#object)
 
@@ -205,23 +205,6 @@ so domain code receives only the preamble text.
 
 ## Workspace
 
-<a id="ktisma.infra.workspace.root_from_environment"></a>
-
-### ktisma.infra.workspace.root_from_environment()
-
-Return the workspace root set in the environment, or `None`.
-
-`KTISMA_ROOT` takes precedence. The former variable `KTISMA_WORKSPACE_ROOT` is
-read only when `KTISMA_ROOT` is unset or empty. An empty value counts as unset.
-
-<a id="ktisma.infra.workspace.legacy_root_variable_in_use"></a>
-
-### ktisma.infra.workspace.legacy_root_variable_in_use()
-
-Return whether the root is taken from the former variable `KTISMA_WORKSPACE_ROOT`.
-
-Adapters call this to warn that the variable is deprecated in favor of `KTISMA_ROOT`.
-
 <a id="ktisma.infra.workspace.resolve_workspace_root"></a>
 
 ### ktisma.infra.workspace.resolve_workspace_root(cli_workspace_root=None, adapter_workspace_root=None, source_dir=None)
@@ -229,10 +212,10 @@ Adapters call this to warn that the variable is deprecated in favor of `KTISMA_R
 Resolve the workspace root per roadmap precedence.
 
 Resolution order:
-1. `--root` (CLI option)
-2. `KTISMA_ROOT` environment variable (then the deprecated `KTISMA_WORKSPACE_ROOT`)
+1. –workspace-root (CLI flag)
+2. KTISMA_WORKSPACE_ROOT environment variable
 3. Adapter-provided workspace root
-4. Outermost ancestor of `source_dir` containing `.ktisma.toml`
+4. Nearest ancestor of source_dir containing .ktisma.toml
 5. Current working directory
 
 <a id="ktisma.infra.workspace.FileWorkspaceOps"></a>
@@ -262,10 +245,6 @@ Filesystem implementation for build-dir creation and cleanup helpers.
 <a id="ktisma.infra.workspace.FileWorkspaceOps.read_text"></a>
 
 #### read_text(path)
-
-<a id="ktisma.infra.workspace.FileWorkspaceOps.read_bytes"></a>
-
-#### read_bytes(path)
 
 <a id="ktisma.infra.workspace.FileWorkspaceOps.write_text"></a>
 
