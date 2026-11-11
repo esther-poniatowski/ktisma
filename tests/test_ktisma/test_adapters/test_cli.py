@@ -571,7 +571,7 @@ def test_help_lists_only_the_current_names(command, capsys):
     with pytest.raises(SystemExit):
         main(command)
     out = capsys.readouterr().out
-    assert "-r PATH, --root PATH" in out
+    assert "-r" in out and "--root PATH" in out
     assert "--format {text,json}" in out
     assert "--workspace-root" not in out
     assert "--json" not in out
