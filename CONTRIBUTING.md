@@ -101,7 +101,7 @@ tool-specific settings that are decoupled from the main project file:
 | `pylintrc.ini`        | Pylint                 | Linting rules (main code)         |
 | `pylintrc_tests.ini`  | Pylint                 | Linting rules (test code)         |
 | `pyrightconfig.json`  | Pyright                | Static type analysis overrides    |
-| `releaserc.toml`      | Python Semantic Release| Versioning and changelog           |
+| `releaserc.toml`      | Python Semantic Release| Versioning and release assets      |
 
 ### `config/dictionaries/` — Spell Checking
 

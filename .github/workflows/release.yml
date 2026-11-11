@@ -3,7 +3,7 @@
 #
 # File: `.github/workflows/release.yml`
 #
-# Automates version bumping, changelog generation, and GitHub release creation
+# Automates version bumping, distribution publishing, and GitHub release creation
 # based on conventional commit messages.
 #
 # Trigger: Manual only (workflow_dispatch) for safety.
@@ -18,6 +18,12 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump: auto reads the commit types; patch or minor forces it, as for a release of dependency updates"
+        type: choice
+        options: [auto, patch, minor]
+        default: auto
 
 jobs:
   release:
@@ -26,6 +32,7 @@ jobs:
     permissions:
       contents: write
       id-token: write
+      actions: write
 
     steps:
       - name: Checkout Repository
@@ -41,7 +48,31 @@ jobs:
       - name: Install Semantic Release
         run: pip install python-semantic-release
 
+      - name: Record Starting Commit
+        id: head
+        run: echo "before=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Run Semantic Release
-        run: semantic-release --config config/tools/releaserc.toml version
+        # The changelog is written by hand in CHANGELOG.md, so the tool generates none.
+        run: semantic-release --config config/tools/releaserc.toml version --no-changelog ${{ inputs.bump != 'auto' && format('--{0}', inputs.bump) || '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Distributions
+        # The version command creates the release; the publish command attaches the distributions
+        # built by build_command, matched by dist_glob_patterns.
+        run: semantic-release --config config/tools/releaserc.toml publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # A push made with GITHUB_TOKEN starts no workflow, so a new release starts the publication
+      # explicitly, through workflow_dispatch, which GitHub admits from GITHUB_TOKEN.
+      - name: Publish the Release
+        run: |
+          if [ "$(git rev-parse HEAD)" != "${{ steps.head.outputs.before }}" ] && git tag --points-at HEAD | grep -q '^v'; then
+            gh workflow run publish-noarch.yml --ref main
+          else
+            echo "::notice title=Publication skipped::no new release, so nothing is published."
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
