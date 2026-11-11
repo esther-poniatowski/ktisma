@@ -12,6 +12,7 @@ from ..domain.exit_codes import ExitCode
 from ..domain.tex_dependencies import (
     InstalledFile,
     InstalledTexDependency,
+    StaleTexReceiptError,
     TexReceipt,
     dependency_record_digest,
 )
@@ -120,7 +121,7 @@ def execute_tex_install(workspace_root: Path, services: TexInstallServices) -> T
     services.lock_manager.acquire(lock_path, workspace_root, "tex-install")
     try:
         existing = runtime.store.snapshot_path(workspace_root, digest)
-        if existing.is_dir():
+        if existing.is_dir() and not _has_stale_receipt(existing, runtime):
             checked = _check_snapshot(workspace_root, config, runtime, digest, require_active=False)
             if checked.exit_code != ExitCode.SUCCESS:
                 return checked
@@ -199,6 +200,8 @@ def _install_new_snapshot(
         relative_resolutions = {
             key: path.relative_to(assembled_texmf.resolve()) for key, path in resolutions.items()
         }
+        # Only a stale snapshot occupies the digest at this point; build first, then replace it.
+        runtime.store.remove_tree(runtime.store.snapshot_path(workspace_root, digest))
         snapshot = runtime.store.publish(workspace_root, digest, staged_snapshot)
         published_texmf = snapshot / "texmf"
         return TexDependencyResult(
@@ -314,6 +317,8 @@ def _check_snapshot(
         )
     try:
         receipt = services.store.read_receipt(receipt_path)
+    except StaleTexReceiptError as exc:
+        return _failure(digest, "tex-snapshot-stale", f"{exc}; run 'ktisma tex install'.")
     except Exception as exc:
         return _failure(digest, "invalid-tex-receipt", str(exc))
     receipt_error = _compare_receipt(receipt, dependencies, digest)
@@ -352,12 +357,26 @@ def _check_snapshot(
     )
 
 
+def _has_stale_receipt(snapshot: Path, services: TexRuntimeServices) -> bool:
+    """Return whether ``snapshot`` holds a receipt written in another format."""
+    receipt_path = snapshot / "receipt.json"
+    if not receipt_path.is_file():
+        return False
+    try:
+        services.store.read_receipt(receipt_path)
+    except StaleTexReceiptError:
+        return True
+    except Exception:
+        return False
+    return False
+
+
 def _compare_receipt(
     receipt: TexReceipt,
     dependencies: tuple[TexDependency, ...],
     digest: str,
 ) -> Optional[str]:
-    if receipt.schema_version != 1 or receipt.record_digest != digest:
+    if receipt.record_digest != digest:
         return "The receipt header differs from the root dependency record."
     declared = {
         dependency.name: (

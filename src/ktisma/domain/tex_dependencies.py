@@ -7,6 +7,9 @@ import json
 from dataclasses import dataclass
 from typing import Any, Iterable, Protocol
 
+# Identifier of the format of the receipt of a TeX snapshot; ktisma regenerates any other.
+TEX_RECEIPT_SCHEMA = "ktisma:tex-dependencies@1"
+
 
 class TexDependencyRecord(Protocol):
     """Structural type required by the canonical record functions."""
@@ -78,25 +81,42 @@ class InstalledTexDependency:
         )
 
 
+class StaleTexReceiptError(ValueError):
+    """Raised for a receipt in another format: ktisma regenerates the snapshot that holds it."""
+
+
+def _require_receipt_schema(data: dict[str, Any]) -> None:
+    """Reject a receipt whose ``_schema`` key differs from the format that ktisma writes."""
+    declared = data.get("_schema")
+    if declared == TEX_RECEIPT_SCHEMA:
+        return
+    if "schema_version" in data:
+        reason = "still carries the retired key 'schema_version'"
+    elif "_schema" not in data:
+        reason = "does not declare '_schema'"
+    else:
+        reason = f"declares _schema = {declared!r}"
+    raise StaleTexReceiptError(f"The receipt {reason}; expected _schema = {TEX_RECEIPT_SCHEMA}")
+
+
 @dataclass(frozen=True)
 class TexReceipt:
     """Complete description of one immutable dependency snapshot."""
 
     record_digest: str
     dependencies: tuple[InstalledTexDependency, ...]
-    schema_version: int = 1
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema_version": self.schema_version,
+            "_schema": TEX_RECEIPT_SCHEMA,
             "record_digest": self.record_digest,
             "dependencies": [dependency.to_dict() for dependency in self.dependencies],
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "TexReceipt":
+        _require_receipt_schema(data)
         return cls(
-            schema_version=int(data["schema_version"]),
             record_digest=str(data["record_digest"]),
             dependencies=tuple(
                 InstalledTexDependency.from_dict(item) for item in data["dependencies"]

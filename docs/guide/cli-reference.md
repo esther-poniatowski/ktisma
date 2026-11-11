@@ -285,6 +285,9 @@ ktisma tex resolve DEPENDENCY:ENTRYPOINT [--root PATH] [--format FORMAT]
 
 Only `tex install` changes dependency state by fetching sources and running package builders. By
 contrast, every other command, and normal document builds, only check the current snapshot.
+A snapshot whose receipt declares another format in `_schema` (`ktisma:tex-dependencies@1` is
+the current format), including a receipt written with the former `schema_version` key, counts as
+stale: `tex check` reports it, and `tex install` regenerates it.
 Accordingly, a build must stop before LaTeX when the snapshot is absent or stale, or when a file
 digest or resolved path fails its check.
 

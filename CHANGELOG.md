@@ -31,6 +31,17 @@ below loses its former name in this release, without an alias, a fallback or a w
   read and no longer marks a workspace root, and Ktisma then runs on its built-in defaults without
   a warning. Consumers must rename each `.ktisma.toml` file to `ktisma.toml`, for instance with
   `git mv .ktisma.toml ktisma.toml`.
+- **Format marker `_schema`.** Every configuration file declares its format as its first key:
+  `_schema = "ktisma:configuration@1"` or `_schema = "ktisma:configuration@2"`. The key replaces
+  `schema_version`, which is retired without an alias. The outermost file of a workspace must
+  declare the key; the file of a nested folder may omit it. A missing or unsupported value stops the
+  command with exit code `2` and a message that names the expected value, and a file that still
+  carries `schema_version` receives the value to write. An outermost file that lacks the key was
+  read as version 1 before this release. Consumers must rewrite each `schema_version = N` line as
+  `_schema = "ktisma:configuration@N"`.
+- The receipt of a TeX snapshot declares `_schema = "ktisma:tex-dependencies@1"`. A receipt in
+  another format, including one that carries `schema_version`, counts as stale: `tex check` reports
+  it, and `tex install` regenerates the snapshot.
 - The workspace-root file may also sit in `config/tools/ktisma.toml`. A root that holds both
   `ktisma.toml` and `config/tools/ktisma.toml` is an error that names both files. Overlays below
   the root stay `ktisma.toml` in their own folder.

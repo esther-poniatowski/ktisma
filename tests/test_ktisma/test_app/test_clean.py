@@ -19,7 +19,13 @@ def test_clean_uses_metadata_to_avoid_prefix_collisions(tmp_path: Path) -> None:
     other_source.write_text("\\documentclass{article}\n", encoding="utf-8")
 
     config_loader = FakeConfigLoader(
-        layers=[ConfigLayer(data={}, source=tmp_path / "ktisma.toml", label="test")]
+        layers=[
+            ConfigLayer(
+                data={"_schema": "ktisma:configuration@1"},
+                source=tmp_path / "ktisma.toml",
+                label="test",
+            )
+        ]
     )
     workspace_ops = FakeWorkspaceOps()
 
@@ -74,7 +80,9 @@ def test_clean_without_root_reads_the_configuration_resolved_as_build_does(
     from ktisma.adapters import bootstrap
 
     monkeypatch.delenv("KTISMA_ROOT", raising=False)
-    (tmp_path / "ktisma.toml").write_text('[build]\nout_dir_name = "_out"\n', encoding="utf-8")
+    (tmp_path / "ktisma.toml").write_text(
+        '_schema = "ktisma:configuration@1"\n[build]\nout_dir_name = "_out"\n', encoding="utf-8"
+    )
     source_dir = tmp_path / "chapter"
     source_dir.mkdir()
     source = source_dir / "paper.tex"

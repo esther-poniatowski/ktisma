@@ -6,7 +6,7 @@ schema, see the [configuration reference](../configuration.md).
 ## Minimal Configuration (Zero-Config Defaults)
 
 ```toml
-schema_version = 1
+_schema = "ktisma:configuration@1"
 ```
 
 Defaults:
@@ -25,7 +25,7 @@ Defaults:
 should be named after the subdirectory rather than `main.pdf`.
 
 ```toml
-schema_version = 1
+_schema = "ktisma:configuration@1"
 
 [routing]
 collapse_entrypoint_names = true
@@ -46,7 +46,7 @@ See [Routing: Entrypoint Collapse](../routing.md#entrypoint-collapse).
 annotations or review markup enabled.
 
 ```toml
-schema_version = 1
+_schema = "ktisma:configuration@1"
 
 [routing]
 default_filename_suffix = ""
@@ -81,7 +81,7 @@ interference. See [Build Lifecycle: Variants](../build-lifecycle.md#variants).
 require a modern engine.
 
 ```toml
-schema_version = 1
+_schema = "ktisma:configuration@1"
 
 [engines]
 default = "lualatex"
@@ -96,7 +96,7 @@ definitive engine marker is found. See [Engine Detection](../engine-detection.md
 explicit control.
 
 ```toml
-schema_version = 1
+_schema = "ktisma:configuration@1"
 
 [routes]
 "drafts/*.tex" = "output/drafts/"
@@ -143,7 +143,7 @@ Overlay configs merge with the workspace-level config — only the overridden ke
 **Use case**: the project uses `-src/` and `-out/` instead of `-tex/` and `-pdfs/`.
 
 ```toml
-schema_version = 1
+_schema = "ktisma:configuration@1"
 
 [routing]
 source_suffix = "-src"
@@ -158,7 +158,7 @@ See [Routing: Configuring the Convention](../routing.md#configuring-the-conventi
 compilation issues.
 
 ```toml
-schema_version = 1
+_schema = "ktisma:configuration@1"
 
 [build]
 cleanup = "never"

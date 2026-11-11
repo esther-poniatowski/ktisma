@@ -97,7 +97,7 @@ class ResolvedConfig:
 
 SCHEMA_COMMON_KEYS: dict[str, set[str]] = {
     "": {
-        "schema_version",
+        "_schema",
         "build",
         "engines",
         "routing",
@@ -136,6 +136,81 @@ BUILTIN_PLACEHOLDERS: frozenset[str] = frozenset({"stem", "artifact", "variant"}
 PLACEHOLDER_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
 
 VALID_ENGINES: set[str] = {"pdflatex", "lualatex", "xelatex", "latex"}
+
+# Identifiers accepted in the ``_schema`` key of a configuration file, with their schema versions.
+CONFIG_SCHEMAS: dict[str, int] = {
+    "ktisma:configuration@1": 1,
+    "ktisma:configuration@2": 2,
+}
+DEFAULT_CONFIG_SCHEMA = "ktisma:configuration@1"
+# Key retired by ``_schema``; a file that still holds it receives the value to write.
+RETIRED_SCHEMA_KEY = "schema_version"
+
+
+def check_layer_schemas(file_layers: list[ConfigLayer]) -> tuple[Optional[str], list[Diagnostic]]:
+    """Check the ``_schema`` key of every configuration file and select the workspace schema.
+
+    Layers are ordered from the outermost file inward. The outermost file must declare the key,
+    and its identifier governs the resolved workspace. The file of a nested folder may omit the
+    key; when it declares the key, the value must be supported, but it cannot change the schema of
+    the workspace.
+
+    Returns the identifier of the outermost file, or ``None`` when no file declares a usable one,
+    together with the error diagnostics.
+    """
+    diagnostics: list[Diagnostic] = []
+    outermost: Optional[str] = None
+    for position, layer in enumerate(file_layers):
+        identifier, error = _read_layer_schema(layer, required=position == 0)
+        if error is not None:
+            diagnostics.append(error)
+        elif position == 0:
+            outermost = identifier
+    return outermost, diagnostics
+
+
+def _read_layer_schema(
+    layer: ConfigLayer, *, required: bool
+) -> tuple[Optional[str], Optional[Diagnostic]]:
+    """Return the identifier declared by ``layer``, or the diagnostic that rejects the file."""
+    supported = ", ".join(sorted(CONFIG_SCHEMAS))
+    if RETIRED_SCHEMA_KEY in layer.data:
+        return None, _schema_error(
+            "retired-schema-key",
+            f"{layer.label}: the key '{RETIRED_SCHEMA_KEY}' is retired; write "
+            f"{_replacement_for(layer.data[RETIRED_SCHEMA_KEY])} as the first key of the file.",
+        )
+    if "_schema" not in layer.data:
+        if not required:
+            return None, None
+        return None, _schema_error(
+            "missing-schema",
+            f"{layer.label} does not declare '_schema'; expected one of: {supported}.",
+        )
+    value = layer.data["_schema"]
+    if isinstance(value, str) and value in CONFIG_SCHEMAS:
+        return value, None
+    return None, _schema_error(
+        "unsupported-schema",
+        f"{layer.label} declares _schema = {value!r}; expected one of: {supported}.",
+    )
+
+
+def _replacement_for(old_value: object) -> str:
+    """Return the ``_schema`` assignment that replaces a former ``schema_version`` value."""
+    identifier = f"ktisma:configuration@{old_value}"
+    if isinstance(old_value, int) and identifier in CONFIG_SCHEMAS:
+        return f'_schema = "{identifier}"'
+    return "_schema = one of " + ", ".join(sorted(CONFIG_SCHEMAS))
+
+
+def _schema_error(code: str, message: str) -> Diagnostic:
+    return Diagnostic(
+        level=DiagnosticLevel.ERROR,
+        component="config",
+        code=code,
+        message=message,
+    )
 
 
 def validate_config(data: dict[str, Any], schema_version: int = 1) -> list[Diagnostic]:
@@ -886,7 +961,7 @@ def _anchor_config_path(raw_path: str, base_dir: Path) -> str:
 # --- Config construction ---
 
 BUILTIN_DEFAULTS: dict[str, Any] = {
-    "schema_version": 1,
+    "_schema": DEFAULT_CONFIG_SCHEMA,
     "build": {
         "out_dir_name": ".ktisma_build",
         "cleanup": "on_output_success",
@@ -924,7 +999,7 @@ def resolve_config(merged: dict[str, Any], provenance: list[str]) -> ResolvedCon
     routing_data = merged["routing"]
 
     return ResolvedConfig(
-        schema_version=merged["schema_version"],
+        schema_version=CONFIG_SCHEMAS[merged["_schema"]],
         build=BuildConfig(
             out_dir_name=build_data["out_dir_name"],
             cleanup=CleanupPolicy(build_data["cleanup"]),

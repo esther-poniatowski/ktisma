@@ -34,7 +34,7 @@ TOML is the only supported format. Ktisma parses configuration with `tomllib` fr
 ## Full Example
 
 ```toml
-schema_version = 1
+_schema = "ktisma:configuration@1"
 
 [build]
 out_dir_name = ".ktisma_build"
@@ -71,7 +71,7 @@ filename_suffix = "_review"
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `schema_version` | integer | `1` | Config schema version. Version 2 enables managed TeX dependencies. |
+| `_schema` | string | none | Format identifier, first key of the file, required in the outermost file: `ktisma:configuration@1`, or `ktisma:configuration@2` to enable TeX dependencies. |
 
 ### `[build]`
 
@@ -160,7 +160,7 @@ dependency declares an exact Git commit, a registered builder and public package
 Ktisma resolves every declared entry point from the installed tree.
 
 ```toml
-schema_version = 2
+_schema = "ktisma:configuration@2"
 
 [[tex.dependencies]]
 name = "scholia"
@@ -229,15 +229,17 @@ When multiple config layers are present, they merge with these rules:
 - **`[routes]`** merges by exact pattern key. If the same glob pattern appears in multiple
   layers, the higher-precedence layer wins for that pattern.
 - **`[variants]`** merges by exact variant name, same as routes.
-- **`schema_version`** in the workspace-root config governs the resolved workspace. A nested
-  config declares the syntax of its own layer but cannot downgrade capabilities enabled at
-  the root.
+- **`_schema`** in the outermost file governs the resolved workspace. The file of a nested
+  folder may omit the key; a declared value must be supported but cannot change the schema of the
+  workspace.
 
 ### Example
 
 Workspace-root `ktisma.toml`:
 
 ```toml
+_schema = "ktisma:configuration@1"
+
 [engines]
 default = "pdflatex"
 modern_default = "lualatex"
@@ -341,9 +343,15 @@ Paths in magic comments resolve relative to the source file's directory.
 
 ## Schema Versioning
 
-The top-level `schema_version` key declares which config schema the file targets:
+The first key of a configuration file is `_schema`, which names the format of the file:
 
-- When absent, schema version 1 is assumed.
+- The value is `ktisma:configuration@1` or `ktisma:configuration@2`; the reader compares the whole
+  string with these identifiers.
+- The outermost configuration file of a workspace must declare the key. A file below it may omit
+  the key, and a declared value must be one of the identifiers.
+- A missing or unsupported value stops the command with exit code 2 and a message that names the
+  expected value. The former key `schema_version` is rejected, and the message gives the value to
+  write: `schema_version = 2` becomes `_schema = "ktisma:configuration@2"`.
 - Version 2 adds `[[tex.dependencies]]`.
 - Keys introduced in a later schema version are errors under an earlier version.
 - Explicit versioning allows config files to opt into new features without breaking older ktisma installations.

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+
+import pytest
 
 from ktisma.app.tex_dependencies import (
     TexInstallServices,
@@ -28,7 +31,7 @@ class FakeConfigLoader:
         return [
             ConfigLayer(
                 data={
-                    "schema_version": 2,
+                    "_schema": "ktisma:configuration@2",
                     "tex": {"dependencies": self.dependencies},
                 },
                 source=workspace_root / "ktisma.toml",
@@ -59,6 +62,11 @@ class FixtureBuilder:
             target.symlink_to(source)
         else:
             target.write_text(dependency.name, encoding="utf-8")
+
+
+class FailingBuilder:
+    def install(self, dependency: TexDependency, checkout: Path, texmf_root: Path) -> None:
+        raise ValueError("The builder failed.")
 
 
 class FixtureResolver:
@@ -239,3 +247,75 @@ def test_resolve_rejects_a_modified_snapshot(tmp_path: Path) -> None:
     assert result.exit_code == ExitCode.CONFIG_ERROR
     assert result.path is None
     assert result.diagnostics[0].code == "tex-manifest-mismatch"
+
+
+def _receipt_path(result) -> Path:
+    assert result.texmf_root is not None
+    return result.texmf_root.parent / "receipt.json"
+
+
+def _rewrite_receipt(path: Path, *remove: str, **add: object) -> None:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    for key in remove:
+        data.pop(key, None)
+    data.update(add)
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def test_receipt_declares_its_format_as_the_first_key(tmp_path: Path) -> None:
+    services = _services([_dependency()])
+
+    installed = execute_tex_install(tmp_path, services)
+
+    data = json.loads(_receipt_path(installed).read_text(encoding="utf-8"))
+    assert next(iter(data)) == "_schema"
+    assert data["_schema"] == "ktisma:tex-dependencies@1"
+    assert "schema_version" not in data
+
+
+@pytest.mark.parametrize(
+    ("remove", "add"),
+    [
+        (("_schema",), {"schema_version": 1}),
+        (("_schema",), {}),
+        ((), {"_schema": "ktisma:tex-dependencies@9"}),
+    ],
+    ids=["old-key", "absent", "wrong"],
+)
+def test_receipt_of_another_format_is_stale_and_regenerated(
+    tmp_path: Path, remove: tuple, add: dict
+) -> None:
+    services = _services([_dependency()])
+    installed = execute_tex_install(tmp_path, services)
+    receipt = _receipt_path(installed)
+    _rewrite_receipt(receipt, *remove, **add)
+
+    checked = execute_tex_check(tmp_path, services.runtime)
+
+    assert checked.exit_code == ExitCode.CONFIG_ERROR
+    assert [d.code for d in checked.diagnostics] == ["tex-snapshot-stale"]
+    assert "_schema" in checked.diagnostics[0].message
+    assert "ktisma:tex-dependencies@1" in checked.diagnostics[0].message
+    assert "ktisma tex install" in checked.diagnostics[0].message
+
+    reinstalled = execute_tex_install(tmp_path, services)
+
+    assert reinstalled.exit_code == ExitCode.SUCCESS
+    assert reinstalled.record_digest == installed.record_digest
+    assert json.loads(receipt.read_text(encoding="utf-8"))["_schema"] == (
+        "ktisma:tex-dependencies@1"
+    )
+    assert execute_tex_check(tmp_path, services.runtime).exit_code == ExitCode.SUCCESS
+
+
+def test_failed_regeneration_keeps_the_stale_snapshot(tmp_path: Path) -> None:
+    services = _services([_dependency()])
+    installed = execute_tex_install(tmp_path, services)
+    receipt = _receipt_path(installed)
+    _rewrite_receipt(receipt, "_schema", schema_version=1)
+    failing = _services([_dependency()], builder=FailingBuilder())
+
+    result = execute_tex_install(tmp_path, failing)
+
+    assert result.exit_code != ExitCode.SUCCESS
+    assert receipt.is_file()

@@ -301,7 +301,7 @@ class TestResolveConfig:
 
     def test_custom_values(self) -> None:
         data: dict[str, Any] = {
-            "schema_version": 1,
+            "_schema": "ktisma:configuration@1",
             "build": {
                 "out_dir_name": "build",
                 "cleanup": "always",
@@ -576,7 +576,7 @@ class TestBuiltinDefaults:
         assert diags == []
 
     def test_builtin_defaults_schema_version(self) -> None:
-        assert BUILTIN_DEFAULTS["schema_version"] == 1
+        assert BUILTIN_DEFAULTS["_schema"] == "ktisma:configuration@1"
 
     def test_builtin_defaults_has_all_sections(self) -> None:
         for section in ("build", "engines", "routing", "routes", "variants"):
@@ -599,7 +599,7 @@ class TestTexDependencyConfig:
         return result
 
     def test_version_2_accepts_dependency_record(self) -> None:
-        data = {"schema_version": 2, "tex": {"dependencies": [self.dependency()]}}
+        data = {"_schema": "ktisma:configuration@2", "tex": {"dependencies": [self.dependency()]}}
         assert validate_config(data, schema_version=2) == []
 
     def test_version_1_rejects_tex_section(self) -> None:
@@ -692,7 +692,7 @@ class TestTexDependencyConfig:
             provides=["alpha.sty"],
         )
         merged = _merged_with_defaults(
-            {"schema_version": 2, "tex": {"dependencies": [first, second]}}
+            {"_schema": "ktisma:configuration@2", "tex": {"dependencies": [first, second]}}
         )
         cfg = resolve_config(merged, ["test"])
         assert cfg.tex.dependencies == (

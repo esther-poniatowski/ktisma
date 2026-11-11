@@ -30,7 +30,7 @@ alternative installation methods.
 Start with a minimal config at the project root:
 
 ```toml
-schema_version = 1
+_schema = "ktisma:configuration@1"
 ```
 
 Then map the old settings. Common translations:
@@ -175,7 +175,7 @@ the project has fully migrated to calling ktisma directly. See
 No special routing needed. The default config works:
 
 ```toml
-schema_version = 1
+_schema = "ktisma:configuration@1"
 ```
 
 The PDF is placed beside the source file (fallback routing).
@@ -186,7 +186,7 @@ If the project already uses the `-tex`/`-pdfs` directory naming, the default suf
 handles routing automatically. For nested `main.tex` files, enable entrypoint collapse:
 
 ```toml
-schema_version = 1
+_schema = "ktisma:configuration@1"
 
 [routing]
 collapse_entrypoint_names = true
@@ -200,7 +200,7 @@ If a shell script compiled documents twice — once normally and once with a TeX
 injected — replace it with the [variants](build-lifecycle.md#variants) feature:
 
 ```toml
-schema_version = 1
+_schema = "ktisma:configuration@1"
 
 [routing]
 default_filename_suffix = ""

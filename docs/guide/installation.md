@@ -34,7 +34,7 @@ ln -s /path/to/ktisma vendor/ktisma
 Create a `ktisma.toml` file at the project root:
 
 ```toml
-schema_version = 1
+_schema = "ktisma:configuration@1"
 ```
 
 A single line constitutes a complete, valid configuration. The built-in defaults

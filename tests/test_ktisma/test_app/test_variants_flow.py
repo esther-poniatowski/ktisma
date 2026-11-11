@@ -37,6 +37,7 @@ def _make_services(*, layers: list[ConfigLayer] | None = None) -> BuildServices:
 def test_execute_variants_preserves_structured_variant_metadata(monkeypatch, tmp_path: Path) -> None:
     config_layer = ConfigLayer(
         data={
+            "_schema": "ktisma:configuration@1",
             "variants": {
                 "review": {
                     "payload": "\\def\\mode{review}",
@@ -90,7 +91,15 @@ def test_clean_matches_canonical_source_identity(monkeypatch, tmp_path: Path) ->
     result = execute_clean(
         target=Path("paper.tex"),
         workspace_root=tmp_path,
-        config_loader=FakeConfigLoader(layers=[ConfigLayer(data={}, source=tmp_path / "ktisma.toml", label="test")]),
+        config_loader=FakeConfigLoader(
+            layers=[
+                ConfigLayer(
+                    data={"_schema": "ktisma:configuration@1"},
+                    source=tmp_path / "ktisma.toml",
+                    label="test",
+                )
+            ]
+        ),
         workspace_ops=workspace_ops,
     )
 

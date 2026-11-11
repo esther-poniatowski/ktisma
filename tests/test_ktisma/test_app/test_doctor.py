@@ -361,9 +361,9 @@ class TestMultipleFailures:
 
 class TestConfigValidation:
     def test_valid_config_produces_info_diagnostic(self, tmp_path: Path) -> None:
-        (tmp_path / "ktisma.toml").write_text("schema_version = 1\n")
+        (tmp_path / "ktisma.toml").write_text('_schema = "ktisma:configuration@1"\n')
         config_layer = ConfigLayer(
-            data={"schema_version": 1},
+            data={"_schema": "ktisma:configuration@1"},
             source=tmp_path,
             label=str(tmp_path / "ktisma.toml"),
         )
@@ -387,7 +387,7 @@ class TestConfigValidation:
 
     def test_invalid_config_returns_config_error(self, tmp_path: Path) -> None:
         config_layer = ConfigLayer(
-            data={"build": {"cleanup": "bogus"}},
+            data={"_schema": "ktisma:configuration@1", "build": {"cleanup": "bogus"}},
             source=tmp_path,
             label="invalid",
         )
@@ -410,7 +410,7 @@ class TestEngineChecksFromConfig:
         """When config specifies engines, those specific engines are checked."""
         config_layer = ConfigLayer(
             data={
-                "schema_version": 1,
+                "_schema": "ktisma:configuration@1",
                 "engines": {"default": "xelatex", "modern_default": "lualatex"},
             },
             source=tmp_path,

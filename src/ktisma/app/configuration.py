@@ -6,8 +6,11 @@ from typing import Optional
 
 from ..domain.config import (
     BUILTIN_DEFAULTS,
+    CONFIG_SCHEMAS,
+    DEFAULT_CONFIG_SCHEMA,
     ConfigLayer,
     ResolvedConfig,
+    check_layer_schemas,
     merge_config_layers,
     resolve_config,
     validate_config,
@@ -32,6 +35,12 @@ def load_resolved_config(
         )
     ]
     file_layers = config_loader.load_layers(workspace_root, source_dir)
+    workspace_schema, schema_diagnostics = check_layer_schemas(file_layers)
+    if schema_diagnostics:
+        raise ConfigError(
+            "Configuration validation failed with " f"{len(schema_diagnostics)} error(s).",
+            diagnostics=schema_diagnostics,
+        )
     additional_layers = [layer for layer in extra_layers if layer.data] if extra_layers else []
     scope_diagnostics = _validate_tex_dependency_scope([*file_layers, *additional_layers])
     if scope_diagnostics:
@@ -44,9 +53,9 @@ def load_resolved_config(
 
     merged, provenance = merge_config_layers(layers)
 
-    schema_version = _workspace_schema_version(file_layers)
-    merged["schema_version"] = schema_version
-    diagnostics = validate_config(merged, schema_version)
+    # The outermost file governs the workspace; an overlay cannot change the schema.
+    merged["_schema"] = workspace_schema or DEFAULT_CONFIG_SCHEMA
+    diagnostics = validate_config(merged, CONFIG_SCHEMAS[merged["_schema"]])
 
     errors = [d for d in diagnostics if d.level == DiagnosticLevel.ERROR]
     if errors:
@@ -56,18 +65,6 @@ def load_resolved_config(
         )
 
     return resolve_config(merged, provenance), diagnostics
-
-
-def _workspace_schema_version(file_layers: list[ConfigLayer]) -> int:
-    """Return the schema version selected by the workspace-root config.
-
-    Nested configs declare the syntax of their own layer. They do not downgrade
-    capabilities selected by the workspace root when the layers are resolved.
-    """
-    for layer in file_layers:
-        if layer.is_workspace_root:
-            return int(layer.data.get("schema_version", 1))
-    return 1
 
 
 def _validate_tex_dependency_scope(layers: list[ConfigLayer]) -> list[Diagnostic]:

@@ -292,7 +292,7 @@ def _default_request(**overrides) -> BuildRequest:
 def _tex_layer(workspace_root: Path) -> ConfigLayer:
     return ConfigLayer(
         data={
-            "schema_version": 2,
+            "_schema": "ktisma:configuration@2",
             "tex": {
                 "dependencies": [
                     {
@@ -910,7 +910,7 @@ class TestVariantBuilds:
     def test_variant_from_config(self, tmp_path: Path) -> None:
         """When variant name is given but no payload, it's looked up from config."""
         config_layer = ConfigLayer(
-            data={"variants": {"draft": "\\def\\isdraft{1}"}},
+            data={"_schema": "ktisma:configuration@1", "variants": {"draft": "\\def\\isdraft{1}"}},
             source=tmp_path,
             label="test config",
         )
@@ -999,7 +999,10 @@ class TestVariantBuilds:
 
     def test_default_filename_suffix_applies_to_default_build(self, tmp_path: Path) -> None:
         config_layer = ConfigLayer(
-            data={"routing": {"default_filename_suffix": "_student"}},
+            data={
+                "_schema": "ktisma:configuration@1",
+                "routing": {"default_filename_suffix": "_student"},
+            },
             source=tmp_path / "ktisma.toml",
             label="test config",
         )
@@ -1156,7 +1159,7 @@ class TestConfigIntegration:
     def test_config_layer_engine_default_used(self, tmp_path: Path) -> None:
         """A config layer setting engines.default is respected."""
         config_layer = ConfigLayer(
-            data={"engines": {"default": "lualatex"}},
+            data={"_schema": "ktisma:configuration@1", "engines": {"default": "lualatex"}},
             source=tmp_path,
             label="test",
         )
@@ -1176,7 +1179,7 @@ class TestConfigIntegration:
 
     def test_magic_comment_overrides_config(self, tmp_path: Path) -> None:
         config_layer = ConfigLayer(
-            data={"engines": {"default": "pdflatex"}},
+            data={"_schema": "ktisma:configuration@1", "engines": {"default": "pdflatex"}},
             source=tmp_path,
             label="test",
         )

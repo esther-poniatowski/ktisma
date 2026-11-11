@@ -41,7 +41,7 @@ class TestBasicLoading:
         self, tmp_path: Path, loader: TomlConfigLoader
     ) -> None:
         config = tmp_path / CONFIG_FILENAME
-        config.write_text("schema_version = 1\n")
+        config.write_text('_schema = "ktisma:configuration@1"\n')
         layers = loader.load_layers(workspace_root=tmp_path, source_dir=tmp_path)
         assert str(config) in layers[0].label
 
@@ -49,7 +49,7 @@ class TestBasicLoading:
         self, tmp_path: Path, loader: TomlConfigLoader
     ) -> None:
         config = tmp_path / CONFIG_FILENAME
-        config.write_text("schema_version = 1\n")
+        config.write_text('_schema = "ktisma:configuration@1"\n')
         layers = loader.load_layers(workspace_root=tmp_path, source_dir=tmp_path)
         assert layers[0].source == config
 
@@ -83,7 +83,7 @@ class TestLayerOrdering:
     ) -> None:
         """Multiple intermediate overlays between workspace and source dir."""
         # Structure:  ws/ -> ws/a/ -> ws/a/b/ -> ws/a/b/c/
-        (tmp_path / CONFIG_FILENAME).write_text("schema_version = 1\n")
+        (tmp_path / CONFIG_FILENAME).write_text('_schema = "ktisma:configuration@1"\n')
         a = tmp_path / "a"
         a.mkdir()
         (a / CONFIG_FILENAME).write_text('[engines]\ndefault = "lualatex"\n')
@@ -105,7 +105,7 @@ class TestLayerOrdering:
         self, tmp_path: Path, loader: TomlConfigLoader
     ) -> None:
         """When source is at the workspace root, only one layer loaded."""
-        (tmp_path / CONFIG_FILENAME).write_text("schema_version = 1\n")
+        (tmp_path / CONFIG_FILENAME).write_text('_schema = "ktisma:configuration@1"\n')
         layers = loader.load_layers(workspace_root=tmp_path, source_dir=tmp_path)
         assert len(layers) == 1
 
@@ -113,7 +113,7 @@ class TestLayerOrdering:
         self, tmp_path: Path, loader: TomlConfigLoader
     ) -> None:
         """Workspace root config should not appear twice."""
-        (tmp_path / CONFIG_FILENAME).write_text("schema_version = 1\n")
+        (tmp_path / CONFIG_FILENAME).write_text('_schema = "ktisma:configuration@1"\n')
         layers = loader.load_layers(workspace_root=tmp_path, source_dir=tmp_path)
         assert len(layers) == 1
 
@@ -129,7 +129,7 @@ class TestSourceOutsideWorkspace:
     ) -> None:
         ws = tmp_path / "workspace"
         ws.mkdir()
-        (ws / CONFIG_FILENAME).write_text("schema_version = 1\n")
+        (ws / CONFIG_FILENAME).write_text('_schema = "ktisma:configuration@1"\n')
 
         outside = tmp_path / "other_place"
         outside.mkdir()
@@ -223,7 +223,7 @@ class TestDataContent:
     ) -> None:
         config = tmp_path / CONFIG_FILENAME
         config.write_text(
-            'schema_version = 1\n'
+            '_schema = "ktisma:configuration@1"\n'
             '\n'
             '[build]\n'
             'out_dir_name = ".ktisma_build"\n'
@@ -241,7 +241,7 @@ class TestDataContent:
         )
         layers = loader.load_layers(workspace_root=tmp_path, source_dir=tmp_path)
         data = layers[0].data
-        assert data["schema_version"] == 1
+        assert data["_schema"] == "ktisma:configuration@1"
         assert data["engines"]["default"] == "pdflatex"
         assert data["routing"]["source_suffix"] == "-tex"
 
@@ -258,7 +258,7 @@ class TestOverlayChain:
         """Workspace -> subdir -> sub-subdir, each overriding a different key."""
         ws = tmp_path
         (ws / CONFIG_FILENAME).write_text(
-            'schema_version = 1\n'
+            '_schema = "ktisma:configuration@1"\n'
             '[engines]\n'
             'default = "pdflatex"\n'
         )
@@ -278,7 +278,7 @@ class TestOverlayChain:
         layers = loader.load_layers(workspace_root=ws, source_dir=deep)
         assert len(layers) == 3
         # Verify each layer's content in order
-        assert layers[0].data.get("schema_version") == 1
+        assert layers[0].data.get("_schema") == "ktisma:configuration@1"
         assert layers[1].data["engines"]["default"] == "lualatex"
         assert layers[2].data["build"]["cleanup"] == "never"
 
@@ -287,7 +287,7 @@ class TestOverlayChain:
     ) -> None:
         """Verify walking works for deeply nested directories."""
         current = tmp_path
-        (current / CONFIG_FILENAME).write_text("schema_version = 1\n")
+        (current / CONFIG_FILENAME).write_text('_schema = "ktisma:configuration@1"\n')
         for name in ["a", "b", "c", "d"]:
             current = current / name
             current.mkdir()
@@ -324,9 +324,9 @@ class TestSettingsFilePlaces:
     ) -> None:
         nested = tmp_path / "config" / "tools" / CONFIG_FILENAME
         nested.parent.mkdir(parents=True)
-        nested.write_text("schema_version = 1\n")
+        nested.write_text('_schema = "ktisma:configuration@1"\n')
         top = tmp_path / CONFIG_FILENAME
-        top.write_text("schema_version = 1\n")
+        top.write_text('_schema = "ktisma:configuration@1"\n')
         with pytest.raises(ConfigError) as exc_info:
             loader.load_layers(workspace_root=tmp_path, source_dir=tmp_path)
         [diagnostic] = exc_info.value.diagnostics
@@ -338,10 +338,12 @@ class TestSettingsFilePlaces:
         self, tmp_path: Path, loader: TomlConfigLoader
     ) -> None:
         """Below the root, config/tools/ktisma.toml is not the overlay of its grandparent."""
-        (tmp_path / CONFIG_FILENAME).write_text("schema_version = 1\n")
+        (tmp_path / CONFIG_FILENAME).write_text('_schema = "ktisma:configuration@1"\n')
         sub = tmp_path / "papers"
         (sub / "config" / "tools").mkdir(parents=True)
-        (sub / "config" / "tools" / CONFIG_FILENAME).write_text("schema_version = 1\n")
+        (sub / "config" / "tools" / CONFIG_FILENAME).write_text(
+            '_schema = "ktisma:configuration@1"\n'
+        )
         layers = loader.load_layers(workspace_root=tmp_path, source_dir=sub)
         assert [layer.source for layer in layers] == [tmp_path / CONFIG_FILENAME]
 
@@ -355,7 +357,7 @@ class TestSettingsFilePlaces:
     def test_every_layer_anchors_its_paths_at_the_root(
         self, tmp_path: Path, loader: TomlConfigLoader
     ) -> None:
-        (tmp_path / CONFIG_FILENAME).write_text("schema_version = 1\n")
+        (tmp_path / CONFIG_FILENAME).write_text('_schema = "ktisma:configuration@1"\n')
         sub = tmp_path / "papers"
         sub.mkdir()
         (sub / CONFIG_FILENAME).write_text('[routes]\n"papers/*.tex" = "out/"\n')

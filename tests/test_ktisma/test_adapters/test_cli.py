@@ -618,3 +618,15 @@ def test_init_force_overwrites_an_existing_wrapper(tmp_path, capsys):
     code = main(["init", "--root", str(tmp_path), "--force"])
     assert code == ExitCode.SUCCESS
     assert "KTISMA_ROOT" in wrapper.read_text()
+
+
+def test_retired_schema_key_exits_with_status_two(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / "ktisma.toml").write_text("schema_version = 2\n", encoding="utf-8")
+
+    status = main(["doctor", "--root", str(tmp_path)])
+
+    captured = capsys.readouterr()
+    assert status == ExitCode.CONFIG_ERROR
+    assert '_schema = "ktisma:configuration@2"' in captured.err + captured.out
