@@ -300,7 +300,7 @@ def _check_snapshot(
         return _failure(
             digest,
             "tex-snapshot-stale",
-            "The active TeX snapshot does not match the settings file of the workspace root; "
+            "The active TeX snapshot does not match the configuration file of the workspace root; "
             "run 'ktisma tex install'.",
         )
     snapshot = services.store.snapshot_path(workspace_root, digest)
@@ -378,7 +378,10 @@ def _compare_receipt(
         for dependency in receipt.dependencies
     }
     if installed != declared:
-        return "The dependencies in the receipt differ from the settings file of the workspace root."
+        return (
+            "The dependencies in the receipt differ from the configuration file of the "
+            "workspace root."
+        )
     for dependency in receipt.dependencies:
         if dependency.installed_commit != dependency.declared_commit:
             return f"{dependency.name}: the installed commit differs from the declared commit."

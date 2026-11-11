@@ -118,7 +118,7 @@ class TestRetiredEnvVar:
 
 
 # ---------------------------------------------------------------------------
-# 3. Outermost ancestor holding a settings file
+# 3. Outermost ancestor holding a configuration file
 # ---------------------------------------------------------------------------
 
 

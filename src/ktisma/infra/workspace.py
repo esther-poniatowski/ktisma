@@ -38,7 +38,7 @@ def resolve_workspace_root(
     if env_root:
         return Path(env_root).expanduser().resolve()
 
-    # Step 3: Outermost ancestor holding a settings file
+    # Step 3: Outermost ancestor holding a configuration file
     start = source_dir if source_dir is not None else Path.cwd()
     found = _find_config_ancestor(start.resolve())
     if found is not None:
@@ -49,11 +49,12 @@ def resolve_workspace_root(
 
 
 def _find_config_ancestor(start: Path) -> Optional[Path]:
-    """Walk up from start and return the outermost folder that holds a settings file.
+    """Walk up from start and return the outermost folder that holds a configuration file.
 
-    A folder holds a settings file when it has ``ktisma.toml`` or ``config/tools/ktisma.toml``.
-    The outermost folder wins because Ktisma stacks one settings file per folder: the files below
-    the root overlay the settings of their own folder and never start a workspace of their own.
+    A folder holds a configuration file when it has ``ktisma.toml`` or ``config/tools/ktisma.toml``.
+    The outermost folder wins because Ktisma stacks one configuration file per folder: the files
+    below the root overlay the configuration of their own folder and never start a workspace of
+    their own.
     """
     current = start
     root = Path(current.anchor)

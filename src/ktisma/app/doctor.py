@@ -31,7 +31,7 @@ def execute_doctor(
     - Python meets minimum version requirement
     - TOML parsing is available
     - workspace root resolution works
-    - the settings files of the resolved workspace root validate successfully
+    - the configuration files of the resolved workspace root validate successfully
     """
     checks: list[PrerequisiteCheck] = []
     diagnostics: list[Diagnostic] = []

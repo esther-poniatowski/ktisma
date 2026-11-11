@@ -82,7 +82,7 @@ def _validate_tex_dependency_scope(layers: list[ConfigLayer]) -> list[Diagnostic
                 component="config",
                 code="tex-dependencies-not-root",
                 message=(
-                    "TeX dependencies may be declared only in the settings file of the "
+                    "TeX dependencies may be declared only in the configuration file of the "
                     f"workspace root; found a declaration in {layer.label}."
                 ),
             )

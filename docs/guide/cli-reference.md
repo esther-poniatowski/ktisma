@@ -197,7 +197,7 @@ Checks performed:
 2. Configured default engines are available
 3. Python meets the minimum version (3.12+)
 4. The workspace root resolves (from `--root`, `KTISMA_ROOT`, or the search from the current folder)
-5. The settings files of that workspace root validate successfully
+5. The configuration files of that workspace root validate successfully
 
 Human-readable output displays a status table with `[ok]` or `[MISSING]` for each check.
 
@@ -262,7 +262,7 @@ that sets `KTISMA_ROOT` and delegates to the vendored ktisma entry
 point -- and prints the VS Code configuration snippet to stdout. The wrapper may hold edits of the
 researcher, so an existing wrapper is overwritten only with `--force`. Without `--force`, the
 command stops with exit code `2` and an error that names the wrapper, and writes nothing. The
-command writes no settings file.
+command writes no configuration file.
 
 ### `tex`
 

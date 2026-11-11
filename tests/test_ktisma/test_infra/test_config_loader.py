@@ -303,7 +303,7 @@ class TestOverlayChain:
 
 
 # ---------------------------------------------------------------------------
-# Places of the settings file and anchoring of paths
+# Places of the configuration file and anchoring of paths
 # ---------------------------------------------------------------------------
 
 

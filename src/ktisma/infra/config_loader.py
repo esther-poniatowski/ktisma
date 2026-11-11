@@ -13,14 +13,16 @@ except ImportError:  # pragma: no cover - exercised on Python < 3.11
     import tomli as toml_module
 
 
-# Name of every settings file of Ktisma: the file of the workspace root and each overlay below it.
+# Name of every configuration file of Ktisma: the file of the workspace root and each overlay
+# below it.
 CONFIG_FILENAME = "ktisma.toml"
-# Folder, below the workspace root, that may hold the settings file of the root instead of the root.
+# Folder, below the workspace root, that may hold the configuration file of the root instead of
+# the root.
 CONFIG_SUBDIR = Path("config") / "tools"
 
 
 def root_config_candidates(folder: Path) -> tuple[Path, Path]:
-    """Return the two places of the settings file of a workspace root held by ``folder``.
+    """Return the two places of the configuration file of a workspace root held by ``folder``.
 
     The file sits either in ``config/tools/ktisma.toml`` below the folder or in ``ktisma.toml`` at
     its level. An overlay below the root has only the second place.
@@ -29,20 +31,20 @@ def root_config_candidates(folder: Path) -> tuple[Path, Path]:
 
 
 def holds_root_config(folder: Path) -> bool:
-    """Return whether ``folder`` holds a settings file in one of the two places of a root."""
+    """Return whether ``folder`` holds a configuration file in one of the two places of a root."""
     return any(candidate.is_file() for candidate in root_config_candidates(folder))
 
 
 def find_root_config(workspace_root: Path) -> Optional[Path]:
-    """Return the settings file of the workspace root, or ``None`` when the root has none.
+    """Return the configuration file of the workspace root, or ``None`` when the root has none.
 
     Raises:
-        ConfigError: Both places hold a settings file; the error names both files.
+        ConfigError: Both places hold a configuration file; the error names both files.
     """
     present = [candidate for candidate in root_config_candidates(workspace_root) if candidate.is_file()]
     if len(present) > 1:
         raise ConfigError(
-            "Two settings files compete for the workspace root.",
+            "Two configuration files compete for the workspace root.",
             diagnostics=[
                 Diagnostic(
                     level=DiagnosticLevel.ERROR,
@@ -50,7 +52,7 @@ def find_root_config(workspace_root: Path) -> Optional[Path]:
                     code="competing-config-files",
                     message=(
                         f"Both {present[0]} and {present[1]} exist; keep one of them as the "
-                        "settings file of the workspace root."
+                        "configuration file of the workspace root."
                     ),
                 )
             ],
@@ -67,7 +69,7 @@ class TomlConfigLoader:
         """Load config layers from workspace root toward the source directory.
 
         Returns layers ordered from lowest to highest precedence:
-        1. The settings file of the workspace root, in ``config/tools/ktisma.toml`` or
+        1. The configuration file of the workspace root, in ``config/tools/ktisma.toml`` or
            ``ktisma.toml`` (lowest)
         2. The overlay ``ktisma.toml`` of each intermediate folder
         3. The overlay ``ktisma.toml`` of the source directory (highest file-based precedence)

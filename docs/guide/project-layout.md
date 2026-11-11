@@ -134,12 +134,12 @@ my-project/
 ```
 
 The layered approach allows setting project-wide defaults at the root and overriding specific
-settings for subdirectories (e.g., a different engine for one subtree).
+configuration values for subdirectories (e.g., a different engine for one subtree).
 
 ### The Workspace-Root File in `config/tools/`
 
-A repository that groups the settings of its tools in `config/tools/` may hold the workspace-root
-file there, as `config/tools/ktisma.toml`:
+A repository that groups the configuration files of its tools in `config/tools/` may hold the
+workspace-root file there, as `config/tools/ktisma.toml`:
 
 ```text
 my-project/
@@ -156,7 +156,7 @@ places without an edit. Only the workspace-root file has this second place. An o
 `ktisma.toml` in the folder that it configures, because that folder defines the scope of the
 overlay. A root that holds both `ktisma.toml` and `config/tools/ktisma.toml` is an error that
 names both files (see
-[Settings Files and Their Places](configuration.md#settings-files-and-their-places)).
+[Configuration Files and Their Places](configuration.md#configuration-files-and-their-places)).
 
 See [Configuration: Precedence](configuration.md#configuration-precedence) and
 [Merge Semantics](configuration.md#merge-semantics) for how layers combine.
