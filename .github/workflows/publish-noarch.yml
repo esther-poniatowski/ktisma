@@ -64,6 +64,7 @@ jobs:
 
     env:
       CHANNEL_REPO: eresthanaconda
+      CHANNEL_URL: https://esther-poniatowski.github.io/eresthanaconda
       CHANNEL_DIR: ../eresthanaconda
       BUILD_DIR: build
 
@@ -84,7 +85,9 @@ jobs:
         run: conda install -y conda-build conda-index
 
       - name: Build Package
-        run: conda build conda.recipe --output-folder ${{ env.BUILD_DIR }}
+        # The channel is a source of the build too, so that a requirement on another tool published
+        # there, such as merismos, resolves in the test environment of the package.
+        run: conda build conda.recipe -c ${{ env.CHANNEL_URL }} --output-folder ${{ env.BUILD_DIR }}
 
       - name: Clone Channel Repository
         run: git clone "https://x-access-token:${{ secrets.CHANNEL_TOKEN }}@github.com/${{ secrets.CHANNEL_USERNAME }}/${{ env.CHANNEL_REPO }}.git" ${{ env.CHANNEL_DIR }}
