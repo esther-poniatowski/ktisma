@@ -20,6 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   An unresolved placeholder stops the build before compilation with an `unresolved-placeholder`
   error.
 - Editor guide: viewing the build-directory PDF in LaTeX Workshop when the routed output is renamed.
+- Configuration key `state_dir`: places the state folder, which holds the TeX snapshots, the pointer
+  `tex-current` and the lock of `ktisma tex install`, as a path relative to the workspace root. The
+  default stays `.ktisma`. Only the workspace-root file may set the key: an overlay or a
+  command-line layer that sets it stops the command with exit code `2` and the diagnostic
+  `state-dir-not-root`. A path that is absolute, holds `..`, or names the root itself stops the
+  command with the diagnostic `invalid-state-dir`. The key is an optional addition to both
+  `ktisma:configuration@1` and `ktisma:configuration@2`, so every valid file stays valid and is read
+  as before. A change of the key neither reads nor deletes the former folder: move it to keep the
+  installed snapshots, or run `ktisma tex install` again.
 
 ### Changed
 
@@ -66,7 +75,12 @@ below loses its former name in this release, without an alias, a fallback or a w
   `adapter_workspace_root` parameter, and an adapter passes the root as `workspace_root`.
 - Without `--root`, `clean` resolves the workspace root of a source as `build` does; it took the
   folder of the source, and so missed the configuration of the root, such as `[build].out_dir_name`.
-  `clean` refuses a folder of the state directory `.ktisma/`.
+  `clean` refuses a folder of the state directory `.ktisma/`. Given a directory, `clean` resolves
+  the workspace root from that directory and also refuses a folder inside the state folder named by
+  `state_dir`.
+- The Python protocol `TexSnapshotStore` and its implementation `FileTexSnapshotStore` take the
+  state folder, `state_root`, in place of the workspace root in `create_stage`, `snapshot_path`,
+  `read_active_digest`, `publish` and `select_existing`.
 - Without `--root`, `doctor` validates the configuration of the workspace root found from the
   current folder; it validated no configuration file.
 - `ktisma init` stops with exit code `2` and an error that names the existing wrapper script, unless

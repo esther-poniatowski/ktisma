@@ -10,6 +10,10 @@ from typing import Any, Optional
 from .context import is_valid_variant_name
 from .diagnostics import Diagnostic, DiagnosticLevel
 
+# Default state folder of Ktisma, relative to the workspace root: it holds the TeX snapshots, their
+# staging folder, the pointer `tex-current` and the lock of `ktisma tex install`.
+DEFAULT_STATE_DIR = ".ktisma"
+
 
 class CleanupPolicy(Enum):
     NEVER = "never"
@@ -91,6 +95,13 @@ class ResolvedConfig:
     # User-defined values substituted for `{name}` in output paths, e.g. `author`.
     placeholders: dict[str, str] = field(default_factory=dict)
     tex: TexConfig = field(default_factory=TexConfig)
+    # State folder of the workspace, relative to the workspace root; set by the workspace-root file.
+    state_dir: str = DEFAULT_STATE_DIR
+
+
+def state_folder(workspace_root: Path, config: ResolvedConfig) -> Path:
+    """Return the state folder of a workspace: ``state_dir`` anchored at the workspace root."""
+    return workspace_root / config.state_dir
 
 
 # --- Schema validation ---
@@ -98,6 +109,7 @@ class ResolvedConfig:
 SCHEMA_COMMON_KEYS: dict[str, set[str]] = {
     "": {
         "_schema",
+        "state_dir",
         "build",
         "engines",
         "routing",
@@ -231,6 +243,8 @@ def validate_config(data: dict[str, Any], schema_version: int = 1) -> list[Diagn
         return diagnostics
 
     _validate_keys(data, "", diagnostics, schema_version=schema_version)
+    if "state_dir" in data:
+        _validate_state_dir(data["state_dir"], diagnostics)
 
     build = data.get("build", {})
     if isinstance(build, dict):
@@ -561,6 +575,34 @@ def _validate_keys(
                     ),
                 )
             )
+
+
+def _validate_state_dir(value: Any, diagnostics: list[Diagnostic]) -> None:
+    """Require ``state_dir`` to name a folder strictly below the workspace root."""
+    if not isinstance(value, str):
+        diagnostics.append(
+            Diagnostic(
+                level=DiagnosticLevel.ERROR,
+                component="config",
+                code="type-mismatch",
+                message=f"'state_dir' must be a string, got {type(value).__name__}.",
+            )
+        )
+        return
+    path = Path(value)
+    parts = [part for part in path.parts if part != "."]
+    if not value or path.is_absolute() or not parts or ".." in parts:
+        diagnostics.append(
+            Diagnostic(
+                level=DiagnosticLevel.ERROR,
+                component="config",
+                code="invalid-state-dir",
+                message=(
+                    f"'state_dir' is {value!r}; it must name a folder below the workspace root, "
+                    f"as a relative path without '..', such as {DEFAULT_STATE_DIR!r}."
+                ),
+            )
+        )
 
 
 def _validate_tex_config(tex: Any, diagnostics: list[Diagnostic]) -> None:
@@ -962,6 +1004,7 @@ def _anchor_config_path(raw_path: str, base_dir: Path) -> str:
 
 BUILTIN_DEFAULTS: dict[str, Any] = {
     "_schema": DEFAULT_CONFIG_SCHEMA,
+    "state_dir": DEFAULT_STATE_DIR,
     "build": {
         "out_dir_name": ".ktisma_build",
         "cleanup": "on_output_success",
@@ -1027,6 +1070,7 @@ def resolve_config(merged: dict[str, Any], provenance: list[str]) -> ResolvedCon
         },
         provenance=list(provenance),
         placeholders=dict(merged.get("placeholders", {})),
+        state_dir=merged.get("state_dir", DEFAULT_STATE_DIR),
         tex=TexConfig(
             dependencies=tuple(
                 sorted(

@@ -23,8 +23,10 @@ defined by the folder that it configures, so it can sit nowhere else than in tha
 Therefore, a file `config/tools/ktisma.toml` below the root is an overlay of the folder `config/tools/` itself, which
 applies only to sources inside that folder.
 
-The `.ktisma/` state directory at the root holds the TeX snapshots of `ktisma tex install`. It is
-not a configuration file, and it keeps its name.
+The state folder holds the TeX snapshots of `ktisma tex install`, the pointer `tex-current` that
+selects one of them, and the lock of a running installation. It lies in `.ktisma/` below the
+workspace root, unless the key `state_dir` of the workspace-root file names another folder (see
+[State Folder](#state-folder)). It holds no configuration file.
 
 ## File Format
 
@@ -35,6 +37,7 @@ TOML is the only supported format. Ktisma parses configuration with `tomllib` fr
 
 ```toml
 _schema = "ktisma:configuration@1"
+state_dir = ".ktisma"
 
 [build]
 out_dir_name = ".ktisma_build"
@@ -72,6 +75,27 @@ filename_suffix = "_review"
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `_schema` | string | none | Format identifier, first key of the file, required in the outermost file: `ktisma:configuration@1`, or `ktisma:configuration@2` to enable TeX dependencies. |
+| `state_dir` | string | `".ktisma"` | State folder of the workspace, relative to the workspace root. Accepted in the workspace-root file only. See [State Folder](#state-folder). |
+
+### State Folder
+
+The key `state_dir` places the state folder of the workspace, as a path relative to the workspace
+root. The path must name a folder strictly below the root: an absolute path, a path holding `..`,
+and an empty path or `.` stop the command with exit code `2` and the diagnostic
+`invalid-state-dir`. Both formats, `ktisma:configuration@1` and `ktisma:configuration@2`, accept the
+key, and a file without it keeps the folder `.ktisma/`.
+
+Only the workspace-root file may set the key, since one state folder serves the whole workspace and
+`ktisma tex install` reads the configuration of the root alone. An overlay or a command-line layer
+that sets `state_dir` stops the command with exit code `2` and the diagnostic `state-dir-not-root`,
+which names the file.
+
+A change of `state_dir` neither reads nor deletes the former folder. To keep the installed
+snapshots, move the former folder to the new place, for instance with `mv .ktisma .cache/ktisma`:
+a snapshot holds no absolute path, so it is valid at its new place. Without the move,
+`ktisma tex check` reports the snapshot as stale, and `ktisma tex install` installs it again in the
+new folder; the former folder can then be deleted by hand. `ktisma clean` removes no folder inside
+the state folder, at its configured place or at `.ktisma/`.
 
 ### `[build]`
 
@@ -190,8 +214,8 @@ dependency owns the resolved file.
 Only the workspace-root `ktisma.toml` may declare this table. Directory overlays and command-line
 configuration layers cannot replace or extend the closure. Run `ktisma tex install` after changing
 the record. Normal builds verify the selected snapshot without network access and pass its absolute
-path to TeX as `TEXMFHOME`. The `.ktisma/` state directory is machine-local and should be ignored
-by version control.
+path to TeX as `TEXMFHOME`. The state folder, `.ktisma/` by default, is machine-local and should be
+ignored by version control.
 
 A new snapshot does not invalidate an existing build. latexmk records the absolute path of each TeX
 input. The previous snapshot remains on disk, so these paths still resolve. Therefore, `ktisma

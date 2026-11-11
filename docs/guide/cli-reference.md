@@ -133,8 +133,9 @@ ktisma clean <target> [options]
 When given a `.tex` file, ktisma resolves the workspace root as `build` does, reads the same
 configuration, and removes the corresponding build directory and any variant build directories.
 When given a directory, ktisma verifies it is a ktisma build directory (by checking for
-`.ktisma.lock` or a `.ktisma*` parent other than the state directory `.ktisma/`) before removing
-it. `clean` removes only build directories, which the next build recreates, so it asks for no
+`.ktisma.lock` or a `.ktisma*` parent other than the state folder `.ktisma/`) before removing
+it. It resolves the workspace root from that directory, and refuses any directory inside the state
+folder that the key `state_dir` of the workspace root names. `clean` removes only build directories, which the next build recreates, so it asks for no
 confirmation.
 
 ```bash

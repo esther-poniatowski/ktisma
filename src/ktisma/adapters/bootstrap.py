@@ -213,15 +213,16 @@ def clean(
     """Composition root entry for the clean use-case.
 
     A source target resolves its workspace root as ``build`` does, so that ``clean`` reads the same
-    configuration layers and removes the build directory that ``build`` created.
+    configuration layers and removes the build directory that ``build`` created. A folder target
+    resolves its workspace root from that folder, so that ``clean`` refuses the configured state
+    folder of that workspace.
     """
     services = create_services()
-    root: Optional[Path] = None
-    if target.suffix == ".tex":
-        root = resolve_workspace_root(
-            cli_workspace_root=workspace_root,
-            source_dir=target.expanduser().resolve().parent,
-        )
+    resolved = target.expanduser().resolve()
+    root = resolve_workspace_root(
+        cli_workspace_root=workspace_root,
+        source_dir=resolved.parent if target.suffix == ".tex" else resolved,
+    )
     return execute_clean(target, root, services.config_loader, services.workspace_ops)
 
 

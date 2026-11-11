@@ -73,6 +73,54 @@ def test_clean_refuses_a_folder_of_the_state_directory(tmp_path: Path) -> None:
     assert snapshots.is_dir()
 
 
+
+def test_clean_refuses_a_folder_of_the_configured_state_directory(tmp_path: Path) -> None:
+    """A state folder named like a build parent, `.ktisma-state/`, is still not a build folder."""
+    staging = tmp_path / ".ktisma-state" / "tex-staging"
+    staging.mkdir(parents=True)
+    config_loader = FakeConfigLoader(
+        layers=[
+            ConfigLayer(
+                data={"_schema": "ktisma:configuration@2", "state_dir": ".ktisma-state"},
+                source=tmp_path / "ktisma.toml",
+                is_workspace_root=True,
+                base_dir=tmp_path,
+                label="root config",
+            )
+        ]
+    )
+
+    result = execute_clean(
+        target=staging,
+        workspace_root=tmp_path,
+        config_loader=config_loader,
+        workspace_ops=FakeWorkspaceOps(),
+    )
+
+    assert result.exit_code == ExitCode.CONFIG_ERROR
+    assert [d.code for d in result.diagnostics] == ["not-build-dir"]
+    assert staging.is_dir()
+
+
+def test_clean_of_a_folder_resolves_the_root_of_that_folder(tmp_path: Path, monkeypatch) -> None:
+    """Without --root, clean finds the configured state folder from the folder that it is given."""
+    from ktisma.adapters import bootstrap
+
+    monkeypatch.delenv("KTISMA_ROOT", raising=False)
+    monkeypatch.chdir(tmp_path)
+    workspace = tmp_path / "workspace"
+    (workspace / "config" / "tools").mkdir(parents=True)
+    (workspace / "config" / "tools" / "ktisma.toml").write_text(
+        '_schema = "ktisma:configuration@2"\nstate_dir = ".ktisma-state"\n', encoding="utf-8"
+    )
+    staging = workspace / ".ktisma-state" / "tex-staging"
+    staging.mkdir(parents=True)
+
+    result = bootstrap.clean(target=staging)
+
+    assert result.exit_code == ExitCode.CONFIG_ERROR
+    assert staging.is_dir()
+
 def test_clean_without_root_reads_the_configuration_resolved_as_build_does(
     tmp_path: Path, monkeypatch
 ) -> None:

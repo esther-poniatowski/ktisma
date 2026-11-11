@@ -315,3 +315,60 @@ def test_no_configuration_file_runs_on_the_built_in_defaults(tmp_path: Path) -> 
 
     assert diagnostics == []
     assert config.schema_version == 1
+
+
+# ---------------------------------------------------------------------------
+# The key `state_dir` of the workspace-root file
+# ---------------------------------------------------------------------------
+
+
+def test_state_folder_defaults_to_the_hidden_folder_of_the_tool(tmp_path: Path) -> None:
+    config, _ = _load(tmp_path, [_root_layer(tmp_path, {"_schema": "ktisma:configuration@2"})])
+
+    assert config.state_dir == ".ktisma"
+
+
+@pytest.mark.parametrize("identifier", ["ktisma:configuration@1", "ktisma:configuration@2"])
+def test_workspace_root_file_may_set_the_state_folder(tmp_path: Path, identifier: str) -> None:
+    config, diagnostics = _load(
+        tmp_path, [_root_layer(tmp_path, {"_schema": identifier, "state_dir": ".cache/ktisma"})]
+    )
+
+    assert diagnostics == []
+    assert config.state_dir == ".cache/ktisma"
+
+
+def test_overlay_cannot_set_the_state_folder(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError) as excinfo:
+        _load(
+            tmp_path,
+            [
+                _root_layer(tmp_path, {"_schema": "ktisma:configuration@2"}),
+                _overlay_layer(tmp_path, {"state_dir": "state"}),
+            ],
+        )
+
+    assert excinfo.value.exit_code == 2
+    assert [d.code for d in excinfo.value.diagnostics] == ["state-dir-not-root"]
+    assert "documents" in excinfo.value.diagnostics[0].message
+
+
+@pytest.mark.parametrize(
+    ("value", "code"),
+    [
+        (3, "type-mismatch"),
+        ("", "invalid-state-dir"),
+        (".", "invalid-state-dir"),
+        ("/var/ktisma", "invalid-state-dir"),
+        ("../shared", "invalid-state-dir"),
+        ("cache/../../shared", "invalid-state-dir"),
+    ],
+)
+def test_state_folder_must_lie_below_the_root(tmp_path: Path, value: object, code: str) -> None:
+    with pytest.raises(ConfigError) as excinfo:
+        _load(
+            tmp_path,
+            [_root_layer(tmp_path, {"_schema": "ktisma:configuration@2", "state_dir": value})],
+        )
+
+    assert [d.code for d in excinfo.value.diagnostics] == [code]

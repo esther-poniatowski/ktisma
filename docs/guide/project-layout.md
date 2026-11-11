@@ -172,8 +172,9 @@ its workspace root (see [Workspace Root Resolution](configuration.md#workspace-r
 - `artifacts/ktisma.toml` is the workspace-root file, so it may declare `[[tex.dependencies]]`.
 - Workspace-relative paths are relative to `artifacts/`. A pattern of `[routing].artifact_dirs` that
   named `artifacts/*` from the repository root becomes `*`, and selects the same folders.
-- The state directory `.ktisma/` of `ktisma tex install` is created in `artifacts/`. An ignore rule
-  written without a leading slash, `.ktisma/`, covers it.
+- The state folder of `ktisma tex install`, `.ktisma/` by default, is created in `artifacts/`, since
+  the key `state_dir` is relative to the workspace root. An ignore rule written without a leading
+  slash, `.ktisma/`, covers it.
 - A command or an editor adapter that passes the repository root as `--root`, or sets it in
   `KTISMA_ROOT`, must pass `artifacts/` instead. Otherwise, the file becomes an overlay, and Ktisma rejects its TeX
   dependencies with the diagnostic `tex-dependencies-not-root`.

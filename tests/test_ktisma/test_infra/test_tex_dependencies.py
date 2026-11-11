@@ -52,7 +52,7 @@ def test_invalid_active_pointer_is_not_treated_as_a_path(tmp_path: Path) -> None
     pointer.parent.mkdir()
     pointer.write_text("../../outside\n", encoding="utf-8")
 
-    assert FileTexSnapshotStore().read_active_digest(tmp_path) is None
+    assert FileTexSnapshotStore().read_active_digest(pointer.parent) is None
 
 
 def test_l3build_builder_uses_the_ordinary_runtime_target(tmp_path: Path) -> None:

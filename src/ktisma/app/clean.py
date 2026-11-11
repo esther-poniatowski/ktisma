@@ -6,14 +6,12 @@ from pathlib import Path
 from typing import Optional
 
 from ..domain.build_dir import plan_build_dir
+from ..domain.config import DEFAULT_STATE_DIR, state_folder
 from ..domain.context import SourceContext
 from ..domain.diagnostics import Diagnostic, DiagnosticLevel
 from ..domain.exit_codes import ExitCode
 from .configuration import load_resolved_config
 from .protocols import ConfigLoader, WorkspaceOps
-
-
-_STATE_DIR_NAME = ".ktisma"
 
 
 @dataclass(frozen=True)
@@ -34,7 +32,9 @@ def execute_clean(
     If target is a .tex file, removes its build directory; ``workspace_root`` must then be the root
     resolved for that source, as for ``build``, so that the same configuration applies.
     If target is a directory, removes it directly (if it looks like a ktisma build dir). Only
-    build directories are removed: they are derived and the next build recreates them.
+    build directories are removed: they are derived and the next build recreates them. A folder
+    inside the state folder is never removed: the folder ``.ktisma/`` by name, and, when
+    ``workspace_root`` is given, the folder that its ``state_dir`` names.
     """
     diagnostics: list[Diagnostic] = []
     removed: list[Path] = []
@@ -108,10 +108,13 @@ def execute_clean(
     elif workspace_ops.is_directory(target):
         lock_marker = target / ".ktisma.lock"
         parent_name = target.parent.name if target.parent else ""
-        # The state directory `.ktisma/` holds the TeX snapshots that `ktisma tex install`
-        # manages; it is not a build directory, so `clean` never removes a folder inside it.
-        in_build_parent = parent_name.startswith(".ktisma") and parent_name != _STATE_DIR_NAME
-        if workspace_ops.path_exists(lock_marker) or in_build_parent:
+        # The state folder holds the TeX snapshots that `ktisma tex install` manages; it is not a
+        # build directory, so `clean` never removes a folder inside it.
+        in_build_parent = parent_name.startswith(".ktisma") and parent_name != DEFAULT_STATE_DIR
+        in_state_folder = workspace_root is not None and _lies_in_state_folder(
+            target, workspace_root, config_loader
+        )
+        if not in_state_folder and (workspace_ops.path_exists(lock_marker) or in_build_parent):
             try:
                 workspace_ops.remove_tree(target)
                 removed.append(target)
@@ -147,6 +150,13 @@ def execute_clean(
         return CleanResult(exit_code=ExitCode.CONFIG_ERROR, diagnostics=diagnostics)
 
     return CleanResult(exit_code=ExitCode.SUCCESS, removed_dirs=removed, diagnostics=diagnostics)
+
+
+def _lies_in_state_folder(target: Path, workspace_root: Path, config_loader: ConfigLoader) -> bool:
+    """Return whether ``target`` is the state folder of the workspace or lies inside it."""
+    config, _ = load_resolved_config(workspace_root, workspace_root, config_loader)
+    state_root = state_folder(workspace_root, config).expanduser().resolve()
+    return target.expanduser().resolve().is_relative_to(state_root)
 
 
 def _read_build_metadata(metadata_file: Path, workspace_ops: WorkspaceOps) -> dict[str, object]:

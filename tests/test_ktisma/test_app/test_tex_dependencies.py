@@ -24,16 +24,18 @@ COMMIT = "0123456789abcdef0123456789abcdef01234567"
 
 
 class FakeConfigLoader:
-    def __init__(self, dependencies: list[dict]) -> None:
+    def __init__(self, dependencies: list[dict], state_dir: str | None = None) -> None:
         self.dependencies = dependencies
+        self.state_dir = state_dir
 
     def load_layers(self, workspace_root: Path, source_dir: Path) -> list[ConfigLayer]:
+        data: dict = {"_schema": "ktisma:configuration@2"}
+        if self.state_dir is not None:
+            data["state_dir"] = self.state_dir
+        data["tex"] = {"dependencies": self.dependencies}
         return [
             ConfigLayer(
-                data={
-                    "_schema": "ktisma:configuration@2",
-                    "tex": {"dependencies": self.dependencies},
-                },
+                data=data,
                 source=workspace_root / "ktisma.toml",
                 is_workspace_root=True,
                 label="root config",
@@ -95,9 +97,10 @@ def _services(
     *,
     builder: FixtureBuilder | None = None,
     resolver: FixtureResolver | None = None,
+    state_dir: str | None = None,
 ) -> TexInstallServices:
     runtime = TexRuntimeServices(
-        config_loader=FakeConfigLoader(dependencies),
+        config_loader=FakeConfigLoader(dependencies, state_dir),
         resolver=resolver or FixtureResolver(),
         store=FileTexSnapshotStore(),
         supported_builders=frozenset({"fixture"}),
@@ -125,6 +128,46 @@ def test_install_publishes_a_verifiable_snapshot(tmp_path: Path) -> None:
     assert checked.resolved_entrypoints["fixture:fixture.sty"].is_file()
     assert (tmp_path / ".ktisma" / "tex-current").read_text().strip() == installed.record_digest
 
+
+
+def test_install_writes_its_state_in_the_configured_folder(tmp_path: Path) -> None:
+    services = _services([_dependency()], state_dir=".cache/ktisma")
+
+    installed = execute_tex_install(tmp_path, services)
+    checked = execute_tex_check(tmp_path, services.runtime)
+
+    state = tmp_path / ".cache" / "ktisma"
+    assert installed.exit_code == ExitCode.SUCCESS
+    assert checked.exit_code == ExitCode.SUCCESS
+    assert (state / "tex-current").read_text().strip() == installed.record_digest
+    assert installed.texmf_root == (
+        state / "tex-snapshots" / installed.record_digest / "texmf"
+    ).resolve()
+    assert not (state / "tex-install.lock").exists()
+    assert not (tmp_path / ".ktisma").exists()
+
+
+def test_snapshot_left_in_the_former_folder_is_kept_and_reported(tmp_path: Path) -> None:
+    """A configured folder does not read `.ktisma/`; the snapshots there are neither lost nor used."""
+    installed = execute_tex_install(tmp_path, _services([_dependency()]))
+    former = tmp_path / ".ktisma"
+    former_files = sorted(path.relative_to(former) for path in former.rglob("*"))
+    moved = _services([_dependency()], state_dir=".cache/ktisma")
+
+    checked = execute_tex_check(tmp_path, moved.runtime)
+
+    assert checked.exit_code == ExitCode.CONFIG_ERROR
+    assert [d.code for d in checked.diagnostics] == ["tex-snapshot-stale"]
+    assert "ktisma tex install" in checked.diagnostics[0].message
+    assert sorted(path.relative_to(former) for path in former.rglob("*")) == former_files
+
+    (tmp_path / ".cache").mkdir()
+    former.rename(tmp_path / ".cache" / "ktisma")
+
+    relocated = execute_tex_check(tmp_path, moved.runtime)
+
+    assert relocated.exit_code == ExitCode.SUCCESS
+    assert relocated.record_digest == installed.record_digest
 
 def test_install_reuses_an_unchanged_snapshot(tmp_path: Path) -> None:
     services = _services([_dependency()])

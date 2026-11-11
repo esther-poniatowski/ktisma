@@ -42,7 +42,7 @@ def load_resolved_config(
             diagnostics=schema_diagnostics,
         )
     additional_layers = [layer for layer in extra_layers if layer.data] if extra_layers else []
-    scope_diagnostics = _validate_tex_dependency_scope([*file_layers, *additional_layers])
+    scope_diagnostics = _validate_root_only_keys([*file_layers, *additional_layers])
     if scope_diagnostics:
         raise ConfigError(
             "Configuration validation failed with " f"{len(scope_diagnostics)} error(s).",
@@ -67,21 +67,32 @@ def load_resolved_config(
     return resolve_config(merged, provenance), diagnostics
 
 
-def _validate_tex_dependency_scope(layers: list[ConfigLayer]) -> list[Diagnostic]:
-    """Reject TeX dependency declarations outside the workspace-root config."""
+# Keys that only the configuration file of the workspace root may set, since each one governs the
+# whole workspace: the TeX dependencies and the state folder that holds their snapshots.
+_ROOT_ONLY_KEYS: dict[str, tuple[str, str]] = {
+    "state_dir": ("state-dir-not-root", "The state folder may be set"),
+    "tex": ("tex-dependencies-not-root", "TeX dependencies may be declared"),
+}
+
+
+def _validate_root_only_keys(layers: list[ConfigLayer]) -> list[Diagnostic]:
+    """Reject a workspace-wide key set outside the configuration file of the workspace root."""
     diagnostics: list[Diagnostic] = []
     for layer in layers:
-        if "tex" not in layer.data or layer.is_workspace_root:
+        if layer.is_workspace_root:
             continue
-        diagnostics.append(
-            Diagnostic(
-                level=DiagnosticLevel.ERROR,
-                component="config",
-                code="tex-dependencies-not-root",
-                message=(
-                    "TeX dependencies may be declared only in the configuration file of the "
-                    f"workspace root; found a declaration in {layer.label}."
-                ),
+        for key, (code, subject) in _ROOT_ONLY_KEYS.items():
+            if key not in layer.data:
+                continue
+            diagnostics.append(
+                Diagnostic(
+                    level=DiagnosticLevel.ERROR,
+                    component="config",
+                    code=code,
+                    message=(
+                        f"{subject} only in the configuration file of the workspace root; "
+                        f"found '{key}' in {layer.label}."
+                    ),
+                )
             )
-        )
     return diagnostics

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Mapping, Optional, Protocol
 
-from ..domain.config import ResolvedConfig, TexDependency
+from ..domain.config import ResolvedConfig, TexDependency, state_folder
 from ..domain.diagnostics import Diagnostic, DiagnosticLevel
 from ..domain.exit_codes import ExitCode
 from ..domain.tex_dependencies import (
@@ -36,15 +36,17 @@ class TexPathResolver(Protocol):
 
 
 class TexSnapshotStore(Protocol):
-    def create_stage(self, workspace_root: Path) -> Path: ...
+    """Snapshot storage below ``state_root``, the state folder of the workspace."""
+
+    def create_stage(self, state_root: Path) -> Path: ...
     def manifest(self, root: Path) -> tuple[InstalledFile, ...]: ...
     def merge_tree(self, source: Path, destination: Path) -> None: ...
     def write_receipt(self, path: Path, receipt: TexReceipt) -> None: ...
     def read_receipt(self, path: Path) -> TexReceipt: ...
-    def snapshot_path(self, workspace_root: Path, digest: str) -> Path: ...
-    def read_active_digest(self, workspace_root: Path) -> Optional[str]: ...
-    def publish(self, workspace_root: Path, digest: str, staged_snapshot: Path) -> Path: ...
-    def select_existing(self, workspace_root: Path, digest: str) -> Path: ...
+    def snapshot_path(self, state_root: Path, digest: str) -> Path: ...
+    def read_active_digest(self, state_root: Path) -> Optional[str]: ...
+    def publish(self, state_root: Path, digest: str, staged_snapshot: Path) -> Path: ...
+    def select_existing(self, state_root: Path, digest: str) -> Path: ...
     def remove_tree(self, path: Path) -> None: ...
 
 
@@ -117,30 +119,31 @@ def execute_tex_install(workspace_root: Path, services: TexInstallServices) -> T
             "No registered TeX package builder handles: " + ", ".join(unsupported) + ".",
         )
 
-    lock_path = workspace_root / ".ktisma" / "tex-install.lock"
+    state_root = state_folder(workspace_root, config)
+    lock_path = state_root / "tex-install.lock"
     services.lock_manager.acquire(lock_path, workspace_root, "tex-install")
     try:
-        existing = runtime.store.snapshot_path(workspace_root, digest)
+        existing = runtime.store.snapshot_path(state_root, digest)
         if existing.is_dir() and not _has_stale_receipt(existing, runtime):
-            checked = _check_snapshot(workspace_root, config, runtime, digest, require_active=False)
+            checked = _check_snapshot(state_root, config, runtime, digest, require_active=False)
             if checked.exit_code != ExitCode.SUCCESS:
                 return checked
-            runtime.store.select_existing(workspace_root, digest)
+            runtime.store.select_existing(state_root, digest)
             return checked
-        return _install_new_snapshot(workspace_root, config, digest, services)
+        return _install_new_snapshot(state_root, config, digest, services)
     finally:
         services.lock_manager.release(lock_path)
 
 
 def _install_new_snapshot(
-    workspace_root: Path,
+    state_root: Path,
     config: ResolvedConfig,
     digest: str,
     services: TexInstallServices,
 ) -> TexDependencyResult:
     runtime = services.runtime
     dependencies = config.tex.dependencies
-    stage = runtime.store.create_stage(workspace_root)
+    stage = runtime.store.create_stage(state_root)
     staged_snapshot = stage / "snapshot"
     assembled_texmf = staged_snapshot / "texmf"
     assembled_texmf.mkdir(parents=True)
@@ -201,8 +204,8 @@ def _install_new_snapshot(
             key: path.relative_to(assembled_texmf.resolve()) for key, path in resolutions.items()
         }
         # Only a stale snapshot occupies the digest at this point; build first, then replace it.
-        runtime.store.remove_tree(runtime.store.snapshot_path(workspace_root, digest))
-        snapshot = runtime.store.publish(workspace_root, digest, staged_snapshot)
+        runtime.store.remove_tree(runtime.store.snapshot_path(state_root, digest))
+        snapshot = runtime.store.publish(state_root, digest, staged_snapshot)
         published_texmf = snapshot / "texmf"
         return TexDependencyResult(
             exit_code=ExitCode.SUCCESS,
@@ -239,7 +242,7 @@ def execute_tex_check(workspace_root: Path, services: TexRuntimeServices) -> Tex
             "unsupported-builder",
             "No registered TeX package builder handles: " + ", ".join(unsupported) + ".",
         )
-    return _check_snapshot(workspace_root, config, services)
+    return _check_snapshot(state_folder(workspace_root, config), config, services)
 
 
 def execute_tex_inspect(workspace_root: Path, services: TexRuntimeServices) -> TexDependencyResult:
@@ -291,7 +294,7 @@ def _load_root_config(workspace_root: Path, services: TexRuntimeServices) -> Res
 
 
 def _check_snapshot(
-    workspace_root: Path,
+    state_root: Path,
     config: ResolvedConfig,
     services: TexRuntimeServices,
     expected_digest: Optional[str] = None,
@@ -299,14 +302,14 @@ def _check_snapshot(
 ) -> TexDependencyResult:
     dependencies = config.tex.dependencies
     digest = expected_digest or dependency_record_digest(dependencies)
-    if require_active and services.store.read_active_digest(workspace_root) != digest:
+    if require_active and services.store.read_active_digest(state_root) != digest:
         return _failure(
             digest,
             "tex-snapshot-stale",
             "The active TeX snapshot does not match the configuration file of the workspace root; "
             "run 'ktisma tex install'.",
         )
-    snapshot = services.store.snapshot_path(workspace_root, digest)
+    snapshot = services.store.snapshot_path(state_root, digest)
     texmf_root = snapshot / "texmf"
     receipt_path = snapshot / "receipt.json"
     if not snapshot.is_dir() or not texmf_root.is_dir() or not receipt_path.is_file():

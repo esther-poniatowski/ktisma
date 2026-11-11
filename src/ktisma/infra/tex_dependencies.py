@@ -85,10 +85,14 @@ class L3BuildTexPackageBuilder:
 
 
 class FileTexSnapshotStore:
-    """Store content-addressed snapshots and publish their active pointer."""
+    """Store content-addressed snapshots and publish their active pointer.
 
-    def create_stage(self, workspace_root: Path) -> Path:
-        staging_root = workspace_root / ".ktisma" / "tex-staging"
+    Every method that takes ``state_root`` works below that folder: the state folder of the
+    workspace, which the configuration key ``state_dir`` places below the workspace root.
+    """
+
+    def create_stage(self, state_root: Path) -> Path:
+        staging_root = state_root / "tex-staging"
         staging_root.mkdir(parents=True, exist_ok=True)
         return Path(tempfile.mkdtemp(prefix="install-", dir=staging_root))
 
@@ -139,15 +143,15 @@ class FileTexSnapshotStore:
             raise ValueError("The TeX receipt must contain a JSON object.")
         return TexReceipt.from_dict(data)
 
-    def snapshot_path(self, workspace_root: Path, digest: str) -> Path:
+    def snapshot_path(self, state_root: Path, digest: str) -> Path:
         if not _DIGEST.fullmatch(digest):
             raise ValueError(
                 "A TeX snapshot digest must contain 64 lowercase hexadecimal characters."
             )
-        return workspace_root / ".ktisma" / "tex-snapshots" / digest
+        return state_root / "tex-snapshots" / digest
 
-    def read_active_digest(self, workspace_root: Path) -> Optional[str]:
-        pointer = workspace_root / ".ktisma" / "tex-current"
+    def read_active_digest(self, state_root: Path) -> Optional[str]:
+        pointer = state_root / "tex-current"
         if not pointer.is_file():
             return None
         value = pointer.read_text(encoding="utf-8").strip()
@@ -155,33 +159,32 @@ class FileTexSnapshotStore:
             return None
         return value
 
-    def publish(self, workspace_root: Path, digest: str, staged_snapshot: Path) -> Path:
-        destination = self.snapshot_path(workspace_root, digest)
+    def publish(self, state_root: Path, digest: str, staged_snapshot: Path) -> Path:
+        destination = self.snapshot_path(state_root, digest)
         destination.parent.mkdir(parents=True, exist_ok=True)
         if destination.exists():
             raise FileExistsError(f"Snapshot already exists: {destination}")
         os.replace(staged_snapshot, destination)
-        self._write_pointer(workspace_root, digest)
+        self._write_pointer(state_root, digest)
         return destination
 
-    def select_existing(self, workspace_root: Path, digest: str) -> Path:
-        snapshot = self.snapshot_path(workspace_root, digest)
+    def select_existing(self, state_root: Path, digest: str) -> Path:
+        snapshot = self.snapshot_path(state_root, digest)
         if not snapshot.is_dir():
             raise FileNotFoundError(snapshot)
-        if self.read_active_digest(workspace_root) != digest:
-            self._write_pointer(workspace_root, digest)
+        if self.read_active_digest(state_root) != digest:
+            self._write_pointer(state_root, digest)
         return snapshot
 
     def remove_tree(self, path: Path) -> None:
         shutil.rmtree(path, ignore_errors=True)
 
     @staticmethod
-    def _write_pointer(workspace_root: Path, digest: str) -> None:
+    def _write_pointer(state_root: Path, digest: str) -> None:
         if not _DIGEST.fullmatch(digest):
             raise ValueError(
                 "A TeX snapshot digest must contain 64 lowercase hexadecimal characters."
             )
-        state_root = workspace_root / ".ktisma"
         state_root.mkdir(parents=True, exist_ok=True)
         pointer = state_root / "tex-current"
         descriptor, temporary_name = tempfile.mkstemp(prefix="tex-current-", dir=state_root)
