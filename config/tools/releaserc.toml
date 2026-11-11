@@ -35,7 +35,6 @@ allow_zero_version = true
 
 # Version sources
 version_toml = ["pyproject.toml:project.version"]
-version_variables = ["CITATION.cff:version"]
 
 # Distributions: built on the runner after the version is stamped, and uploaded to the release by
 # `dist_glob_patterns`. The key `assets` would instead stage files in the release commit, so it
