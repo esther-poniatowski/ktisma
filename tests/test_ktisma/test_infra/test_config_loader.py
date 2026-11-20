@@ -9,10 +9,6 @@ import pytest
 from ktisma.domain.errors import ConfigError, ConfigLoadError
 from ktisma.infra.config_loader import TomlConfigLoader, CONFIG_FILENAME
 
-DECLARATION = "_schema: hodegos:configuration@1\nfolders:\n  - shared\n"
-"""Declaration of a folder keeping its configuration file in `shared/`."""
-
-
 @pytest.fixture
 def loader() -> TomlConfigLoader:
     return TomlConfigLoader()
@@ -322,19 +318,18 @@ class TestSettingsFilePlaces:
         assert layers[0].is_workspace_root
         assert layers[0].base_dir == tmp_path.resolve()
 
-    def test_root_file_may_sit_in_a_declared_folder(
+    def test_root_file_may_sit_in_config(
         self, tmp_path: Path, loader: TomlConfigLoader
     ) -> None:
-        config = tmp_path / "shared" / CONFIG_FILENAME
+        config = tmp_path / "config" / CONFIG_FILENAME
         config.parent.mkdir(parents=True)
         config.write_text('[engines]\ndefault = "lualatex"\n')
-        (tmp_path / "hodegos.yml").write_text(DECLARATION)
         layers = loader.load_layers(workspace_root=tmp_path, source_dir=tmp_path)
         assert [layer.source for layer in layers] == [config]
         assert layers[0].is_workspace_root
         assert layers[0].base_dir == tmp_path.resolve()
 
-    def test_undeclared_folder_is_not_read(
+    def test_folder_that_no_place_admits_is_not_read(
         self, tmp_path: Path, loader: TomlConfigLoader
     ) -> None:
         config = tmp_path / "shared" / CONFIG_FILENAME
@@ -345,10 +340,9 @@ class TestSettingsFilePlaces:
     def test_two_places_are_an_error_naming_both(
         self, tmp_path: Path, loader: TomlConfigLoader
     ) -> None:
-        nested = tmp_path / "shared" / CONFIG_FILENAME
+        nested = tmp_path / "config" / CONFIG_FILENAME
         nested.parent.mkdir(parents=True)
         nested.write_text('_schema = "ktisma:configuration@1"\n')
-        (tmp_path / "hodegos.yml").write_text(DECLARATION)
         top = tmp_path / CONFIG_FILENAME
         top.write_text('_schema = "ktisma:configuration@1"\n')
         with pytest.raises(ConfigError) as exc_info:
@@ -361,24 +355,23 @@ class TestSettingsFilePlaces:
     def test_overlay_is_read_at_the_places_of_its_folder(
         self, tmp_path: Path, loader: TomlConfigLoader
     ) -> None:
-        """An overlay may sit in .config/ or in a folder that the hodegos.yml of its folder declares."""
+        """An overlay may sit in the .config/ or in the config/ of its folder."""
         (tmp_path / CONFIG_FILENAME).write_text('_schema = "ktisma:configuration@1"\n')
         papers = tmp_path / "papers"
         (papers / ".config").mkdir(parents=True)
         (papers / ".config" / CONFIG_FILENAME).write_text('[engines]\ndefault = "lualatex"\n')
         thesis = papers / "thesis"
-        (thesis / "shared").mkdir(parents=True)
-        (thesis / "shared" / CONFIG_FILENAME).write_text('[build]\nsynctex = false\n')
-        (thesis / "hodegos.yml").write_text(DECLARATION)
+        (thesis / "config").mkdir(parents=True)
+        (thesis / "config" / CONFIG_FILENAME).write_text('[build]\nsynctex = false\n')
         layers = loader.load_layers(workspace_root=tmp_path, source_dir=thesis)
         assert [layer.source for layer in layers] == [
             tmp_path / CONFIG_FILENAME,
             papers / ".config" / CONFIG_FILENAME,
-            thesis / "shared" / CONFIG_FILENAME,
+            thesis / "config" / CONFIG_FILENAME,
         ]
         assert [layer.is_workspace_root for layer in layers] == [True, False, False]
 
-    def test_overlay_ignores_an_undeclared_folder(
+    def test_overlay_ignores_a_folder_that_no_place_admits(
         self, tmp_path: Path, loader: TomlConfigLoader
     ) -> None:
         """Below the root, shared/ktisma.toml is not the overlay of its grandparent."""
@@ -386,18 +379,6 @@ class TestSettingsFilePlaces:
         sub = tmp_path / "papers"
         (sub / "shared").mkdir(parents=True)
         (sub / "shared" / CONFIG_FILENAME).write_text('_schema = "ktisma:configuration@1"\n')
-        layers = loader.load_layers(workspace_root=tmp_path, source_dir=sub)
-        assert [layer.source for layer in layers] == [tmp_path / CONFIG_FILENAME]
-
-    def test_declaration_of_the_root_does_not_reach_an_overlay(
-        self, tmp_path: Path, loader: TomlConfigLoader
-    ) -> None:
-        """A hodegos.yml lists folders of its own folder only."""
-        (tmp_path / CONFIG_FILENAME).write_text('_schema = "ktisma:configuration@1"\n')
-        (tmp_path / "hodegos.yml").write_text(DECLARATION)
-        sub = tmp_path / "papers"
-        (sub / "shared").mkdir(parents=True)
-        (sub / "shared" / CONFIG_FILENAME).write_text('[build]\nsynctex = false\n')
         layers = loader.load_layers(workspace_root=tmp_path, source_dir=sub)
         assert [layer.source for layer in layers] == [tmp_path / CONFIG_FILENAME]
 

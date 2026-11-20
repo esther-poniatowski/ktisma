@@ -109,11 +109,8 @@ def test_clean_of_a_folder_resolves_the_root_of_that_folder(tmp_path: Path, monk
     monkeypatch.delenv("KTISMA_ROOT", raising=False)
     monkeypatch.chdir(tmp_path)
     workspace = tmp_path / "workspace"
-    (workspace / "shared").mkdir(parents=True)
-    (workspace / "hodegos.yml").write_text(
-        "_schema: hodegos:configuration@1\nfolders:\n  - shared\n", encoding="utf-8"
-    )
-    (workspace / "shared" / "ktisma.toml").write_text(
+    (workspace / "config").mkdir(parents=True)
+    (workspace / "config" / "ktisma.toml").write_text(
         '_schema = "ktisma:configuration@2"\nstate_dir = ".ktisma-state"\n', encoding="utf-8"
     )
     staging = workspace / ".ktisma-state" / "tex-staging"

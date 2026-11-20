@@ -10,9 +10,6 @@ from ktisma.domain.errors import ConfigError
 from ktisma.domain.exit_codes import ExitCode
 from ktisma.infra.workspace import resolve_workspace_root
 
-DECLARATION = "_schema: hodegos:configuration@1\nfolders:\n  - shared\n"
-"""Declaration of a workspace keeping its root configuration in `shared/`."""
-
 
 @pytest.fixture(autouse=True)
 def _clear_root_variables(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -109,6 +106,19 @@ class TestEnvVar:
         monkeypatch.chdir(tmp_path)
         assert resolve_workspace_root(source_dir=source_dir) == ws.resolve()
 
+    def test_relative_env_var_ignores_a_configured_folder_beside_the_source(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The folder of the source starts the search only, and never anchors KTISMA_ROOT."""
+        ws = tmp_path / "env_ws"
+        ws.mkdir()
+        source_dir = tmp_path / "elsewhere" / "src"
+        (source_dir / "env_ws").mkdir(parents=True)
+        (source_dir / "env_ws" / "ktisma.toml").write_text("[build]\n")
+        monkeypatch.setenv("KTISMA_ROOT", "env_ws")
+        monkeypatch.chdir(tmp_path)
+        assert resolve_workspace_root(source_dir=source_dir) == ws.resolve()
+
 
 class TestRetiredEnvVar:
     """The former variable KTISMA_WORKSPACE_ROOT is retired without a fallback."""
@@ -163,16 +173,15 @@ class TestConfigAncestor:
         source_dir.mkdir()
         assert resolve_workspace_root(source_dir=source_dir) == root_dir.resolve()
 
-    def test_finds_config_in_a_declared_folder(self, tmp_path: Path) -> None:
+    def test_finds_config_in_config_folder(self, tmp_path: Path) -> None:
         root_dir = tmp_path / "project"
-        (root_dir / "shared").mkdir(parents=True)
-        (root_dir / "shared" / "ktisma.toml").write_text("[build]\n")
-        (root_dir / "hodegos.yml").write_text(DECLARATION)
+        (root_dir / "config").mkdir(parents=True)
+        (root_dir / "config" / "ktisma.toml").write_text("[build]\n")
         source_dir = root_dir / "chapters"
         source_dir.mkdir()
         assert resolve_workspace_root(source_dir=source_dir) == root_dir.resolve()
 
-    def test_ignores_an_undeclared_folder(
+    def test_ignores_a_folder_that_no_place_admits(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         root_dir = tmp_path / "project"
@@ -204,14 +213,15 @@ class TestConfigAncestor:
         result = resolve_workspace_root(source_dir=inner)
         assert result == outer.resolve()
 
-    def test_invalid_declaration_met_by_the_search_is_a_config_error(self, tmp_path: Path) -> None:
+    def test_two_places_of_the_found_root_are_a_config_error(self, tmp_path: Path) -> None:
         source_dir = tmp_path / "project"
-        source_dir.mkdir()
-        (source_dir / "hodegos.yml").write_text("folders: [shared]\n")
+        (source_dir / "config").mkdir(parents=True)
+        (source_dir / "ktisma.toml").write_text("[build]\n")
+        (source_dir / "config" / "ktisma.toml").write_text("[build]\n")
         with pytest.raises(ConfigError) as exc_info:
             resolve_workspace_root(source_dir=source_dir)
         [diagnostic] = exc_info.value.diagnostics
-        assert diagnostic.code == "invalid-declaration"
+        assert diagnostic.code == "competing-places"
         assert exc_info.value.exit_code == ExitCode.CONFIG_ERROR
 
     def test_former_settings_name_is_not_recognized(
@@ -267,6 +277,19 @@ class TestCwdFallback:
         source_dir.mkdir()
         result = resolve_workspace_root(source_dir=source_dir)
         assert result == tmp_path.resolve()
+
+    def test_cwd_itself_when_the_search_from_the_source_finds_nothing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A configured ancestor of the current folder is not searched once a source is named."""
+        configured = tmp_path / "configured"
+        cwd = configured / "sub"
+        cwd.mkdir(parents=True)
+        (configured / "ktisma.toml").write_text("[build]\n")
+        source_dir = tmp_path / "elsewhere"
+        source_dir.mkdir()
+        monkeypatch.chdir(cwd)
+        assert resolve_workspace_root(source_dir=source_dir) == cwd.resolve()
 
 
 # ---------------------------------------------------------------------------

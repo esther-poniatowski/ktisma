@@ -4,9 +4,10 @@ Configuration files of Ktisma, `ktisma.toml`, located through Hodegos and loaded
 Hodegos resolves the root of a command and the places of `ktisma.toml`, as its specification states
 (https://github.com/esther-poniatowski/hodegos/blob/main/docs/specification.md). The places of a
 folder are `ktisma.toml` in the folder, the same file in its subfolder `.config/`, and the same
-file in each folder that the `hodegos.yml` of the folder declares. Two places of one folder holding
-a file is an error. Ktisma stacks one file per folder: the file of the root configures the whole
-workspace, and the file of each folder below it overlays the configuration of that folder.
+file in its subfolder `config/`. Two places of one folder holding a file is an error. A file kept
+in another folder is named by the option `--config`. Ktisma stacks one file per folder: the file
+of the root configures the whole workspace, and the file of each folder below it overlays the
+configuration of that folder.
 """
 
 from __future__ import annotations
@@ -42,24 +43,25 @@ def discover_configuration(
     """Return the root of a command and the configuration file of that root, located by Hodegos.
 
     Args:
-        root: Value of ``--root``, absolute or relative to ``start``; ``None`` to take the root
-            from ``KTISMA_ROOT`` or from the search.
-        config: Value of ``--config``, absolute or relative to ``start``; ``None`` to take the
-            single place of the root holding ``ktisma.toml``.
-        start: Folder where the search of the root starts, and against which Hodegos reads
-            relative values; the current folder by default.
+        root: Value of ``--root``, absolute or relative to the current folder; ``None`` to take
+            the root from ``KTISMA_ROOT`` or from the search.
+        config: Value of ``--config``, absolute or relative to the current folder; ``None`` to
+            take the single place of the root holding ``ktisma.toml``.
+        start: Folder where the search of the root starts, such as the folder of a source; the
+            current folder by default. The start changes the search only: ``root``, ``config``
+            and a relative ``KTISMA_ROOT`` resolve against the current folder, which also stays
+            the root when the search finds no configuration.
 
     Returns:
         The root and the configuration of the root, ``None`` when no place holds one: Ktisma then
         runs on its built-in defaults.
 
     Raises:
-        ConfigError: Hodegos rejects the request: the named file does not exist, two places of the
-            root hold a file, or a ``hodegos.yml`` met by the search is invalid. The diagnostic
-            carries the code of Hodegos.
+        ConfigError: Hodegos rejects the request: the named file does not exist, or two places of
+            the root hold a file. The diagnostic carries the code of Hodegos.
     """
     try:
-        return discover(TOOL, root=root, config=config, cwd=start)
+        return discover(TOOL, root=root, config=config, start=start)
     except DiscoveryError as error:
         raise ConfigError(
             f"The configuration of Ktisma cannot be located: {error}",

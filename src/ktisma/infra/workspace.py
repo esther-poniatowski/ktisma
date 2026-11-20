@@ -21,21 +21,15 @@ def resolve_workspace_root(
        and at the current folder otherwise
     4. Current folder
 
-    Hodegos reads a relative ``KTISMA_ROOT`` and its last answer from the folder where its search
-    starts. Therefore, when a search from ``source_dir`` finds no configuration, the root is
-    discovered again from the current folder, which keeps step 4 and the reading of a relative
-    ``KTISMA_ROOT`` from the current folder.
+    The start changes step 3 only: a relative ``--root`` and a relative ``KTISMA_ROOT`` resolve
+    against the current folder.
 
     Raises:
-        ConfigError: Hodegos rejects a ``hodegos.yml`` met by the search, or two places of the
-            root hold a configuration file.
+        ConfigError: Two places of the root hold a configuration file.
     """
     option = cli_workspace_root.expanduser().absolute() if cli_workspace_root is not None else None
     start = source_dir.resolve() if source_dir is not None else None
-    found = discover_configuration(root=option, start=start)
-    if start is not None and found.configuration is None:
-        found = discover_configuration(root=option)
-    return found.root.resolve()
+    return discover_configuration(root=option, start=start).root.resolve()
 
 
 class FileWorkspaceOps:

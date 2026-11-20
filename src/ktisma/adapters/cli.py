@@ -65,7 +65,7 @@ def _add_location_options(parser: argparse.ArgumentParser) -> None:
         metavar="PATH",
         help=(
             f"Configuration file of the workspace root, relative to the current folder; by default "
-            f"{CONFIG_FILENAME} at the root, in .config/, or in a folder that hodegos.yml declares"
+            f"{CONFIG_FILENAME} at the root, in .config/, or in config/"
         ),
     )
 

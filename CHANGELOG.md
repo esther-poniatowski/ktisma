@@ -58,15 +58,15 @@ below loses its former name in this release, without an alias, a fallback or a w
   it, and `tex install` regenerates the snapshot.
 - **Breaking:** [Hodegos](https://github.com/esther-poniatowski/hodegos/blob/main/docs/specification.md) locates the workspace
   root and every `ktisma.toml`, the workspace-root file and each overlay alike. Each folder holds its
-  file in `ktisma.toml`, in `.config/ktisma.toml`, or in a folder declared by the `hodegos.yml` of
-  that folder. Ktisma reads `config/tools/ktisma.toml` only when `hodegos.yml` lists `config/tools`.
-  When two places of one folder hold a file, an overlay folder included, the command stops with the
-  diagnostic `competing-places`. That diagnostic replaces `competing-config-files`. An invalid
-  `hodegos.yml` met by the search of the root or by the reading of the overlays stops the command
-  with the diagnostic `invalid-declaration` or `competing-declarations`. Each of these errors exits
-  with code `2`.
-- **Breaking:** Ktisma requires the Python package Hodegos and its dependency PyYAML. A vendored
-  copy run with `python3` needs Hodegos installed for that interpreter.
+  file in `ktisma.toml`, in `.config/ktisma.toml`, or in `config/ktisma.toml`. When two places of
+  one folder hold a file, an overlay folder included, the command stops with exit code `2` and the
+  diagnostic `competing-places`. That diagnostic replaces `competing-config-files`.
+- **Breaking:** Ktisma stops reading `config/tools/ktisma.toml`, and reads each `ktisma.toml` only
+  at the places of its folder. The option `--config` names a workspace-root file kept in another
+  folder. An overlay kept in another folder must move to one of the places of its own folder.
+- **Breaking:** Ktisma requires the Python package Hodegos. Hodegos, like Ktisma, depends on the
+  standard library only. A vendored copy run with `python3` needs Hodegos installed for that
+  interpreter.
 - Ktisma no longer expands a literal `~` in `KTISMA_ROOT`. Every resolved root now has its
   symbolic links resolved, the fallback to the current folder included.
 - The option `--workspace-root` is renamed `--root`, with the short form `-r`, on every command that
