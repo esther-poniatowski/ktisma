@@ -65,10 +65,13 @@ class Services:
     tex_builders: Mapping[str, TexPackageBuilder]
 
 
-def create_services() -> Services:
-    """Construct concrete infrastructure implementations."""
+def create_services(config: Optional[Path] = None) -> Services:
+    """Construct concrete infrastructure implementations.
+
+    ``config`` is the configuration file of the workspace root named by ``--config``.
+    """
     return Services(
-        config_loader=TomlConfigLoader(),
+        config_loader=TomlConfigLoader(config),
         source_reader=FileSourceReader(),
         lock_manager=FileLockManager(),
         backend_runner=LatexmkRunner(),
@@ -110,9 +113,11 @@ def _build_services(
     )
 
 
-def tex_install(workspace_root: Optional[Path] = None) -> TexDependencyResult:
+def tex_install(
+    workspace_root: Optional[Path] = None, config: Optional[Path] = None
+) -> TexDependencyResult:
     """Install the declared TeX dependency closure."""
-    services = create_services()
+    services = create_services(config)
     root = _resolve_tex_workspace(workspace_root)
     runtime = _tex_runtime_services(services)
     return execute_tex_install(
@@ -126,25 +131,31 @@ def tex_install(workspace_root: Optional[Path] = None) -> TexDependencyResult:
     )
 
 
-def tex_check(workspace_root: Optional[Path] = None) -> TexDependencyResult:
+def tex_check(
+    workspace_root: Optional[Path] = None, config: Optional[Path] = None
+) -> TexDependencyResult:
     """Validate the selected TeX dependency snapshot."""
-    services = create_services()
+    services = create_services(config)
     return execute_tex_check(
         _resolve_tex_workspace(workspace_root), _tex_runtime_services(services)
     )
 
 
-def tex_inspect(workspace_root: Optional[Path] = None) -> TexDependencyResult:
+def tex_inspect(
+    workspace_root: Optional[Path] = None, config: Optional[Path] = None
+) -> TexDependencyResult:
     """Inspect the selected TeX dependency snapshot."""
-    services = create_services()
+    services = create_services(config)
     return execute_tex_inspect(
         _resolve_tex_workspace(workspace_root), _tex_runtime_services(services)
     )
 
 
-def tex_resolve(reference: str, workspace_root: Optional[Path] = None) -> TexResolutionResult:
+def tex_resolve(
+    reference: str, workspace_root: Optional[Path] = None, config: Optional[Path] = None
+) -> TexResolutionResult:
     """Resolve one declared entry point from the selected TeX snapshot."""
-    services = create_services()
+    services = create_services(config)
     return execute_tex_resolve(
         _resolve_tex_workspace(workspace_root), reference, _tex_runtime_services(services)
     )
@@ -154,12 +165,13 @@ def build(
     source_file: Path,
     request: BuildRequest,
     workspace_root: Optional[Path] = None,
+    config: Optional[Path] = None,
     post_processor: Optional["PostProcessor"] = None,
     route_resolvers: Optional[list[RouteResolver]] = None,
     engine_rules: Optional[list[EngineRule]] = None,
 ) -> BuildResult:
     """Composition root entry for the build use-case."""
-    infra = create_services()
+    infra = create_services(config)
     ctx = _make_context(source_file, workspace_root)
     return execute_build(
         ctx=ctx,
@@ -174,10 +186,11 @@ def inspect_engine_cmd(
     source_file: Path,
     request: BuildRequest,
     workspace_root: Optional[Path] = None,
+    config: Optional[Path] = None,
     engine_rules: Optional[list[EngineRule]] = None,
 ) -> EngineDecision:
     """Composition root entry for inspect engine."""
-    services = create_services()
+    services = create_services(config)
     ctx = _make_context(source_file, workspace_root)
     return inspect_engine(
         ctx,
@@ -192,10 +205,11 @@ def inspect_route_cmd(
     source_file: Path,
     request: BuildRequest,
     workspace_root: Optional[Path] = None,
+    config: Optional[Path] = None,
     route_resolvers: Optional[list[RouteResolver]] = None,
 ) -> RouteDecision:
     """Composition root entry for inspect route."""
-    services = create_services()
+    services = create_services(config)
     ctx = _make_context(source_file, workspace_root)
     return inspect_route(
         ctx,
@@ -209,6 +223,7 @@ def inspect_route_cmd(
 def clean(
     target: Path,
     workspace_root: Optional[Path] = None,
+    config: Optional[Path] = None,
 ) -> CleanResult:
     """Composition root entry for the clean use-case.
 
@@ -217,7 +232,7 @@ def clean(
     resolves its workspace root from that folder, so that ``clean`` refuses the configured state
     folder of that workspace.
     """
-    services = create_services()
+    services = create_services(config)
     resolved = target.expanduser().resolve()
     root = resolve_workspace_root(
         cli_workspace_root=workspace_root,
@@ -245,9 +260,10 @@ def check_log(
 
 def doctor(
     workspace_root: Optional[Path] = None,
+    config: Optional[Path] = None,
 ) -> DoctorResult:
     """Composition root entry for the doctor use-case."""
-    services = create_services()
+    services = create_services(config)
     return execute_doctor(
         _resolve_tex_workspace(workspace_root), services.config_loader, services.probe
     )
@@ -257,12 +273,13 @@ def batch(
     source_dir: Path,
     request: BuildRequest,
     workspace_root: Optional[Path] = None,
+    config: Optional[Path] = None,
     post_processor: Optional["PostProcessor"] = None,
     route_resolvers: Optional[list[RouteResolver]] = None,
     engine_rules: Optional[list[EngineRule]] = None,
 ) -> BatchResult:
     """Composition root entry for the batch use-case."""
-    infra = create_services()
+    infra = create_services(config)
     ws = resolve_workspace_root(
         cli_workspace_root=workspace_root, source_dir=source_dir.expanduser().resolve()
     )
@@ -280,12 +297,13 @@ def variants(
     source_file: Path,
     request: BuildRequest,
     workspace_root: Optional[Path] = None,
+    config: Optional[Path] = None,
     post_processor: Optional["PostProcessor"] = None,
     route_resolvers: Optional[list[RouteResolver]] = None,
     engine_rules: Optional[list[EngineRule]] = None,
 ) -> VariantsResult:
     """Composition root entry for the variants use-case."""
-    infra = create_services()
+    infra = create_services(config)
     ctx = _make_context(source_file, workspace_root)
     return execute_variants(
         ctx=ctx,

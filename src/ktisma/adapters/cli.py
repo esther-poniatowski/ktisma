@@ -10,7 +10,7 @@ from .. import __version__
 from ..domain.context import BuildRequest
 from ..domain.diagnostics import DiagnosticLevel
 from ..domain.exit_codes import ExitCode
-from ..infra.workspace import ROOT_ENV_VAR
+from ..infra.config_loader import CONFIG_FILENAME, TOOL
 from . import bootstrap
 from .log import format_diagnostics, setup_logging
 
@@ -47,7 +47,26 @@ def _add_root_option(parser: argparse.ArgumentParser) -> None:
         dest="workspace_root",
         type=Path,
         metavar="PATH",
-        help=f"Workspace root folder; takes precedence over {ROOT_ENV_VAR}",
+        help=(
+            f"Workspace root folder, relative to the current folder; by default the folder of "
+            f"{TOOL.variable}, else the outermost folder holding {CONFIG_FILENAME}, else the "
+            "current folder"
+        ),
+    )
+
+
+def _add_location_options(parser: argparse.ArgumentParser) -> None:
+    """Add the options that locate the workspace root and its configuration file."""
+    _add_root_option(parser)
+    parser.add_argument(
+        "-c",
+        "--config",
+        type=Path,
+        metavar="PATH",
+        help=(
+            f"Configuration file of the workspace root, relative to the current folder; by default "
+            f"{CONFIG_FILENAME} at the root, in .config/, or in a folder that hodegos.yml declares"
+        ),
     )
 
 
@@ -79,7 +98,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # --- build ---
     build_parser = subparsers.add_parser("build", help="Build a LaTeX document")
     build_parser.add_argument("source", type=Path, help="Source .tex file")
-    _add_root_option(build_parser)
+    _add_location_options(build_parser)
     build_parser.add_argument("--engine", help="Override engine selection")
     build_parser.add_argument("-o", "--output", type=Path, help="Override output PDF path")
     build_parser.add_argument("--output-dir", type=Path, help="Override output directory")
@@ -99,14 +118,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
     inspect_engine = inspect_sub.add_parser("engine", help="Inspect engine selection")
     inspect_engine.add_argument("source", type=Path, help="Source .tex file")
-    _add_root_option(inspect_engine)
+    _add_location_options(inspect_engine)
     inspect_engine.add_argument("--engine", help="Override engine")
     _add_format_option(inspect_engine)
     inspect_engine.set_defaults(func=_cmd_inspect_engine)
 
     inspect_route = inspect_sub.add_parser("route", help="Inspect output routing")
     inspect_route.add_argument("source", type=Path, help="Source .tex file")
-    _add_root_option(inspect_route)
+    _add_location_options(inspect_route)
     inspect_route.add_argument("-o", "--output", type=Path)
     inspect_route.add_argument("--output-dir", type=Path)
     _add_format_option(inspect_route)
@@ -115,7 +134,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # --- clean ---
     clean_parser = subparsers.add_parser("clean", help="Clean build directories")
     clean_parser.add_argument("target", type=Path, help="Source .tex file or build directory")
-    _add_root_option(clean_parser)
+    _add_location_options(clean_parser)
     clean_parser.set_defaults(func=_cmd_clean)
 
     # --- check-log ---
@@ -140,14 +159,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # --- doctor ---
     doctor_parser = subparsers.add_parser("doctor", help="Check prerequisites")
-    _add_root_option(doctor_parser)
+    _add_location_options(doctor_parser)
     _add_format_option(doctor_parser)
     doctor_parser.set_defaults(func=_cmd_doctor)
 
     # --- batch ---
     batch_parser = subparsers.add_parser("batch", help="Build all .tex files in a directory")
     batch_parser.add_argument("source_dir", type=Path, help="Directory containing .tex files")
-    _add_root_option(batch_parser)
+    _add_location_options(batch_parser)
     batch_parser.add_argument("--engine", help="Override engine")
     batch_parser.add_argument("--watch", action="store_true")
     _add_format_option(batch_parser)
@@ -156,7 +175,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # --- variants ---
     variants_parser = subparsers.add_parser("variants", help="Build all configured variants")
     variants_parser.add_argument("source", type=Path, help="Source .tex file")
-    _add_root_option(variants_parser)
+    _add_location_options(variants_parser)
     variants_parser.add_argument("--engine", help="Override engine")
     variants_parser.add_argument(
         "--include-default",
@@ -191,14 +210,14 @@ def _build_parser() -> argparse.ArgumentParser:
         ("inspect", "Inspect the selected dependency snapshot", _cmd_tex_inspect),
     ):
         command = tex_sub.add_parser(name, help=help_text)
-        _add_root_option(command)
+        _add_location_options(command)
         _add_format_option(command)
         command.set_defaults(func=handler)
     resolve = tex_sub.add_parser(
         "resolve", help="Resolve one declared entry point from the selected snapshot"
     )
     resolve.add_argument("reference", help="qualified entry point, DEPENDENCY:ENTRYPOINT")
-    _add_root_option(resolve)
+    _add_location_options(resolve)
     _add_format_option(resolve)
     resolve.set_defaults(func=_cmd_tex_resolve)
 
@@ -222,6 +241,7 @@ def _cmd_build(args: argparse.Namespace) -> int:
         source_file=args.source,
         request=request,
         workspace_root=args.workspace_root,
+        config=args.config,
     )
 
     _print_diagnostics(result.diagnostics, _json_mode(args))
@@ -245,6 +265,7 @@ def _cmd_inspect_engine(args: argparse.Namespace) -> int:
         source_file=args.source,
         request=request,
         workspace_root=args.workspace_root,
+        config=args.config,
     )
 
     if _json_mode(args):
@@ -274,6 +295,7 @@ def _cmd_inspect_route(args: argparse.Namespace) -> int:
         source_file=args.source,
         request=request,
         workspace_root=args.workspace_root,
+        config=args.config,
     )
 
     if _json_mode(args):
@@ -293,6 +315,7 @@ def _cmd_clean(args: argparse.Namespace) -> int:
     result = bootstrap.clean(
         target=args.target,
         workspace_root=args.workspace_root,
+        config=args.config,
     )
 
     _print_diagnostics(result.diagnostics, False)
@@ -341,7 +364,7 @@ def _cmd_check_log(args: argparse.Namespace) -> int:
 
 
 def _cmd_doctor(args: argparse.Namespace) -> int:
-    result = bootstrap.doctor(workspace_root=args.workspace_root)
+    result = bootstrap.doctor(workspace_root=args.workspace_root, config=args.config)
 
     if _json_mode(args):
         _print_json(
@@ -379,6 +402,7 @@ def _cmd_batch(args: argparse.Namespace) -> int:
         source_dir=args.source_dir,
         request=request,
         workspace_root=args.workspace_root,
+        config=args.config,
     )
 
     _print_diagnostics(result.diagnostics, _json_mode(args))
@@ -417,6 +441,7 @@ def _cmd_variants(args: argparse.Namespace) -> int:
         source_file=args.source,
         request=request,
         workspace_root=args.workspace_root,
+        config=args.config,
     )
 
     _print_diagnostics(result.diagnostics, _json_mode(args))
@@ -440,19 +465,25 @@ def _cmd_variants(args: argparse.Namespace) -> int:
 
 
 def _cmd_tex_install(args: argparse.Namespace) -> int:
-    return _render_tex_result(bootstrap.tex_install(args.workspace_root), _json_mode(args))
+    """Install and select the declared TeX dependency snapshot."""
+    result = bootstrap.tex_install(args.workspace_root, args.config)
+    return _render_tex_result(result, _json_mode(args))
 
 
 def _cmd_tex_check(args: argparse.Namespace) -> int:
-    return _render_tex_result(bootstrap.tex_check(args.workspace_root), _json_mode(args))
+    """Validate the selected TeX dependency snapshot."""
+    result = bootstrap.tex_check(args.workspace_root, args.config)
+    return _render_tex_result(result, _json_mode(args))
 
 
 def _cmd_tex_inspect(args: argparse.Namespace) -> int:
-    return _render_tex_result(bootstrap.tex_inspect(args.workspace_root), _json_mode(args))
+    """Inspect the selected TeX dependency snapshot."""
+    result = bootstrap.tex_inspect(args.workspace_root, args.config)
+    return _render_tex_result(result, _json_mode(args))
 
 
 def _cmd_tex_resolve(args: argparse.Namespace) -> int:
-    result = bootstrap.tex_resolve(args.reference, args.workspace_root)
+    result = bootstrap.tex_resolve(args.reference, args.workspace_root, args.config)
     _print_diagnostics(result.diagnostics, _json_mode(args))
     if _json_mode(args):
         _print_json(

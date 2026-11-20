@@ -17,8 +17,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
+        # Hodegos is published on no index that pip reads, so pyproject.toml declares a range, and
+        # environment.yml pins the exact Git commit that the tests use.
         run: |
           python -m pip install --upgrade pip
+          pip install $(grep -oE 'git\+https://[^ ]+' environment.yml)
           pip install -e .
           pip install black pylint mypy pytest pytest-cov types-PyYAML
       - name: Check formatting (black)
@@ -44,8 +47,11 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install dependencies
+        # Hodegos is published on no index that pip reads, so pyproject.toml declares a range, and
+        # environment.yml pins the exact Git commit that the tests use.
         run: |
           python -m pip install --upgrade pip
+          pip install $(grep -oE 'git\+https://[^ ]+' environment.yml)
           pip install -e .
           pip install sphinx myst-parser sphinx-rtd-theme
       - name: Build documentation

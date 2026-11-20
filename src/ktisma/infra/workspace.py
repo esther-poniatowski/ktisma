@@ -1,74 +1,41 @@
 from __future__ import annotations
 
-import os
 import shutil
 from pathlib import Path
 from typing import Optional
 
-from .config_loader import holds_root_config
-
-ROOT_ENV_VAR = "KTISMA_ROOT"
-
-
-def root_from_environment() -> Optional[str]:
-    """Return the workspace root set in ``KTISMA_ROOT``, or ``None``; an empty value counts as unset."""
-    return os.environ.get(ROOT_ENV_VAR) or None
+from .config_loader import discover_configuration
 
 
 def resolve_workspace_root(
     cli_workspace_root: Optional[Path] = None,
     source_dir: Optional[Path] = None,
 ) -> Path:
-    """Resolve the workspace root, stopping at the first answer.
+    """Resolve the workspace root through Hodegos, stopping at the first answer.
 
     Resolution order:
     1. ``--root`` (CLI option), relative to the current folder
-    2. ``KTISMA_ROOT`` environment variable
-    3. Outermost ancestor of the start folder that holds ``ktisma.toml`` or
-       ``config/tools/ktisma.toml``; the start folder is ``source_dir`` when the command names a
-       source, and the current folder otherwise
-    4. Current working directory
+    2. ``KTISMA_ROOT`` environment variable, when set and not empty
+    3. Outermost folder, from the start folder upward, that holds ``ktisma.toml`` at one of the
+       places of Hodegos; the search starts at ``source_dir`` when the command names a source,
+       and at the current folder otherwise
+    4. Current folder
+
+    Hodegos reads a relative ``KTISMA_ROOT`` and its last answer from the folder where its search
+    starts. Therefore, when a search from ``source_dir`` finds no configuration, the root is
+    discovered again from the current folder, which keeps step 4 and the reading of a relative
+    ``KTISMA_ROOT`` from the current folder.
+
+    Raises:
+        ConfigError: Hodegos rejects a ``hodegos.yml`` met by the search, or two places of the
+            root hold a configuration file.
     """
-    # Step 1: CLI option
-    if cli_workspace_root is not None:
-        return cli_workspace_root.expanduser().resolve()
-
-    # Step 2: Environment variable
-    env_root = root_from_environment()
-    if env_root:
-        return Path(env_root).expanduser().resolve()
-
-    # Step 3: Outermost ancestor holding a configuration file
-    start = source_dir if source_dir is not None else Path.cwd()
-    found = _find_config_ancestor(start.resolve())
-    if found is not None:
-        return found
-
-    # Step 4: Current working directory
-    return Path.cwd()
-
-
-def _find_config_ancestor(start: Path) -> Optional[Path]:
-    """Walk up from start and return the outermost folder that holds a configuration file.
-
-    A folder holds a configuration file when it has ``ktisma.toml`` or ``config/tools/ktisma.toml``.
-    The outermost folder wins because Ktisma stacks one configuration file per folder: the files
-    below the root overlay the configuration of their own folder and never start a workspace of
-    their own.
-    """
-    current = start
-    root = Path(current.anchor)
-    found: Optional[Path] = None
-    while True:
-        if holds_root_config(current):
-            found = current
-        if current == root:
-            break
-        parent = current.parent
-        if parent == current:
-            break
-        current = parent
-    return found
+    option = cli_workspace_root.expanduser().absolute() if cli_workspace_root is not None else None
+    start = source_dir.resolve() if source_dir is not None else None
+    found = discover_configuration(root=option, start=start)
+    if start is not None and found.configuration is None:
+        found = discover_configuration(root=option)
+    return found.root.resolve()
 
 
 class FileWorkspaceOps:

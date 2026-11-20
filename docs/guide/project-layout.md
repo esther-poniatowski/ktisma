@@ -136,13 +136,15 @@ my-project/
 The layered approach allows setting project-wide defaults at the root and overriding specific
 configuration values for subdirectories (e.g., a different engine for one subtree).
 
-### The Workspace-Root File in `config/tools/`
+### The Workspace-Root File in a Declared Folder
 
-A repository that groups the configuration files of its tools in `config/tools/` may hold the
-workspace-root file there, as `config/tools/ktisma.toml`:
+The configuration files of the tools of a repository may sit in one folder, such as `config/tools/`.
+In that case, the workspace-root file of Ktisma may sit in that folder too, provided that the
+declaration `hodegos.yml` at the root lists the folder:
 
 ```text
 my-project/
+  hodegos.yml               (lists config/tools)
   config/tools/
     ktisma.toml             (workspace-root file -- lowest precedence)
   lectures-tex/
@@ -150,13 +152,13 @@ my-project/
     week1.tex
 ```
 
-The folder `my-project/` is then the workspace root, because it holds `config/tools/ktisma.toml`.
-The paths written in the file stay relative to `my-project/`, so the file moves between the two
-places without an edit. Only the workspace-root file has this second place. An overlay stays
-`ktisma.toml` in the folder that it configures, because that folder defines the scope of the
-overlay. A root that holds both `ktisma.toml` and `config/tools/ktisma.toml` is an error that
-names both files (see
-[Configuration Files and Their Places](configuration.md#configuration-files-and-their-places)).
+Therefore, the folder `my-project/` is the workspace root, since `config/tools/ktisma.toml` is one
+of its places. The paths written in the file stay relative to `my-project/`, so the file moves
+between the places of the root without an edit. Since every folder has the same places, an
+overlay may also sit in the `.config/` of its folder, or in a folder listed by the `hodegos.yml`
+of its folder. When one folder holds a file at two places, Ktisma stops with an error that names
+both files, as [Configuration Files and Their Places](configuration.md#configuration-files-and-their-places)
+states.
 
 See [Configuration: Precedence](configuration.md#configuration-precedence) and
 [Merge Semantics](configuration.md#merge-semantics) for how layers combine.
@@ -165,8 +167,8 @@ See [Configuration: Precedence](configuration.md#configuration-precedence) and
 
 A repository whose LaTeX sources all sit in one folder, such as `artifacts/`, may hold its workspace
 configuration in that folder, as `artifacts/ktisma.toml`. The root of the repository then keeps only
-the files that its readers navigate. Ktisma takes the outermost ancestor holding a `ktisma.toml` as
-its workspace root (see [Workspace Root Resolution](configuration.md#workspace-root-resolution)), so
+the files that its readers navigate. Ktisma takes the outermost ancestor holding a `ktisma.toml` at
+one of its places as its workspace root (see [Workspace Root Resolution](configuration.md#workspace-root-resolution)), so
 `artifacts/` becomes the workspace root of every source below it. Four consequences follow:
 
 - `artifacts/ktisma.toml` is the workspace-root file, so it may declare `[[tex.dependencies]]`.

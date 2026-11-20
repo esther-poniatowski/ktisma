@@ -30,6 +30,7 @@ ktisma build <source.tex> [options]
 | --- | --- |
 | `source` | Path to the `.tex` source file (required) |
 | `-r`, `--root PATH` | Set the workspace root folder, relative to the current folder; takes precedence over `KTISMA_ROOT` |
+| `-c`, `--config PATH` | Name the workspace-root configuration file, relative to the current folder; the named file replaces the file found at the [places of the root](configuration.md#configuration-files-and-their-places) |
 | `--engine ENGINE` | Override engine selection (`pdflatex`, `lualatex`, `xelatex`, `latex`) |
 | `-o`, `--output PATH` | Override the exact output PDF path, relative to the current folder |
 | `--output-dir PATH` | Override output directory for the compiled PDF |
@@ -74,6 +75,7 @@ ktisma inspect engine <source.tex> [options]
 | --- | --- |
 | `source` | Path to the `.tex` source file (required) |
 | `-r`, `--root PATH` | Set the workspace root folder, relative to the current folder; takes precedence over `KTISMA_ROOT` |
+| `-c`, `--config PATH` | Name the workspace-root configuration file, relative to the current folder; the named file replaces the file found at the [places of the root](configuration.md#configuration-files-and-their-places) |
 | `--engine ENGINE` | Override engine selection (shows what the override would be) |
 | `--format FORMAT` | Output format: `text` (default) or `json` |
 
@@ -101,6 +103,7 @@ ktisma inspect route <source.tex> [options]
 | --- | --- |
 | `source` | Path to the `.tex` source file (required) |
 | `-r`, `--root PATH` | Set the workspace root folder, relative to the current folder; takes precedence over `KTISMA_ROOT` |
+| `-c`, `--config PATH` | Name the workspace-root configuration file, relative to the current folder; the named file replaces the file found at the [places of the root](configuration.md#configuration-files-and-their-places) |
 | `-o`, `--output PATH` | Override the exact output PDF path, relative to the current folder |
 | `--output-dir PATH` | Override output directory |
 | `--format FORMAT` | Output format: `text` (default) or `json` |
@@ -129,6 +132,7 @@ ktisma clean <target> [options]
 | --- | --- |
 | `target` | Path to a `.tex` source file or a build directory (required) |
 | `-r`, `--root PATH` | Set the workspace root folder, relative to the current folder; takes precedence over `KTISMA_ROOT` |
+| `-c`, `--config PATH` | Name the workspace-root configuration file, relative to the current folder; the named file replaces the file found at the [places of the root](configuration.md#configuration-files-and-their-places) |
 
 When given a `.tex` file, ktisma resolves the workspace root as `build` does, reads the same
 configuration, and removes the corresponding build directory and any variant build directories.
@@ -190,6 +194,7 @@ ktisma doctor [options]
 | Option | Description |
 | --- | --- |
 | `-r`, `--root PATH` | Set the workspace root folder, relative to the current folder; takes precedence over `KTISMA_ROOT` |
+| `-c`, `--config PATH` | Name the workspace-root configuration file, relative to the current folder; the named file replaces the file found at the [places of the root](configuration.md#configuration-files-and-their-places) |
 | `--format FORMAT` | Output format: `text` (default) or `json` |
 
 Checks performed:
@@ -214,6 +219,7 @@ ktisma batch <source-dir> [options]
 | --- | --- |
 | `source_dir` | Directory containing `.tex` entrypoints or nested entrypoint directories (required) |
 | `-r`, `--root PATH` | Set the workspace root folder, relative to the current folder; takes precedence over `KTISMA_ROOT` |
+| `-c`, `--config PATH` | Name the workspace-root configuration file, relative to the current folder; the named file replaces the file found at the [places of the root](configuration.md#configuration-files-and-their-places) |
 | `--engine ENGINE` | Override engine for all builds |
 | `--watch` | **Rejected** in v1 (batch watch mode is not supported) |
 | `--format FORMAT` | Output format: `text` (default) or `json` |
@@ -235,6 +241,7 @@ ktisma variants <source.tex> [options]
 | --- | --- |
 | `source` | Path to the `.tex` source file (required) |
 | `-r`, `--root PATH` | Set the workspace root folder, relative to the current folder; takes precedence over `KTISMA_ROOT` |
+| `-c`, `--config PATH` | Name the workspace-root configuration file, relative to the current folder; the named file replaces the file found at the [places of the root](configuration.md#configuration-files-and-their-places) |
 | `--engine ENGINE` | Override engine for all variants |
 | `--include-default` | Build the non-variant output in addition to configured variants |
 | `--format FORMAT` | Output format: `text` (default) or `json` |
@@ -271,10 +278,10 @@ Manage the dependency closure declared by `[[tex.dependencies]]` in the workspac
 `ktisma.toml`.
 
 ```bash
-ktisma tex install [--root PATH] [--format FORMAT]
-ktisma tex check [--root PATH] [--format FORMAT]
-ktisma tex inspect [--root PATH] [--format FORMAT]
-ktisma tex resolve DEPENDENCY:ENTRYPOINT [--root PATH] [--format FORMAT]
+ktisma tex install [--root PATH] [--config PATH] [--format FORMAT]
+ktisma tex check [--root PATH] [--config PATH] [--format FORMAT]
+ktisma tex inspect [--root PATH] [--config PATH] [--format FORMAT]
+ktisma tex resolve DEPENDENCY:ENTRYPOINT [--root PATH] [--config PATH] [--format FORMAT]
 ```
 
 | Command | Result |

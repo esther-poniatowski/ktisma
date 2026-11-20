@@ -73,7 +73,9 @@ execution, and system probing but does not own business policy.
 | `tex_dependencies.py` | `GitTexSourceFetcher`, `L3BuildTexPackageBuilder`, `KpsewhichTexPathResolver`, `FileTexSnapshotStore` | TeX dependency protocols |
 
 `workspace.py` also provides the standalone function `resolve_workspace_root()` for workspace root
-resolution.
+resolution. The function `resolve_workspace_root()` and the loader `TomlConfigLoader` locate the
+root and the configuration files through [Hodegos](https://github.com/esther-poniatowski/hodegos/blob/main/docs/specification.md). Both
+pass to Hodegos the convention of Ktisma, the constant `TOOL` of `config_loader.py`.
 
 ### Adapters (`adapters/`)
 

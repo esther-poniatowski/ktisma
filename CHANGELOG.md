@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Option `-c`, `--config`: names the workspace-root configuration file, relative to the current
+  folder, in place of the places of the root. Every command that reads the configuration accepts
+  the option. A named file that does not exist stops the command with exit code `2` and the
+  diagnostic `missing-config`. Ktisma still reads the overlays between the root and the source
+  directory.
 - `ktisma tex resolve`: returns the absolute path of a declared entry point only after the selected
   snapshot and named provider pass their checks.
 - `ktisma check-log`: checks recursively discovered LaTeX logs against a zero baseline and reports
@@ -51,9 +56,19 @@ below loses its former name in this release, without an alias, a fallback or a w
 - The receipt of a TeX snapshot declares `_schema = "ktisma:tex-dependencies@1"`. A receipt in
   another format, including one that carries `schema_version`, counts as stale: `tex check` reports
   it, and `tex install` regenerates the snapshot.
-- The workspace-root file may also sit in `config/tools/ktisma.toml`. A root that holds both
-  `ktisma.toml` and `config/tools/ktisma.toml` is an error that names both files. Overlays below
-  the root stay `ktisma.toml` in their own folder.
+- **Breaking:** [Hodegos](https://github.com/esther-poniatowski/hodegos/blob/main/docs/specification.md) locates the workspace
+  root and every `ktisma.toml`, the workspace-root file and each overlay alike. Each folder holds its
+  file in `ktisma.toml`, in `.config/ktisma.toml`, or in a folder declared by the `hodegos.yml` of
+  that folder. Ktisma reads `config/tools/ktisma.toml` only when `hodegos.yml` lists `config/tools`.
+  When two places of one folder hold a file, an overlay folder included, the command stops with the
+  diagnostic `competing-places`. That diagnostic replaces `competing-config-files`. An invalid
+  `hodegos.yml` met by the search of the root or by the reading of the overlays stops the command
+  with the diagnostic `invalid-declaration` or `competing-declarations`. Each of these errors exits
+  with code `2`.
+- **Breaking:** Ktisma requires the Python package Hodegos and its dependency PyYAML. A vendored
+  copy run with `python3` needs Hodegos installed for that interpreter.
+- Ktisma no longer expands a literal `~` in `KTISMA_ROOT`. Every resolved root now has its
+  symbolic links resolved, the fallback to the current folder included.
 - The option `--workspace-root` is renamed `--root`, with the short form `-r`, on every command that
   takes it: `build`, `inspect engine`, `inspect route`, `clean`, `doctor`, `batch`, `variants`,
   `init`, `tex install`, `tex check`, `tex inspect` and `tex resolve`. `--workspace-root` is

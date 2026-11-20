@@ -1,7 +1,20 @@
+"""
+Configuration files of Ktisma, `ktisma.toml`, located through Hodegos and loaded as layers.
+
+Hodegos resolves the root of a command and the places of `ktisma.toml`, as its specification states
+(https://github.com/esther-poniatowski/hodegos/blob/main/docs/specification.md). The places of a
+folder are `ktisma.toml` in the folder, the same file in its subfolder `.config/`, and the same
+file in each folder that the `hodegos.yml` of the folder declares. Two places of one folder holding
+a file is an error. Ktisma stacks one file per folder: the file of the root configures the whole
+workspace, and the file of each folder below it overlays the configuration of that folder.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional
+
+from hodegos import Discovery, DiscoveryError, Tool, discover
 
 from ..domain.config import ConfigLayer
 from ..domain.diagnostics import Diagnostic, DiagnosticLevel
@@ -13,66 +26,79 @@ except ImportError:  # pragma: no cover - exercised on Python < 3.11
     import tomli as toml_module
 
 
-# Name of every configuration file of Ktisma: the file of the workspace root and each overlay
-# below it.
-CONFIG_FILENAME = "ktisma.toml"
-# Folder, below the workspace root, that may hold the configuration file of the root instead of
-# the root.
-CONFIG_SUBDIR = Path("config") / "tools"
+TOOL = Tool("ktisma", ("toml",), stacked=True)
+"""Convention of Ktisma for Hodegos: the file `ktisma.toml`, the variable `KTISMA_ROOT`, and one
+file stacked per folder, so that the search of the root takes the outermost folder holding one."""
+
+CONFIG_FILENAME = TOOL.file_names[0]
+"""Name of every configuration file of Ktisma: the file of the workspace root and each overlay."""
 
 
-def root_config_candidates(folder: Path) -> tuple[Path, Path]:
-    """Return the two places of the configuration file of a workspace root held by ``folder``.
+def discover_configuration(
+    root: Optional[Path] = None,
+    config: Optional[Path] = None,
+    start: Optional[Path] = None,
+) -> Discovery:
+    """Return the root of a command and the configuration file of that root, located by Hodegos.
 
-    The file sits either in ``config/tools/ktisma.toml`` below the folder or in ``ktisma.toml`` at
-    its level. An overlay below the root has only the second place.
-    """
-    return (folder / CONFIG_SUBDIR / CONFIG_FILENAME, folder / CONFIG_FILENAME)
+    Args:
+        root: Value of ``--root``, absolute or relative to ``start``; ``None`` to take the root
+            from ``KTISMA_ROOT`` or from the search.
+        config: Value of ``--config``, absolute or relative to ``start``; ``None`` to take the
+            single place of the root holding ``ktisma.toml``.
+        start: Folder where the search of the root starts, and against which Hodegos reads
+            relative values; the current folder by default.
 
-
-def holds_root_config(folder: Path) -> bool:
-    """Return whether ``folder`` holds a configuration file in one of the two places of a root."""
-    return any(candidate.is_file() for candidate in root_config_candidates(folder))
-
-
-def find_root_config(workspace_root: Path) -> Optional[Path]:
-    """Return the configuration file of the workspace root, or ``None`` when the root has none.
+    Returns:
+        The root and the configuration of the root, ``None`` when no place holds one: Ktisma then
+        runs on its built-in defaults.
 
     Raises:
-        ConfigError: Both places hold a configuration file; the error names both files.
+        ConfigError: Hodegos rejects the request: the named file does not exist, two places of the
+            root hold a file, or a ``hodegos.yml`` met by the search is invalid. The diagnostic
+            carries the code of Hodegos.
     """
-    present = [candidate for candidate in root_config_candidates(workspace_root) if candidate.is_file()]
-    if len(present) > 1:
+    try:
+        return discover(TOOL, root=root, config=config, cwd=start)
+    except DiscoveryError as error:
         raise ConfigError(
-            "Two configuration files compete for the workspace root.",
+            f"The configuration of Ktisma cannot be located: {error}",
             diagnostics=[
                 Diagnostic(
                     level=DiagnosticLevel.ERROR,
                     component="config",
-                    code="competing-config-files",
-                    message=(
-                        f"Both {present[0]} and {present[1]} exist; keep one of them as the "
-                        "configuration file of the workspace root."
-                    ),
+                    code=error.code.value,
+                    message=str(error),
                 )
             ],
-        )
-    return present[0] if present else None
+        ) from error
+
+
+def _folder_configuration(folder: Path, config: Optional[Path] = None) -> Optional[Path]:
+    """Return the configuration file of ``folder``: ``config`` when named, else its single place."""
+    location = discover_configuration(root=folder, config=config).configuration
+    return location.path if location is not None else None
 
 
 class TomlConfigLoader:
-    """Concrete ConfigLoader: loads the ``ktisma.toml`` files from disk."""
+    """Concrete ConfigLoader: loads the ``ktisma.toml`` files from disk.
 
-    def load_layers(
-        self, workspace_root: Path, source_dir: Path
-    ) -> list[ConfigLayer]:
+    Args:
+        config: Configuration file of the workspace root named by ``--config``, relative to the
+            current folder; ``None`` to read the single place of the root holding ``ktisma.toml``.
+    """
+
+    def __init__(self, config: Optional[Path] = None) -> None:
+        self._config = config
+
+    def load_layers(self, workspace_root: Path, source_dir: Path) -> list[ConfigLayer]:
         """Load config layers from workspace root toward the source directory.
 
         Returns layers ordered from lowest to highest precedence:
-        1. The configuration file of the workspace root, in ``config/tools/ktisma.toml`` or
-           ``ktisma.toml`` (lowest)
-        2. The overlay ``ktisma.toml`` of each intermediate folder
-        3. The overlay ``ktisma.toml`` of the source directory (highest file-based precedence)
+        1. The configuration file of the workspace root, named by ``--config`` or found at one of
+           the places of the root (lowest)
+        2. The overlay of each intermediate folder, found at one of the places of that folder
+        3. The overlay of the source directory (highest file-based precedence)
 
         Every layer anchors its relative paths at the workspace root, whatever folder holds it.
         """
@@ -82,7 +108,7 @@ class TomlConfigLoader:
         workspace_root = workspace_root.resolve()
         source_dir = source_dir.resolve()
 
-        root_config = find_root_config(workspace_root)
+        root_config = _folder_configuration(workspace_root, self._config)
         if root_config is not None:
             seen.add(root_config.resolve())
             layers.append(_load_layer(root_config, workspace_root, is_workspace_root=True))
@@ -97,10 +123,9 @@ class TomlConfigLoader:
             current = workspace_root
             for part in rel.parts:
                 current = current / part
-                candidate = current / CONFIG_FILENAME
-                resolved = candidate.resolve()
-                if candidate.is_file() and resolved not in seen:
-                    seen.add(resolved)
+                candidate = _folder_configuration(current)
+                if candidate is not None and candidate.resolve() not in seen:
+                    seen.add(candidate.resolve())
                     layers.append(_load_layer(candidate, workspace_root, is_workspace_root=False))
 
         return layers

@@ -6,7 +6,12 @@ from pathlib import Path
 
 import pytest
 
+from ktisma.domain.errors import ConfigError
+from ktisma.domain.exit_codes import ExitCode
 from ktisma.infra.workspace import resolve_workspace_root
+
+DECLARATION = "_schema: hodegos:configuration@1\nfolders:\n  - shared\n"
+"""Declaration of a workspace keeping its root configuration in `shared/`."""
 
 
 @pytest.fixture(autouse=True)
@@ -93,6 +98,17 @@ class TestEnvVar:
         result = resolve_workspace_root()
         assert result == tmp_path.resolve()
 
+    def test_relative_env_var_is_read_from_the_current_folder(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        ws = tmp_path / "env_ws"
+        ws.mkdir()
+        source_dir = tmp_path / "elsewhere" / "src"
+        source_dir.mkdir(parents=True)
+        monkeypatch.setenv("KTISMA_ROOT", "env_ws")
+        monkeypatch.chdir(tmp_path)
+        assert resolve_workspace_root(source_dir=source_dir) == ws.resolve()
+
 
 class TestRetiredEnvVar:
     """The former variable KTISMA_WORKSPACE_ROOT is retired without a fallback."""
@@ -139,14 +155,33 @@ class TestConfigAncestor:
         result = resolve_workspace_root(source_dir=source_dir)
         assert result == root_dir.resolve()
 
-    def test_finds_config_in_config_tools(self, tmp_path: Path) -> None:
+    def test_finds_config_in_dot_config(self, tmp_path: Path) -> None:
         root_dir = tmp_path / "project"
-        (root_dir / "config" / "tools").mkdir(parents=True)
-        (root_dir / "config" / "tools" / "ktisma.toml").write_text("[build]\n")
+        (root_dir / ".config").mkdir(parents=True)
+        (root_dir / ".config" / "ktisma.toml").write_text("[build]\n")
         source_dir = root_dir / "chapters"
         source_dir.mkdir()
-        result = resolve_workspace_root(source_dir=source_dir)
-        assert result == root_dir.resolve()
+        assert resolve_workspace_root(source_dir=source_dir) == root_dir.resolve()
+
+    def test_finds_config_in_a_declared_folder(self, tmp_path: Path) -> None:
+        root_dir = tmp_path / "project"
+        (root_dir / "shared").mkdir(parents=True)
+        (root_dir / "shared" / "ktisma.toml").write_text("[build]\n")
+        (root_dir / "hodegos.yml").write_text(DECLARATION)
+        source_dir = root_dir / "chapters"
+        source_dir.mkdir()
+        assert resolve_workspace_root(source_dir=source_dir) == root_dir.resolve()
+
+    def test_ignores_an_undeclared_folder(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root_dir = tmp_path / "project"
+        (root_dir / "shared").mkdir(parents=True)
+        (root_dir / "shared" / "ktisma.toml").write_text("[build]\n")
+        source_dir = root_dir / "chapters"
+        source_dir.mkdir()
+        monkeypatch.chdir(tmp_path)
+        assert resolve_workspace_root(source_dir=source_dir) == tmp_path.resolve()
 
     def test_outermost_ancestor_wins(self, tmp_path: Path) -> None:
         """When multiple ancestors hold ktisma.toml, the outermost one wins."""
@@ -159,15 +194,25 @@ class TestConfigAncestor:
         result = resolve_workspace_root(source_dir=deep)
         assert result == outer.resolve()
 
-    def test_outermost_ancestor_wins_across_both_places(self, tmp_path: Path) -> None:
+    def test_outermost_ancestor_wins_across_places(self, tmp_path: Path) -> None:
         outer = tmp_path / "outer"
         inner = outer / "inner"
-        (outer / "config" / "tools").mkdir(parents=True)
-        (outer / "config" / "tools" / "ktisma.toml").write_text("[build]\n")
+        (outer / ".config").mkdir(parents=True)
+        (outer / ".config" / "ktisma.toml").write_text("[build]\n")
         inner.mkdir()
         (inner / "ktisma.toml").write_text("[build]\n")
         result = resolve_workspace_root(source_dir=inner)
         assert result == outer.resolve()
+
+    def test_invalid_declaration_met_by_the_search_is_a_config_error(self, tmp_path: Path) -> None:
+        source_dir = tmp_path / "project"
+        source_dir.mkdir()
+        (source_dir / "hodegos.yml").write_text("folders: [shared]\n")
+        with pytest.raises(ConfigError) as exc_info:
+            resolve_workspace_root(source_dir=source_dir)
+        [diagnostic] = exc_info.value.diagnostics
+        assert diagnostic.code == "invalid-declaration"
+        assert exc_info.value.exit_code == ExitCode.CONFIG_ERROR
 
     def test_former_settings_name_is_not_recognized(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

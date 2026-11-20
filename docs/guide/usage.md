@@ -3,9 +3,12 @@
 Ktisma builds LaTeX documents through a single CLI that handles engine
 detection, output routing, build directories, and cleanup. Every command that
 reads the workspace configuration accepts `--root` to pin the workspace
-explicitly; without the option or the `KTISMA_ROOT` environment variable,
-ktisma takes the outermost ancestor folder holding a `ktisma.toml` (see
+explicitly. Without the option or the `KTISMA_ROOT` environment variable,
+ktisma takes the outermost ancestor folder holding a `ktisma.toml` at one of
+its places (see
 [Workspace Root Resolution](configuration.md#workspace-root-resolution)).
+The same commands accept `--config` to name the workspace-root configuration
+file in place of the file found at the root.
 
 Ktisma requires Python 3.12 or later.
 

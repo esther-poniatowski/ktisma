@@ -83,6 +83,7 @@ print(format_latex_workshop_snippet("/absolute/path/to/ktisma/bin/ktisma"))
 When ktisma is invoked from an editor, the editor can fix the workspace root with the `--root`
 option, or with the `KTISMA_ROOT` environment variable that the wrapper of `ktisma init` exports.
 The option takes precedence over the variable, and the variable over the search for `ktisma.toml`
+at the places of each folder
 (see [Configuration: Workspace Root Resolution](configuration.md#workspace-root-resolution)).
 
 ## Other Editors

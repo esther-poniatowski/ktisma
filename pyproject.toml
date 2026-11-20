@@ -32,7 +32,9 @@ urls = {homepage = "https://github.com/esther-poniatowski/ktisma"}
 
 requires-python = ">=3.12"
 
-dependencies = []
+dependencies = [
+    "hodegos<1",
+]
 
 
 # --- Package Source Code --------------------------------------------------------------------------

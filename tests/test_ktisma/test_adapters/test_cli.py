@@ -182,7 +182,7 @@ def test_tex_subcommands_dispatch(command, bootstrap_name):
         code = main(["tex", command, "--root", "/tmp/workspace", "--format", "json"])
 
     assert code == ExitCode.SUCCESS
-    assert mock_fn.call_args.args == (Path("/tmp/workspace"),)
+    assert mock_fn.call_args.args == (Path("/tmp/workspace"), None)
 
 
 @patch("ktisma.adapters.bootstrap.tex_resolve")
@@ -203,7 +203,7 @@ def test_tex_resolve_prints_only_the_selected_path(mock_fn, capsys):
 
     assert code == ExitCode.SUCCESS
     assert capsys.readouterr().out == "/tmp/snapshot/fixture.sty\n"
-    assert mock_fn.call_args.args == ("fixture:fixture.sty", Path("/tmp/workspace"))
+    assert mock_fn.call_args.args == ("fixture:fixture.sty", Path("/tmp/workspace"), None)
 
 
 @patch("ktisma.adapters.bootstrap.tex_resolve")
@@ -630,3 +630,83 @@ def test_retired_schema_key_exits_with_status_two(
     captured = capsys.readouterr()
     assert status == ExitCode.CONFIG_ERROR
     assert '_schema = "ktisma:configuration@2"' in captured.err + captured.out
+
+
+# ---------------------------------------------------------------------------
+# --config: the configuration file of the workspace root, located with Hodegos
+# ---------------------------------------------------------------------------
+
+# Every command reading the configuration, which takes --config; init reads none.
+_CONFIG_COMMANDS = [command for command in _ROOT_COMMANDS if command != ["init"]]
+
+_VALID = '_schema = "ktisma:configuration@1"\n'
+"""Configuration that `ktisma inspect engine` reads with no error."""
+_INVALID = "schema_version = 2\n"
+"""Configuration that every command rejects, with exit status 2."""
+
+
+@pytest.mark.parametrize("command", _CONFIG_COMMANDS, ids=" ".join)
+@pytest.mark.parametrize("flag", ["-c", "--config"])
+def test_config_option_names_the_configuration_file(command, flag):
+    args = _build_parser().parse_args([*command, flag, "settings/ktisma.toml"])
+    assert args.config == Path("settings/ktisma.toml")
+
+
+def test_init_takes_no_config_option(capsys):
+    with pytest.raises(SystemExit):
+        main(["init", "--config", "ktisma.toml"])
+    assert "unrecognized arguments: --config" in capsys.readouterr().err
+
+
+@patch("ktisma.adapters.bootstrap.build")
+def test_build_passes_the_named_config(mock_build):
+    mock_build.return_value = _StubResult()
+    main(["build", "main.tex", "-c", "settings/ktisma.toml"])
+    assert mock_build.call_args[1]["config"] == Path("settings/ktisma.toml")
+
+
+def test_named_config_is_read_from_the_current_folder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "workspace"
+    (root / "settings").mkdir(parents=True)
+    (root / "ktisma.toml").write_text(_INVALID, encoding="utf-8")
+    (root / "settings" / "other.toml").write_text(_VALID, encoding="utf-8")
+    source = root / "main.tex"
+    source.write_text("\\documentclass{article}\n", encoding="utf-8")
+    inspect = ["inspect", "engine", str(source), "--root", str(root)]
+
+    assert main(inspect) == ExitCode.CONFIG_ERROR
+    monkeypatch.chdir(root / "settings")
+    assert main([*inspect, "--config", "other.toml"]) == ExitCode.SUCCESS
+    monkeypatch.chdir(tmp_path)
+    assert main([*inspect, "--config", "other.toml"]) == ExitCode.CONFIG_ERROR
+
+
+def test_two_places_of_the_root_exit_with_status_two(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / ".config").mkdir()
+    (tmp_path / "ktisma.toml").write_text(_VALID, encoding="utf-8")
+    (tmp_path / ".config" / "ktisma.toml").write_text(_VALID, encoding="utf-8")
+
+    status = main(["doctor", "--root", str(tmp_path)])
+
+    err = capsys.readouterr().err
+    assert status == ExitCode.CONFIG_ERROR
+    assert "competing-places" in err
+    assert str(tmp_path / ".config" / "ktisma.toml") in err
+
+
+def test_root_variable_reaches_hodegos(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "workspace"
+    root.mkdir()
+    (root / "ktisma.toml").write_text(_INVALID, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("KTISMA_ROOT", str(root))
+
+    assert main(["doctor"]) == ExitCode.CONFIG_ERROR
+    monkeypatch.delenv("KTISMA_ROOT")
+    assert main(["doctor"]) != ExitCode.CONFIG_ERROR

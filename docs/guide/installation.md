@@ -2,8 +2,14 @@
 
 ## Prerequisites
 
-- **Python 3.9+** (3.12+ recommended). Ktisma has no external dependencies
-  beyond the standard library.
+- **Python 3.12+**.
+- **The Python package Hodegos**. Hodegos locates the workspace root and the configuration files
+  of Ktisma, as its [specification](https://github.com/esther-poniatowski/hodegos/blob/main/docs/specification.md) states, and depends on PyYAML. A vendored copy of Ktisma
+  runs with the interpreter `python3`, so Hodegos must be installed for that interpreter:
+
+  ```sh
+  python3 -m pip install "hodegos @ git+https://github.com/esther-poniatowski/hodegos.git@e61d0d97eaa80cc0cfdd90c3022c1e3916ef1ad9"
+  ```
 - **A TeX distribution** (TeX Live, MacTeX, MiKTeX) with the engine in use
   (`pdflatex`, `lualatex`, or `xelatex`).
 - **latexmk** on the `PATH`. Most TeX distributions include it.

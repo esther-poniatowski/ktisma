@@ -8,20 +8,35 @@ Ktisma stacks one configuration file per folder. Every configuration file is nam
 without a leading dot. A file named `.ktisma.toml` is not read: the former name is retired without
 a fallback.
 
-Two kinds of file are distinguished by their place:
+Ktisma distinguishes two kinds of file by their folder:
 
-- **The workspace-root file** holds the configuration of the whole workspace. It sits either in
-  `config/tools/ktisma.toml` below the root or in `ktisma.toml` at the root. When both files exist,
-  Ktisma stops with an error that names both files.
-- **An overlay** holds the configuration of its own folder and of the folders below it. An overlay
-  is always the file `ktisma.toml` in that folder.
+- **The workspace-root file** holds the configuration of the whole workspace. The workspace-root
+  file lies at one of the places of the workspace root, unless the option `--config` names another
+  file.
+- **An overlay** holds the configuration of its own folder and of the folders below it. Each folder
+  below the workspace root, down to the source directory included, may hold one overlay.
 
-The place `config/tools/` applies to the workspace-root file only. The reason lies in the definition
-of the root file: it is the file read at the root folder, and the folder `config/tools/` groups the
-configuration files of every tool of a repository at that level. An overlay, by contrast, is
-defined by the folder that it configures, so it can sit nowhere else than in that folder.
-Therefore, a file `config/tools/ktisma.toml` below the root is an overlay of the folder `config/tools/` itself, which
-applies only to sources inside that folder.
+Ktisma reads the file of each folder at one of the places searched by
+[Hodegos](https://github.com/esther-poniatowski/hodegos/blob/main/docs/specification.md) in that folder:
+
+1. `ktisma.toml` in the folder;
+2. `ktisma.toml` in the subfolder `.config/` of the folder;
+3. `ktisma.toml` in each folder listed by the declaration of the folder, `hodegos.yml` or
+   `.config/hodegos.yml`.
+
+When two places of one folder hold a file, Ktisma stops with an error that names both files. The
+declaration `hodegos.yml` of a folder lists folders below that folder only. Therefore, an overlay
+folder lists its own folders in its own `hodegos.yml`. For example, a repository may keep the
+configuration files of its tools in `config/tools/`. That repository holds the following
+`hodegos.yml` at its root:
+
+```yaml
+_schema: hodegos:configuration@1
+folders:
+  - config/tools
+```
+
+Ktisma reads `config/tools/ktisma.toml` only when that `hodegos.yml` lists `config/tools`.
 
 The state folder holds the TeX snapshots of `ktisma tex install`, the pointer `tex-current` that
 selects one of them, and the lock of a running installation. It lies in `.ktisma/` below the
@@ -229,7 +244,7 @@ Highest priority first:
 1. **CLI flags** (`--engine`, `--output`, `--output-dir`, `--cleanup`)
 2. **Per-file magic comments** (`% !TeX program = ...`, `% !ktisma output = ...`)
 3. **Overlays `ktisma.toml`** in the folders between the source directory and the workspace root
-4. **Workspace-root `ktisma.toml`**, in `config/tools/` or at the root
+4. **Workspace-root `ktisma.toml`**, at one of the places of the root, or the file named by `--config`
 5. **Built-in defaults**
 
 ### Concern-Specific Precedence
@@ -301,14 +316,14 @@ The anchor of a relative path is fixed by the place where the path is written:
 
 | Source | Anchor |
 | --- | --- |
-| Command-line paths (the source, `--root`, `--output`, `--output-dir`) | Current working directory |
+| Command-line paths (the source, `--root`, `--config`, `--output`, `--output-dir`) | Current working directory |
 | Magic comments (`% !ktisma output = ...`) | Source file directory |
 | Route targets in `[routes]`, in the root file or in an overlay | Workspace root |
 | Route patterns in `[routes]` and `[routing].artifact_dirs` | Workspace root |
 | Variant `output` values | Source file directory |
 
 A path written in a configuration file is read from the workspace root, whichever file declares
-it. The root file can therefore move between the root and `config/tools/` without an edit. An
+it. Therefore, the root file can move between the places of the root without an edit. An
 overlay follows the same rule for two reasons. First, the patterns of `[routes]` already match the source
 path relative to the root, so a target relative to the root reads in the same frame as its pattern.
 Second, one reading for every configuration file spares the reader a check of the folder that
@@ -328,11 +343,13 @@ Processing steps:
 ## Workspace Root Resolution
 
 The workspace root determines where ktisma searches for its configuration files and anchors
-workspace-relative paths. Resolution stops at the first answer:
+workspace-relative paths. [Hodegos](https://github.com/esther-poniatowski/hodegos/blob/main/docs/specification.md)
+takes the workspace root from the first source that answers:
 
 1. `--root` (`-r`) command-line option, relative to the current folder
-2. `KTISMA_ROOT` environment variable
-3. Outermost ancestor folder that holds `ktisma.toml` or `config/tools/ktisma.toml`
+2. `KTISMA_ROOT` environment variable, when set and not empty
+3. Outermost ancestor folder that holds `ktisma.toml` at one of its places (see
+   [Configuration Files and Their Places](#configuration-files-and-their-places))
 4. Current working directory
 
 Step 3 takes the *outermost* ancestor, not the nearest one. Ktisma stacks one `ktisma.toml` per
@@ -340,13 +357,21 @@ folder: the file at the workspace root holds the configuration of the whole work
 file below it overlays the configuration of its own folder (see
 [Configuration Precedence](#configuration-precedence)). Therefore, a nested `ktisma.toml` never
 starts a workspace of its own when the root is resolved from the source path. The workspace root
-is never inferred from `.git` or other unrelated files.
+is never inferred from `.git` or other unrelated files. The search of step 3 reads the file
+`hodegos.yml` of each folder that the search meets. Therefore, an invalid `hodegos.yml` in one of
+those folders stops the command with an error.
 
 The search of step 3 starts at the folder of the source when the command names one (`build`,
 `inspect`, `clean`, `variants`, and the source folder of `batch`), and at the current folder
 otherwise (`doctor`, `init`, `tex`). A build of a source given by its full path thus finds the
 workspace of that source from any current folder, as pytest determines its root from the paths
 given on its command line.
+
+The option `--config` (`-c`) names the workspace-root file, relative to the current folder. With
+that option, Ktisma reads the named file instead of the places of the root, and stops with an error
+when the named file does not exist. Ktisma still reads the overlays between the workspace root and
+the source directory. The option takes no part in the search of step 3: without `--root` or
+`KTISMA_ROOT`, the root is still the outermost folder holding `ktisma.toml` at one of its places.
 
 ## Magic Comments
 

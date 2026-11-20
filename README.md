@@ -2,7 +2,7 @@
 
 [![Maintenance](https://img.shields.io/maintenance/yes/2026)]()
 [![Last Commit](https://img.shields.io/github/last-commit/esther-poniatowski/ktisma)](https://github.com/esther-poniatowski/ktisma/commits/main)
-[![Python](https://img.shields.io/badge/python-%E2%89%A53.9-blue)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/python-%E2%89%A53.12-blue)](https://www.python.org/)
 [![License: GPL](https://img.shields.io/badge/License-GPL-yellow.svg)](https://opensource.org/licenses/GPL-3.0)
 
 Builds LaTeX documents consistently and portably across shared workspaces.
@@ -58,7 +58,8 @@ contributor relies on different configuration fragments.
 - [x] **Variants**: Build configured variants (e.g., review markup) alongside
   the default output.
 - [x] **Layered configuration**: Workspace, project, and per-file `ktisma.toml`
-  overlays with deterministic merge semantics.
+  overlays with deterministic merge semantics, each found at the places
+  searched by [Hodegos](https://github.com/esther-poniatowski/hodegos/blob/main/docs/specification.md).
 - [x] **Editor integration**: VS Code / LaTeX Workshop recipes, latexmkrc
   migration.
 
@@ -70,6 +71,13 @@ Add ktisma to a project as a git submodule:
 
 ```sh
 git submodule add https://github.com/esther-poniatowski/ktisma.git vendor/ktisma
+```
+
+Install Hodegos for the interpreter `python3`. Hodegos locates the
+configuration files of ktisma:
+
+```sh
+python3 -m pip install "hodegos @ git+https://github.com/esther-poniatowski/hodegos.git@e61d0d97eaa80cc0cfdd90c3022c1e3916ef1ad9"
 ```
 
 Build a document:
