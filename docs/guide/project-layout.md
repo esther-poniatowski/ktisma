@@ -136,29 +136,29 @@ my-project/
 The layered approach allows setting project-wide defaults at the root and overriding specific
 configuration values for subdirectories (e.g., a different engine for one subtree).
 
-### The Workspace-Root File in a Declared Folder
+### The Workspace-Root File in `config/`
 
-The configuration files of the tools of a repository may sit in one folder, such as `config/tools/`.
-In that case, the workspace-root file of Ktisma may sit in that folder too, provided that the
-declaration `hodegos.yml` at the root lists the folder:
+A repository may keep the configuration files of its tools in the subfolder `config/` of its
+root. The workspace-root file of Ktisma may sit there too, since `config/` is one of the places of
+every folder:
 
 ```text
 my-project/
-  hodegos.yml               (lists config/tools)
-  config/tools/
+  config/
     ktisma.toml             (workspace-root file -- lowest precedence)
   lectures-tex/
     ktisma.toml             (overlay -- higher precedence for files in this subtree)
     week1.tex
 ```
 
-Therefore, the folder `my-project/` is the workspace root, since `config/tools/ktisma.toml` is one
-of its places. The paths written in the file stay relative to `my-project/`, so the file moves
-between the places of the root without an edit. Since every folder has the same places, an
-overlay may also sit in the `.config/` of its folder, or in a folder listed by the `hodegos.yml`
-of its folder. When one folder holds a file at two places, Ktisma stops with an error that names
-both files, as [Configuration Files and Their Places](configuration.md#configuration-files-and-their-places)
-states.
+Therefore, the folder `my-project/` is the workspace root, since `config/ktisma.toml` is one of its
+places. The paths written in the file stay relative to `my-project/`, so the file moves between the
+places of the root without an edit. Since every folder has the same places, an overlay may also sit
+in the `.config/` or in the `config/` of its folder. When one folder holds a file at two places,
+Ktisma stops with an error that names both files, as
+[Configuration Files and Their Places](configuration.md#configuration-files-and-their-places)
+states. The option `--config` names a workspace-root file kept in another folder, such as
+`config/tools/`.
 
 See [Configuration: Precedence](configuration.md#configuration-precedence) and
 [Merge Semantics](configuration.md#merge-semantics) for how layers combine.

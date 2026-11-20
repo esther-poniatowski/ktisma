@@ -16,27 +16,27 @@ Ktisma distinguishes two kinds of file by their folder:
 - **An overlay** holds the configuration of its own folder and of the folders below it. Each folder
   below the workspace root, down to the source directory included, may hold one overlay.
 
-Ktisma reads the file of each folder at one of the places searched by
-[Hodegos](https://github.com/esther-poniatowski/hodegos/blob/main/docs/specification.md) in that folder:
+[Hodegos](https://github.com/esther-poniatowski/hodegos/blob/main/docs/specification.md) searches each folder for its file at three
+[places](https://github.com/esther-poniatowski/hodegos/blob/main/docs/specification.md#the-places-of-a-folder):
 
 1. `ktisma.toml` in the folder;
 2. `ktisma.toml` in the subfolder `.config/` of the folder;
-3. `ktisma.toml` in each folder listed by the declaration of the folder, `hodegos.yml` or
-   `.config/hodegos.yml`.
+3. `ktisma.toml` in the subfolder `config/` of the folder.
 
-When two places of one folder hold a file, Ktisma stops with an error that names both files. The
-declaration `hodegos.yml` of a folder lists folders below that folder only. Therefore, an overlay
-folder lists its own folders in its own `hodegos.yml`. For example, a repository may keep the
-configuration files of its tools in `config/tools/`. That repository holds the following
-`hodegos.yml` at its root:
+Ktisma does not read the table `[tool.ktisma]` of `pyproject.toml`. When two places of one folder
+hold a file, Ktisma stops with an error that names both files. Hodegos looks for
+`config/ktisma.toml` only, so the files of other tools in `config/`, such as `config/black.toml`,
+raise no error.
 
-```yaml
-_schema: hodegos:configuration@1
-folders:
-  - config/tools
+Ktisma reads no `ktisma.toml` from any other folder, such as `config/tools/`. The option `--config`
+names a workspace-root file kept in another folder, relative to the current folder:
+
+```sh
+ktisma build lectures-tex/week1.tex --config config/tools/ktisma.toml
 ```
 
-Ktisma reads `config/tools/ktisma.toml` only when that `hodegos.yml` lists `config/tools`.
+The option `--config` names the workspace-root file only. Therefore, each overlay must sit at one
+of the places of its own folder.
 
 The state folder holds the TeX snapshots of `ktisma tex install`, the pointer `tex-current` that
 selects one of them, and the lock of a running installation. It lies in `.ktisma/` below the
@@ -357,15 +357,15 @@ folder: the file at the workspace root holds the configuration of the whole work
 file below it overlays the configuration of its own folder (see
 [Configuration Precedence](#configuration-precedence)). Therefore, a nested `ktisma.toml` never
 starts a workspace of its own when the root is resolved from the source path. The workspace root
-is never inferred from `.git` or other unrelated files. The search of step 3 reads the file
-`hodegos.yml` of each folder that the search meets. Therefore, an invalid `hodegos.yml` in one of
-those folders stops the command with an error.
+is never inferred from `.git` or other unrelated files.
 
 The search of step 3 starts at the folder of the source when the command names one (`build`,
 `inspect`, `clean`, `variants`, and the source folder of `batch`), and at the current folder
 otherwise (`doctor`, `init`, `tex`). A build of a source given by its full path thus finds the
 workspace of that source from any current folder, as pytest determines its root from the paths
-given on its command line.
+given on its command line. The folder of the source changes step 3 only. Ktisma reads a relative
+`--root` and a relative `KTISMA_ROOT` from the current folder. When the search from the source
+finds no `ktisma.toml`, step 4 makes the current folder the root.
 
 The option `--config` (`-c`) names the workspace-root file, relative to the current folder. With
 that option, Ktisma reads the named file instead of the places of the root, and stops with an error

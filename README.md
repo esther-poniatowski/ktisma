@@ -77,7 +77,7 @@ Install Hodegos for the interpreter `python3`. Hodegos locates the
 configuration files of ktisma:
 
 ```sh
-python3 -m pip install "hodegos @ git+https://github.com/esther-poniatowski/hodegos.git@e61d0d97eaa80cc0cfdd90c3022c1e3916ef1ad9"
+python3 -m pip install "hodegos @ git+https://github.com/esther-poniatowski/hodegos.git@a151a28010058fda08a652aea345422037ff0d3c"
 ```
 
 Build a document:
